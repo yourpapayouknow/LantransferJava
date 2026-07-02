@@ -28,7 +28,6 @@
 
 .icon-action {
     -fx-background-color: transparent;
-    -fx-text-fill: rgba(255, 255, 255, 0.78);
     -fx-font-size: 13;
     -fx-font-weight: 700;
     -fx-min-width: 30;
@@ -37,6 +36,10 @@
     -fx-min-height: 24;
     -fx-pref-height: 24;
     -fx-max-height: 24;
+}
+
+.window-button-icon {
+    -fx-icon-color: -color-accent;
 }
 
 .auth-body {
