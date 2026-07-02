@@ -274,9 +274,6 @@
 }
 
 .user-card {
-    -fx-pref-width: 202;
-    -fx-min-width: 202;
-    -fx-max-width: 202;
     -fx-min-height: 72;
 }
 

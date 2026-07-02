@@ -710,22 +710,12 @@ public class FxFileTransferApp extends Application {
 
     private VBox recentTargetsSection(List<UserDevice> devices) {
         VBox section = glassSection("近期传输对象");
-        HBox cards = new HBox(8);
-        cards.setMinWidth(0);
-        devices.forEach(device -> cards.getChildren().add(userCard(device, false)));
-        section.getChildren().add(horizontalScroll(cards));
+        GridPane cards = cardGrid(5, 8, 8);
+        for (int i = 0; i < devices.size(); i++) {
+            addCard(cards, userCard(devices.get(i), false), i, 5);
+        }
+        section.getChildren().add(cards);
         return section;
-    }
-
-    private ScrollPane horizontalScroll(Node content) {
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.getStyleClass().add("horizontal-scroll");
-        scrollPane.setFitToHeight(true);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setMinHeight(112);
-        scrollPane.setMinWidth(0);
-        return scrollPane;
     }
 
     private VBox transferListSection(List<TransferTask> tasks) {
