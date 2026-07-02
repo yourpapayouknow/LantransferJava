@@ -229,7 +229,7 @@ public class FxFileTransferApp extends Application {
 
     private void showUserListPage() {
         backend.loadAllDevices().thenAccept(devices -> Platform.runLater(() -> {
-            VBox page = new VBox(12);
+            VBox page = new VBox(8);
             page.getStyleClass().add("page-content");
 
             TextField search = searchField("搜索用户昵称或设备 ID");
@@ -240,7 +240,7 @@ public class FxFileTransferApp extends Application {
             scanLine.setAlignment(Pos.CENTER_LEFT);
             StackPane scanHeader = new StackPane(scanLine);
             scanHeader.setAlignment(Pos.CENTER_LEFT);
-            scanHeader.setMinHeight(58);
+            scanHeader.setMinHeight(46);
             scanHeader.setMaxWidth(Double.MAX_VALUE);
 
             Button listView = userListGridView ? secondaryButton("列表形") : outlineButton("列表形");
