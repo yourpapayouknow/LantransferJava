@@ -1,0 +1,126 @@
+.root {
+    -fx-font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    -fx-background-color: #f5f7fb;
+}
+
+.center-page {
+    -fx-padding: 42;
+    -fx-background-color: #f5f7fb;
+}
+
+.app-shell {
+    -fx-background-color: #f5f7fb;
+}
+
+.topbar {
+    -fx-padding: 18 24;
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #e5e9f2 transparent;
+}
+
+.sidebar {
+    -fx-padding: 18;
+    -fx-pref-width: 170;
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent #e5e9f2 transparent transparent;
+}
+
+.page-scroll {
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.page-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.card {
+    -fx-padding: 18;
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #e5e9f2;
+    -fx-border-radius: 8;
+}
+
+.form {
+    -fx-padding: 22;
+    -fx-max-width: 420;
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #e5e9f2;
+    -fx-border-radius: 8;
+}
+
+.row {
+    -fx-padding: 8 0;
+}
+
+.title {
+    -fx-font-size: 22;
+    -fx-font-weight: 700;
+    -fx-text-fill: #172033;
+}
+
+.label {
+    -fx-font-size: 14;
+    -fx-font-weight: 600;
+    -fx-text-fill: #263248;
+}
+
+.muted {
+    -fx-font-size: 13;
+    -fx-text-fill: #697386;
+}
+
+.button {
+    -fx-cursor: hand;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 9 14;
+}
+
+.primary-button {
+    -fx-background-color: #246bfe;
+    -fx-text-fill: white;
+}
+
+.secondary-button,
+.nav-button {
+    -fx-background-color: #eef2f7;
+    -fx-text-fill: #263248;
+}
+
+.nav-button {
+    -fx-alignment: center-left;
+}
+
+.text-field,
+.password-field {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #d8deea;
+    -fx-padding: 9 10;
+}
+
+.device-online,
+.device-offline {
+    -fx-padding: 14;
+    -fx-pref-width: 220;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.device-online {
+    -fx-background-color: #edf8f1;
+    -fx-border-color: #bfe8cf;
+}
+
+.device-offline {
+    -fx-background-color: #f6f7f9;
+    -fx-border-color: #d8deea;
+}
+
+.toast {
+    -fx-padding: 18;
+    -fx-background-color: white;
+}
