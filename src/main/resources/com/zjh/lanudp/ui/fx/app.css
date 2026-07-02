@@ -39,7 +39,6 @@
     -fx-max-height: 24;
 }
 
-.startup-body,
 .auth-body {
     -fx-padding: 20;
 }
@@ -375,36 +374,9 @@
     -fx-border-color: rgba(255, 255, 255, 0.12);
 }
 
-.accent-progress {
-    -fx-accent: -color-accent;
-}
-
 .small-spinner {
     -fx-accent: -color-accent;
     -fx-pref-width: 42;
-}
-
-.step-index {
-    -fx-alignment: center;
-    -fx-min-width: 28;
-    -fx-min-height: 28;
-    -fx-background-radius: 50%;
-    -fx-font-weight: 800;
-}
-
-.step-done {
-    -fx-text-fill: #2ecc40;
-    -fx-background-color: rgba(46, 204, 64, 0.10);
-}
-
-.step-active {
-    -fx-text-fill: -color-accent;
-    -fx-background-color: rgba(255, 133, 0, 0.12);
-}
-
-.step-waiting {
-    -fx-text-fill: rgba(255, 255, 255, 0.62);
-    -fx-background-color: rgba(255, 255, 255, 0.06);
 }
 
 .notice-pill {

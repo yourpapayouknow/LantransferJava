@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 interface BackendFacade {
-    CompletableFuture<StartupState> startApplication();
-
     CompletableFuture<AuthResult> login(LoginRequest request);
 
     CompletableFuture<AuthResult> register(RegisterRequest request);
@@ -27,12 +25,6 @@ interface BackendFacade {
     void updateSettings(SystemSettings settings);
 }
 
-enum StepState {
-    DONE,
-    ACTIVE,
-    WAITING
-}
-
 enum UserStatus {
     DEFAULT,
     ONLINE,
@@ -44,12 +36,6 @@ enum UserStatus {
 enum DeviceStatus {
     ONLINE,
     OFFLINE
-}
-
-record StartupStep(int index, String title, String detail, StepState state) {
-}
-
-record StartupState(int progressPercent, List<StartupStep> steps) {
 }
 
 record LoginRequest(String account, String password, boolean rememberMe) {

@@ -100,33 +100,7 @@ public class FxFileTransferApp extends Application {
         stage = primaryStage;
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle(APP_TITLE);
-        showStartup();
-    }
-
-    private void showStartup() {
-        backend.startApplication().thenAccept(state -> Platform.runLater(() -> {
-            VBox body = new VBox(28);
-            body.getStyleClass().add("startup-body");
-            body.setAlignment(Pos.CENTER);
-
-            HBox logoLine = new HBox(22, createPlaneLogo(76), new VBox(
-                    titleLabel("极速互传", 34),
-                    mutedLabel("高速 · 安全 · 简单的文件传输工具", 19)
-            ));
-            logoLine.setAlignment(Pos.CENTER);
-
-            VBox initCard = glassSection("启动与初始化");
-            ProgressBar progressBar = new ProgressBar(state.progressPercent() / 100.0);
-            progressBar.getStyleClass().add("accent-progress");
-            progressBar.setMaxWidth(Double.MAX_VALUE);
-            initCard.getChildren().add(progressBar);
-            state.steps().forEach(step -> initCard.getChildren().add(startupStepRow(step)));
-
-            Button enter = primaryButton("进入登录");
-            enter.setOnAction(event -> showAuth(false));
-            body.getChildren().addAll(logoLine, initCard, fixedWidth(enter, 220));
-            setWindow(windowShell(body), STARTUP_WIDTH, STARTUP_HEIGHT, STARTUP_WIDTH, STARTUP_HEIGHT);
-        }));
+        showAuth(false);
     }
 
     private void showAuth(boolean registerMode) {
@@ -1137,17 +1111,6 @@ public class FxFileTransferApp extends Application {
         spinner.getStyleClass().add("small-spinner");
         spinner.setProgress(-1);
         return spinner;
-    }
-
-    private HBox startupStepRow(StartupStep step) {
-        HBox row = new HBox(12);
-        row.setAlignment(Pos.CENTER_LEFT);
-        Label index = new Label(step.state() == StepState.DONE ? "✓" : String.valueOf(step.index()));
-        index.getStyleClass().add("step-index");
-        index.getStyleClass().add("step-" + step.state().name().toLowerCase());
-        VBox text = new VBox(2, titleLabel(step.title(), 16), mutedLabel(step.detail(), 13));
-        row.getChildren().addAll(index, text, spacer(), mutedLabel(step.state().name(), 13));
-        return row;
     }
 
     private HBox statusLine(DeviceStatus status, String suffix) {

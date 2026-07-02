@@ -33,16 +33,6 @@ final class MockBackendFacade implements BackendFacade {
     );
 
     @Override
-    public CompletableFuture<StartupState> startApplication() {
-        return CompletableFuture.completedFuture(new StartupState(45, List.of(
-                new StartupStep(1, "检查运行环境", "系统环境检查通过", StepState.DONE),
-                new StartupStep(2, "加载配置", "正在加载应用配置...", StepState.ACTIVE),
-                new StartupStep(3, "初始化网络", "准备网络连接与通信模块", StepState.WAITING),
-                new StartupStep(4, "连接服务", "连接传输服务与同步节点", StepState.WAITING)
-        )));
-    }
-
-    @Override
     public CompletableFuture<AuthResult> login(LoginRequest request) {
         boolean matched = "admin".equals(request.account()) && "admin".equals(request.password());
         return CompletableFuture.completedFuture(matched
