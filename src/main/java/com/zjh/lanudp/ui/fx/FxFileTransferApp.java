@@ -229,7 +229,7 @@ public class FxFileTransferApp extends Application {
 
     private void showUserListPage() {
         backend.loadAllDevices().thenAccept(devices -> Platform.runLater(() -> {
-            VBox page = new VBox(20);
+            VBox page = new VBox(12);
             page.getStyleClass().add("page-content");
 
             TextField search = searchField("搜索用户昵称或设备 ID");
@@ -238,6 +238,10 @@ public class FxFileTransferApp extends Application {
             Label lastScan = mutedLabel("上次扫描： 刚刚", 14);
             HBox scanLine = new HBox(12, search, scan, lastScan);
             scanLine.setAlignment(Pos.CENTER_LEFT);
+            StackPane scanHeader = new StackPane(scanLine);
+            scanHeader.setAlignment(Pos.CENTER_LEFT);
+            scanHeader.setMinHeight(58);
+            scanHeader.setMaxWidth(Double.MAX_VALUE);
 
             Button listView = userListGridView ? secondaryButton("列表形") : outlineButton("列表形");
             listView.setOnAction(event -> {
@@ -255,12 +259,12 @@ public class FxFileTransferApp extends Application {
             totalLine.setAlignment(Pos.CENTER_LEFT);
 
             if (userListGridView) {
-                page.getChildren().addAll(scanLine, separator(), totalLine, userGrid(devices));
+                page.getChildren().addAll(scanHeader, separator(), totalLine, userGrid(devices));
             } else {
                 VBox list = new VBox(10);
                 list.setMaxWidth(Double.MAX_VALUE);
                 devices.forEach(device -> list.getChildren().add(userCard(device, true)));
-                page.getChildren().addAll(scanLine, separator(), totalLine, list);
+                page.getChildren().addAll(scanHeader, separator(), totalLine, list);
             }
             setWindow(mainWindowShell("用户列表", page, true, true), MAIN_WIDTH, MAIN_HEIGHT, MAIN_MIN_WIDTH, MAIN_MIN_HEIGHT);
         }));
