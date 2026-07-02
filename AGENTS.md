@@ -13,6 +13,10 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - 提交只包含本次改动相关文件；不要把无关文档、IDE 配置或其他线程留下的改动顺手带入提交。
 - 删除代码前先确认当前 JavaFX 前端核心文件已经提交备份。
 
+## Local Tooling
+
+- Java/Maven 等本机通用开发工具优先安装到 `D:\Programs\Java_UniversalLanguage\`，不要安装到 `C:\Users\...`，除非用户明确要求。
+
 ## Frontend Scope
 
 - 当前前端只保留 JavaFX：`src/main/java/com/zjh/lanudp/ui/fx` 与 `src/main/resources/com/zjh/lanudp/ui/fx/app.css`。
