@@ -471,7 +471,7 @@ public class FxFileTransferApp extends Application {
         title.getStyleClass().add("window-title");
         Button minimize = windowButton("fas-window-minimize", "最小化");
         minimize.setOnAction(event -> stage.setIconified(true));
-        Button close = windowButton("fas-times", "关闭");
+        Button close = windowButton("fas-window-close", "关闭");
         close.setOnAction(event -> stage.close());
         bar.getChildren().addAll(title, spacer(), minimize, close);
         enableDrag(bar);
