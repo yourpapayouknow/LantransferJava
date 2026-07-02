@@ -54,11 +54,16 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class FxFileTransferApp extends Application {
@@ -197,7 +202,6 @@ public class FxFileTransferApp extends Application {
     }
 
     private void showFileTransferPage() {
-        ensurePendingFiles();
         backend.loadRecentDevices().thenAccept(devices -> Platform.runLater(() -> {
             if (!recentTargetsLoaded) {
                 recentTargets.addAll(devices.subList(0, Math.min(5, devices.size())));
@@ -205,7 +209,7 @@ public class FxFileTransferApp extends Application {
             }
             VBox page = new VBox(8);
             page.getStyleClass().add("page-content");
-            page.getChildren().addAll(uploadStrip(), recentTargetsSection(recentTargets), pendingFilesSection(), transferListSection(sampleTransferTasks()));
+            page.getChildren().addAll(uploadStrip(), recentTargetsSection(recentTargets), transferListSection(sampleTransferTasks()));
             setWindow(mainWindowShell("文件传输", page, true, true), MAIN_WIDTH, MAIN_HEIGHT, MAIN_MIN_WIDTH, MAIN_MIN_HEIGHT);
         }));
     }
@@ -523,7 +527,17 @@ public class FxFileTransferApp extends Application {
         upload.setOnAction(event -> chooseFiles());
         Button chooseFolder = primaryButton("选择文件夹");
         chooseFolder.setOnAction(event -> chooseFolder());
-        row.getChildren().addAll(upload, chooseFolder, mutedLabel("支持拖拽文件或文件夹到此处上传", 14), spacer());
+        row.getChildren().addAll(upload, chooseFolder, mutedLabel(uploadHint(), 14), spacer());
+        if (!pendingFiles.isEmpty()) {
+            Button start = outlineButton("开始发送");
+            start.setOnAction(event -> startTransfer());
+            Button clear = ghostTextButton("全部清除");
+            clear.setOnAction(event -> {
+                pendingFiles.clear();
+                showFileTransferPage();
+            });
+            row.getChildren().addAll(start, clear);
+        }
         strip.getChildren().add(row);
         strip.setOnDragOver(event -> {
             if (event.getGestureSource() != strip && event.getDragboard().hasFiles()) {
@@ -531,7 +545,18 @@ public class FxFileTransferApp extends Application {
             }
             event.consume();
         });
+        strip.setOnDragEntered(event -> {
+            if (event.getDragboard().hasFiles()) {
+                setUploadDragActive(strip, true);
+            }
+            event.consume();
+        });
+        strip.setOnDragExited(event -> {
+            setUploadDragActive(strip, false);
+            event.consume();
+        });
         strip.setOnDragDropped(event -> {
+            setUploadDragActive(strip, false);
             Dragboard dragboard = event.getDragboard();
             if (dragboard.hasFiles()) {
                 addFiles(dragboard.getFiles());
@@ -539,7 +564,119 @@ public class FxFileTransferApp extends Application {
             }
             event.consume();
         });
+        if (!pendingFiles.isEmpty()) {
+            VBox cards = new VBox(8);
+            cards.getStyleClass().add("pending-file-list");
+            pendingFiles.forEach(file -> cards.getChildren().add(pendingFileCard(file)));
+            strip.getChildren().add(cards);
+        }
         return strip;
+    }
+
+    private String uploadHint() {
+        return pendingFiles.isEmpty() ? "支持拖拽文件或文件夹到此处上传" : "已选择 " + pendingFiles.size() + " 个待传输项";
+    }
+
+    private void setUploadDragActive(VBox strip, boolean active) {
+        if (active) {
+            if (!strip.getStyleClass().contains("upload-strip-dragover")) {
+                strip.getStyleClass().add("upload-strip-dragover");
+            }
+        } else {
+            strip.getStyleClass().remove("upload-strip-dragover");
+        }
+    }
+
+    private Node pendingFileCard(TransferFile file) {
+        HBox card = new HBox(12);
+        card.getStyleClass().addAll("user-card-large", "pending-file-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        VBox text = new VBox(4, titleLabel(file.fileName(), 15), mutedLabel(file.size(), 13));
+        text.setMinWidth(0);
+        HBox.setHgrow(text, Priority.ALWAYS);
+
+        Button remove = compactButton("删除");
+        remove.setOnAction(event -> {
+            pendingFiles.remove(file);
+            showFileTransferPage();
+        });
+        card.getChildren().addAll(fileIcon(file.path()), text, remove);
+        return card;
+    }
+
+    private Node fileIcon(Path path) {
+        FontIcon icon = new FontIcon(iconFor(path));
+        icon.getStyleClass().add("file-card-font-icon");
+        icon.setIconSize(24);
+        StackPane box = new StackPane(icon);
+        box.getStyleClass().add("file-icon-box");
+        box.setMinSize(44, 44);
+        box.setMaxSize(44, 44);
+        return box;
+    }
+
+    private String iconFor(Path path) {
+        if (path != null && Files.isDirectory(path)) {
+            return folderIcon(path);
+        }
+        String ext = extension(path == null ? "" : path.getFileName().toString());
+        return switch (ext) {
+            case "pdf" -> "fltral-document-pdf-24";
+            case "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" -> "fltral-image-24";
+            case "mp4", "mov", "mkv", "avi", "webm" -> "fltrmz-video-24";
+            case "mp3", "wav", "flac", "aac", "ogg" -> "fltrmz-music-note-24";
+            case "zip", "rar", "7z", "tar", "gz" -> "fltral-archive-24";
+            case "doc", "docx", "rtf", "txt", "md" -> "fltrmz-text-description-24";
+            case "xls", "xlsx", "csv" -> "fltrmz-table-24";
+            case "ppt", "pptx", "key" -> "fltrmz-slide-text-24";
+            case "java", "kt", "js", "ts", "jsx", "tsx", "py", "c", "cpp", "cs", "go", "rs", "html", "css", "xml", "json", "yml", "yaml" -> "fltral-code-24";
+            case "prproj", "aep", "aepx" -> "fltrmz-video-clip-24";
+            case "psd", "ai", "xd", "indd" -> "fltrmz-paint-brush-24";
+            default -> "fltral-document-24";
+        };
+    }
+
+    private String folderIcon(Path folder) {
+        // ponytail: direct children only; recurse later if folder icon accuracy matters more than drag speed.
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(folder)) {
+            for (Path child : children) {
+                String name = child.getFileName().toString().toLowerCase(Locale.ROOT);
+                if (isAdobeVideoProject(name)) {
+                    return "fltrmz-video-clip-24";
+                }
+                if (isAdobeDesignProject(name)) {
+                    return "fltrmz-paint-brush-24";
+                }
+                if (isIdeProjectMarker(name)) {
+                    return "fltral-app-folder-24";
+                }
+            }
+        } catch (Exception ignored) {
+            return "fltral-folder-24";
+        }
+        return "fltral-folder-24";
+    }
+
+    private boolean isAdobeVideoProject(String name) {
+        return name.endsWith(".prproj") || name.endsWith(".aep") || name.endsWith(".aepx");
+    }
+
+    private boolean isAdobeDesignProject(String name) {
+        return name.endsWith(".psd") || name.endsWith(".ai") || name.endsWith(".xd") || name.endsWith(".indd");
+    }
+
+    private boolean isIdeProjectMarker(String name) {
+        return name.equals(".idea") || name.equals(".vscode") || name.equals("pom.xml") || name.equals("build.gradle")
+                || name.equals("settings.gradle") || name.equals("package.json") || name.equals("pyproject.toml")
+                || name.equals("cargo.toml") || name.equals("go.mod") || name.endsWith(".sln")
+                || name.endsWith(".csproj") || name.endsWith(".vcxproj") || name.endsWith(".xcodeproj");
+    }
+
+    private String extension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
     private VBox recentTargetsSection(List<UserDevice> devices) {
@@ -560,26 +697,6 @@ public class FxFileTransferApp extends Application {
         scrollPane.setMinHeight(112);
         scrollPane.setMinWidth(0);
         return scrollPane;
-    }
-
-    private VBox pendingFilesSection() {
-        VBox section = glassSection("");
-        HBox header = sectionHeader("待传输列表", String.valueOf(pendingFiles.size()));
-        Button start = outlineButton("开始发送");
-        start.setOnAction(event -> startTransfer());
-        Button clear = ghostTextButton("全部清除");
-        clear.setOnAction(event -> {
-            pendingFiles.clear();
-            showFileTransferPage();
-        });
-        header.getChildren().addAll(spacer(), start, clear);
-        section.getChildren().add(header);
-        GridPane table = tableGrid("文件名", "大小", "目标对象", "状态", "操作");
-        for (int i = 0; i < pendingFiles.size(); i++) {
-            addPendingRow(table, i + 1, pendingFiles.get(i), sampleDeviceFor(i));
-        }
-        section.getChildren().add(table);
-        return section;
     }
 
     private VBox transferListSection(List<TransferTask> tasks) {
@@ -834,17 +951,11 @@ public class FxFileTransferApp extends Application {
         );
     }
 
-    private void ensurePendingFiles() {
-        if (!pendingFiles.isEmpty()) {
+    private void startTransfer() {
+        if (pendingFiles.isEmpty()) {
+            toast("请先选择要上传的文件或文件夹");
             return;
         }
-        pendingFiles.addAll(new TransferFile("项目需求文档.docx", "2.45 MB", null),
-                new TransferFile("销售数据报表.xlsx", "18.67 MB", null),
-                new TransferFile("产品设计源文件.zip", "256.12 MB", null));
-    }
-
-    private void startTransfer() {
-        ensurePendingFiles();
         List<UserDevice> targets = selectedTargets.isEmpty() ? new ArrayList<>(recentTargets) : new ArrayList<>(selectedTargets);
         backend.startTransfer(new ArrayList<>(pendingFiles), targets).thenAccept(summary -> Platform.runLater(() -> {
             currentSummary = summary;
@@ -866,7 +977,7 @@ public class FxFileTransferApp extends Application {
         chooser.setTitle("选择要上传的文件夹");
         File folder = chooser.showDialog(stage);
         if (folder != null) {
-            pendingFiles.add(new TransferFile(folder.getName(), "文件夹", folder.toPath()));
+            pendingFiles.add(new TransferFile(folder.getName(), readableSize(folder), folder.toPath()));
             showFileTransferPage();
         }
     }
@@ -879,6 +990,9 @@ public class FxFileTransferApp extends Application {
     }
 
     private String readableSize(File file) {
+        if (file.isDirectory()) {
+            return "文件夹";
+        }
         long bytes = file.length();
         if (bytes >= 1024 * 1024) {
             return String.format("%.2f MB", bytes / 1024.0 / 1024.0);
@@ -895,19 +1009,6 @@ public class FxFileTransferApp extends Application {
             return new UserDevice("empty", "未选择", "未选择目标", DeviceStatus.OFFLINE, "-", "?", "#5f656b", false);
         }
         return devices.get(Math.floorMod(index, devices.size()));
-    }
-
-    private void addPendingRow(GridPane table, int row, TransferFile file, UserDevice target) {
-        table.add(fileNameCell(file.fileName()), 0, row);
-        table.add(mutedLabel(file.size(), 14), 1, row);
-        table.add(mutedLabel(target.nickname() + " (" + target.deviceName() + ")", 14), 2, row);
-        table.add(statusBadge("等待发送"), 3, row);
-        Button remove = compactButton("移除");
-        remove.setOnAction(event -> {
-            pendingFiles.remove(file);
-            showFileTransferPage();
-        });
-        table.add(remove, 4, row);
     }
 
     private void addTransferRow(GridPane table, int row, TransferTask task) {

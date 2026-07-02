@@ -250,6 +250,30 @@
     -fx-padding: 8 12 8 12;
 }
 
+.upload-strip-dragover {
+    -fx-border-color: -color-accent;
+    -fx-border-width: 1.5;
+}
+
+.pending-file-list {
+    -fx-padding: 8 0 0 0;
+}
+
+.pending-file-card {
+    -fx-min-height: 64;
+}
+
+.file-icon-box {
+    -fx-border-color: -color-accent;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-alignment: center;
+}
+
+.file-card-font-icon {
+    -fx-icon-color: -color-accent;
+}
+
 .user-card,
 .user-card-large,
 .stat-card,
