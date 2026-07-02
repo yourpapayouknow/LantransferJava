@@ -128,6 +128,11 @@
     -fx-border-color: -color-accent;
 }
 
+.primary-button .button-font-icon,
+.outline-button .button-font-icon {
+    -fx-icon-color: white;
+}
+
 .secondary-button,
 .ghost-button,
 .compact-button {
@@ -141,6 +146,19 @@
 .compact-button:hover {
     -fx-background-color: rgba(255, 255, 255, 0.09);
     -fx-border-color: rgba(255, 255, 255, 0.20);
+}
+
+.secondary-button .button-font-icon,
+.ghost-button .button-font-icon,
+.compact-button .button-font-icon {
+    -fx-icon-color: rgba(255, 255, 255, 0.80);
+}
+
+.icon-toggle-button {
+    -fx-min-width: 38;
+    -fx-pref-width: 38;
+    -fx-max-width: 38;
+    -fx-padding: 0;
 }
 
 .ghost-button {

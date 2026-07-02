@@ -243,13 +243,13 @@ public class FxFileTransferApp extends Application {
             scanHeader.setMinHeight(46);
             scanHeader.setMaxWidth(Double.MAX_VALUE);
 
-            Button listView = userListGridView ? secondaryButton("列表形") : outlineButton("列表形");
+            Button listView = iconToggleButton("mdi2v-view-list", "列表形布局", !userListGridView);
             listView.setOnAction(event -> {
                 userListGridView = false;
                 userListPage = 0;
                 showUserListPage();
             });
-            Button gridView = userListGridView ? outlineButton("矩阵形") : secondaryButton("矩阵形");
+            Button gridView = iconToggleButton("mdi2v-view-grid", "矩阵形布局", userListGridView);
             gridView.setOnAction(event -> {
                 userListGridView = true;
                 userListPage = 0;
@@ -1148,6 +1148,17 @@ public class FxFileTransferApp extends Application {
 
     private Button compactButton(String text) {
         return textButton(text, "compact-button");
+    }
+
+    private Button iconToggleButton(String iconLiteral, String tooltip, boolean active) {
+        FontIcon icon = new FontIcon(iconLiteral);
+        icon.getStyleClass().add("button-font-icon");
+        icon.setIconSize(18);
+        Button button = textButton("", active ? "outline-button" : "secondary-button");
+        button.getStyleClass().add("icon-toggle-button");
+        button.setGraphic(icon);
+        button.setTooltip(new Tooltip(tooltip));
+        return button;
     }
 
     private Button textButton(String text, String styleClass) {
