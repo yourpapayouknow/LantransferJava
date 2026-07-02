@@ -113,57 +113,42 @@
     -fx-opacity: 0.84;
 }
 
-.primary-button {
+.primary-button,
+.outline-button {
+    -fx-background-color: transparent;
     -fx-border-color: -color-accent;
     -fx-text-fill: white;
 }
 
-.secondary-button {
-    -fx-background-color: rgba(255, 255, 255, 0.055);
-    -fx-border-color: rgba(255, 255, 255, 0.14);
-    -fx-text-fill: rgba(255, 255, 255, 0.80);
-}
-
-.secondary-button:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.09);
-    -fx-border-color: rgba(255, 255, 255, 0.20);
-}
-
-.outline-button {
-    -fx-background-color: rgba(255, 133, 0, 0.07);
-    -fx-border-color: rgba(255, 133, 0, 0.72);
-    -fx-text-fill: -color-accent;
-}
-
+.primary-button:hover,
 .outline-button:hover {
-    -fx-background-color: rgba(255, 133, 0, 0.13);
     -fx-border-color: -color-accent;
 }
 
-.ghost-button {
-    -fx-background-color: transparent;
-    -fx-border-color: transparent;
-    -fx-text-fill: -color-accent;
-    -fx-min-height: 28;
-    -fx-padding: 0 8 0 8;
-}
-
-.ghost-button:hover {
-    -fx-background-color: rgba(255, 133, 0, 0.10);
-}
-
+.secondary-button,
+.ghost-button,
 .compact-button {
     -fx-background-color: rgba(255, 255, 255, 0.055);
     -fx-border-color: rgba(255, 255, 255, 0.14);
     -fx-text-fill: rgba(255, 255, 255, 0.80);
-    -fx-font-size: 12;
-    -fx-min-height: 24;
-    -fx-padding: 0 8 0 8;
 }
 
+.secondary-button:hover,
+.ghost-button:hover,
 .compact-button:hover {
     -fx-background-color: rgba(255, 255, 255, 0.09);
     -fx-border-color: rgba(255, 255, 255, 0.20);
+}
+
+.ghost-button {
+    -fx-min-height: 28;
+    -fx-padding: 0 8 0 8;
+}
+
+.compact-button {
+    -fx-font-size: 12;
+    -fx-min-height: 24;
+    -fx-padding: 0 8 0 8;
 }
 
 .dark-check {
