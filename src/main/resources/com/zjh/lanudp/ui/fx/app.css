@@ -372,6 +372,10 @@
 .soft-separator .line,
 .soft-line {
     -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1 0 0 0;
+    -fx-min-height: 1;
+    -fx-pref-height: 1;
+    -fx-max-height: 1;
 }
 
 .small-spinner {
