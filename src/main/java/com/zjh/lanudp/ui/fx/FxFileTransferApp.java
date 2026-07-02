@@ -273,21 +273,9 @@ public class FxFileTransferApp extends Application {
         int from = userListPage * pageSize;
         int to = Math.min(devices.size(), from + pageSize);
 
-        GridPane grid = new GridPane();
-        grid.setMinWidth(0);
-        grid.setMaxWidth(Double.MAX_VALUE);
-        grid.setHgap(14);
-        grid.setVgap(12);
-        for (int column = 0; column < 3; column++) {
-            ColumnConstraints constraints = new ColumnConstraints();
-            constraints.setPercentWidth(100.0 / 3);
-            constraints.setHgrow(Priority.ALWAYS);
-            grid.getColumnConstraints().add(constraints);
-        }
+        GridPane grid = cardGrid(3, 14, 12);
         for (int i = from; i < to; i++) {
-            Node card = userCard(devices.get(i), true);
-            GridPane.setHgrow(card, Priority.ALWAYS);
-            grid.add(card, (i - from) % 3, (i - from) / 3);
+            addCard(grid, userCard(devices.get(i), true), i - from, 3);
         }
 
         Button previous = secondaryButton("上一页");
@@ -305,6 +293,27 @@ public class FxFileTransferApp extends Application {
         HBox pages = new HBox(12, previous, mutedLabel((userListPage + 1) + " / " + (maxPage + 1), 14), next);
         pages.setAlignment(Pos.CENTER);
         return new VBox(18, grid, pages);
+    }
+
+    private GridPane cardGrid(int columns, double hgap, double vgap) {
+        GridPane grid = new GridPane();
+        grid.setMinWidth(0);
+        grid.setMaxWidth(Double.MAX_VALUE);
+        grid.setHgap(hgap);
+        grid.setVgap(vgap);
+        for (int column = 0; column < columns; column++) {
+            ColumnConstraints constraints = new ColumnConstraints();
+            constraints.setPercentWidth(100.0 / columns);
+            constraints.setHgrow(Priority.ALWAYS);
+            grid.getColumnConstraints().add(constraints);
+        }
+        return grid;
+    }
+
+    private void addCard(GridPane grid, Node card, int index, int columns) {
+        GridPane.setHgrow(card, Priority.ALWAYS);
+        GridPane.setFillWidth(card, true);
+        grid.add(card, index % columns, index / columns);
     }
 
     private void showScanPage() {
@@ -567,21 +576,10 @@ public class FxFileTransferApp extends Application {
             event.consume();
         });
         if (!pendingFiles.isEmpty()) {
-            GridPane cards = new GridPane();
+            GridPane cards = cardGrid(2, 8, 8);
             cards.getStyleClass().add("pending-file-list");
-            cards.setHgap(8);
-            cards.setVgap(8);
-            for (int column = 0; column < 2; column++) {
-                ColumnConstraints constraints = new ColumnConstraints();
-                constraints.setPercentWidth(50);
-                constraints.setHgrow(Priority.ALWAYS);
-                cards.getColumnConstraints().add(constraints);
-            }
             for (int i = 0; i < pendingFiles.size(); i++) {
-                Node card = pendingFileCard(pendingFiles.get(i));
-                GridPane.setHgrow(card, Priority.ALWAYS);
-                GridPane.setFillWidth(card, true);
-                cards.add(card, i % 2, i / 2);
+                addCard(cards, pendingFileCard(pendingFiles.get(i)), i, 2);
             }
             strip.getChildren().add(cards);
         }
@@ -605,7 +603,7 @@ public class FxFileTransferApp extends Application {
     private Node pendingFileCard(TransferFile file) {
         HBox card = new HBox(12);
         card.getStyleClass().addAll("user-card-large", "pending-file-card");
-        card.setAlignment(Pos.TOP_LEFT);
+        card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label name = titleLabel(file.fileName(), 15);
