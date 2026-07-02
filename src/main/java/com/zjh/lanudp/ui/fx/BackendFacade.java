@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public interface BackendFacade {
+interface BackendFacade {
     CompletableFuture<StartupState> startApplication();
 
     CompletableFuture<AuthResult> login(LoginRequest request);
