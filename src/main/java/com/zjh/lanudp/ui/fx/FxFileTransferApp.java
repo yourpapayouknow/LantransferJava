@@ -60,6 +60,7 @@ import java.io.File;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +71,7 @@ public class FxFileTransferApp extends Application {
     private static final String APP_TITLE = "极速互传 v1.0.0";
     private static final String ACCENT_ORANGE = "#ff8500";
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_MINUTE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final double STARTUP_WIDTH = 860;
     private static final double STARTUP_HEIGHT = 600;
     private static final double AUTH_WIDTH = 780;
@@ -565,9 +567,22 @@ public class FxFileTransferApp extends Application {
             event.consume();
         });
         if (!pendingFiles.isEmpty()) {
-            VBox cards = new VBox(8);
+            GridPane cards = new GridPane();
             cards.getStyleClass().add("pending-file-list");
-            pendingFiles.forEach(file -> cards.getChildren().add(pendingFileCard(file)));
+            cards.setHgap(8);
+            cards.setVgap(8);
+            for (int column = 0; column < 2; column++) {
+                ColumnConstraints constraints = new ColumnConstraints();
+                constraints.setPercentWidth(50);
+                constraints.setHgrow(Priority.ALWAYS);
+                cards.getColumnConstraints().add(constraints);
+            }
+            for (int i = 0; i < pendingFiles.size(); i++) {
+                Node card = pendingFileCard(pendingFiles.get(i));
+                GridPane.setHgrow(card, Priority.ALWAYS);
+                GridPane.setFillWidth(card, true);
+                cards.add(card, i % 2, i / 2);
+            }
             strip.getChildren().add(cards);
         }
         return strip;
@@ -590,14 +605,18 @@ public class FxFileTransferApp extends Application {
     private Node pendingFileCard(TransferFile file) {
         HBox card = new HBox(12);
         card.getStyleClass().addAll("user-card-large", "pending-file-card");
-        card.setAlignment(Pos.CENTER_LEFT);
+        card.setAlignment(Pos.TOP_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
 
-        VBox text = new VBox(4, titleLabel(file.fileName(), 15), mutedLabel(file.size(), 13));
+        Label name = titleLabel(file.fileName(), 15);
+        name.setWrapText(true);
+        name.setMaxWidth(Double.MAX_VALUE);
+        VBox text = new VBox(4, name, mutedLabel(file.size(), 13), mutedLabel(modifiedAt(file.path()), 12));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
 
-        Button remove = compactButton("删除");
+        Button remove = compactButton("-");
+        remove.setTooltip(new Tooltip("从待传输项移除"));
         remove.setOnAction(event -> {
             pendingFiles.remove(file);
             showFileTransferPage();
@@ -615,6 +634,18 @@ public class FxFileTransferApp extends Application {
         box.setMinSize(44, 44);
         box.setMaxSize(44, 44);
         return box;
+    }
+
+    private String modifiedAt(Path path) {
+        if (path == null) {
+            return "修改日期：-";
+        }
+        try {
+            return "修改日期：" + DATE_MINUTE.format(Files.getLastModifiedTime(path).toInstant()
+                    .atZone(ZoneId.systemDefault()).toLocalDateTime());
+        } catch (Exception ignored) {
+            return "修改日期：-";
+        }
     }
 
     private String iconFor(Path path) {
