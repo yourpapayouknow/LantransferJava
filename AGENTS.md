@@ -25,5 +25,5 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
   - `src/main/java/com/iwmei/lanudp/ui/fx/`
   - `src/main/resources/com/iwmei/lanudp/ui/fx/`
   - `src/main/java/com/iwmei/lanudp/app/LanUdpFileDistributorApp.java`（仅启动入口）
-  - `pom.xml`、`run-javafx.ps1`（仅构建/运行 JavaFX 需要时）
+  - `pom.xml`（仅构建/运行 JavaFX 需要时）
 - `src/main/java/com/iwmei/lanudp/backend/` 不是前端目录，本线程不要修改。

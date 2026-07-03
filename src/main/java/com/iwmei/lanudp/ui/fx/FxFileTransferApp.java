@@ -98,10 +98,6 @@ public class FxFileTransferApp extends Application {
     private double dragOffsetX;
     private double dragOffsetY;
 
-    public static void main(String[] args) {
-        launch(args);
-    }
-
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
