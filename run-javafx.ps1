@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Classes = Join-Path $Root "target\classes"
 $Dependencies = Join-Path $Root "target\dependency"
-$MainClass = "com.zjh.lanudp.app.LanUdpFileDistributorApp"
+$MainClass = "com.iwmei.lanudp.app.LanUdpFileDistributorApp"
 $Maven = "mvn.cmd"
 $PinnedMaven = "D:\Programs\Java_UniversalLanguage\apache-maven-3.9.16\bin\mvn.cmd"
 if (Test-Path -LiteralPath $PinnedMaven) {

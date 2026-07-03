@@ -19,11 +19,11 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 
 ## Frontend Scope
 
-- 当前前端只保留 JavaFX：`src/main/java/com/zjh/lanudp/ui/fx` 与 `src/main/resources/com/zjh/lanudp/ui/fx/app.css`。
+- 当前前端只保留 JavaFX：`src/main/java/com/iwmei/lanudp/ui/fx` 与 `src/main/resources/com/iwmei/lanudp/ui/fx/app.css`。
 - 不恢复 Swing 旧前端；除非用户明确要求，`javax.swing` / `java.awt` 前端代码不应重新出现。
 - 本线程后续仅修改这些前端相关路径：
-  - `src/main/java/com/zjh/lanudp/ui/fx/`
-  - `src/main/resources/com/zjh/lanudp/ui/fx/`
-  - `src/main/java/com/zjh/lanudp/app/LanUdpFileDistributorApp.java`（仅启动入口）
+  - `src/main/java/com/iwmei/lanudp/ui/fx/`
+  - `src/main/resources/com/iwmei/lanudp/ui/fx/`
+  - `src/main/java/com/iwmei/lanudp/app/LanUdpFileDistributorApp.java`（仅启动入口）
   - `pom.xml`、`run-javafx.ps1`（仅构建/运行 JavaFX 需要时）
-- `src/main/java/com/zjh/lanudp/backend/` 不是前端目录，本线程不要修改。
+- `src/main/java/com/iwmei/lanudp/backend/` 不是前端目录，本线程不要修改。
