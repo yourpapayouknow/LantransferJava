@@ -1,11 +1,13 @@
-package com.iwmei.lanudp.ui.fx;
+package com.iwmei.lanudp.backend.mock;
 
+import com.iwmei.lanudp.backend.BackendFacade;
+import com.iwmei.lanudp.backend.BackendFacade.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-final class MockBackendFacade implements BackendFacade {
+public final class MockBackendFacade implements BackendFacade {
     private final Profile profile = new Profile("admin", "U-10086", "DESKTOP-8F3K2M1", "在线，已连接",
             LocalDateTime.of(2026, 7, 1, 9, 20),
             LocalDateTime.of(2026, 7, 2, 13, 12),

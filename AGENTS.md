@@ -17,13 +17,21 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 
 - Java/Maven 等本机通用开发工具优先安装到 `D:\Programs\Java_UniversalLanguage\`，不要安装到 `C:\Users\...`，除非用户明确要求。
 
+## Project Layout
+
+- `src/main/java/com/iwmei/lanudp/app/`：应用启动入口，只负责启动 JavaFX。
+- `src/main/java/com/iwmei/lanudp/ui/fx/`：JavaFX 前端界面代码。
+- `src/main/resources/com/iwmei/lanudp/ui/fx/`：JavaFX 前端样式资源。
+- `src/main/java/com/iwmei/lanudp/backend/`：后端接口和真实后端实现。
+- `src/main/java/com/iwmei/lanudp/backend/mock/`：前端联调用假数据实现。
+- `MockBackendFacade` 只给前端联调使用；真实后端写好后替换它。
+
 ## Frontend Scope
 
-- 当前前端只保留 JavaFX：`src/main/java/com/iwmei/lanudp/ui/fx` 与 `src/main/resources/com/iwmei/lanudp/ui/fx/app.css`。
 - 不恢复 Swing 旧前端；除非用户明确要求，`javax.swing` / `java.awt` 前端代码不应重新出现。
 - 本线程后续仅修改这些前端相关路径：
   - `src/main/java/com/iwmei/lanudp/ui/fx/`
   - `src/main/resources/com/iwmei/lanudp/ui/fx/`
   - `src/main/java/com/iwmei/lanudp/app/LanUdpFileDistributorApp.java`（仅启动入口）
   - `pom.xml`（仅构建/运行 JavaFX 需要时）
-- `src/main/java/com/iwmei/lanudp/backend/` 不是前端目录，本线程不要修改。
+- `src/main/java/com/iwmei/lanudp/backend/` 不是前端目录；前端线程只在接口联调需要时改 `BackendFacade` / `backend/mock/MockBackendFacade`。
