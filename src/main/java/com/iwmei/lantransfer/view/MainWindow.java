@@ -1,8 +1,8 @@
-package com.iwmei.lanudp.ui.fx;
+package com.iwmei.lantransfer.view;
 
-import com.iwmei.lanudp.backend.BackendFacade;
-import com.iwmei.lanudp.backend.BackendFacade.*;
-import com.iwmei.lanudp.backend.mock.MockBackendFacade;
+import com.iwmei.lantransfer.controller.AppController;
+import com.iwmei.lantransfer.model.*;
+import com.iwmei.lantransfer.util.FileIcons;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
@@ -60,21 +60,16 @@ import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
-public class FxFileTransferApp extends Application {
+public class MainWindow extends Application {
     private static final String APP_TITLE = "极速互传 v1.0.0";
     private static final String ACCENT_ORANGE = "#ff8500";
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter DATE_MINUTE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final double STARTUP_WIDTH = 860;
     private static final double STARTUP_HEIGHT = 600;
     private static final double AUTH_WIDTH = 780;
@@ -84,7 +79,7 @@ public class FxFileTransferApp extends Application {
     private static final double MAIN_MIN_WIDTH = 1040;
     private static final double MAIN_MIN_HEIGHT = 640;
 
-    private final BackendFacade backend = new MockBackendFacade();
+    private final AppController controller = new AppController();
     private final ObservableList<TransferFile> pendingFiles = FXCollections.observableArrayList();
     private final List<UserDevice> recentTargets = new ArrayList<>();
     private final List<UserDevice> selectedTargets = new ArrayList<>();
@@ -136,7 +131,7 @@ public class FxFileTransferApp extends Application {
 
         Button loginButton = primaryButton("登录");
         loginButton.setMaxWidth(Double.MAX_VALUE);
-        loginButton.setOnAction(event -> backend.login(new LoginRequest(account.getText().trim(), password.getText(), rememberMe.isSelected()))
+        loginButton.setOnAction(event -> controller.login(new LoginRequest(account.getText().trim(), password.getText(), rememberMe.isSelected()))
                 .thenAccept(result -> Platform.runLater(() -> {
                     if (result.success()) {
                         profile = result.profile();
@@ -163,7 +158,7 @@ public class FxFileTransferApp extends Application {
         TextField device = textField("当前设备名称");
         Button submit = primaryButton("提交注册申请");
         submit.setMaxWidth(Double.MAX_VALUE);
-        submit.setOnAction(event -> backend.register(new RegisterRequest(account.getText().trim(), password.getText(), device.getText().trim()))
+        submit.setOnAction(event -> controller.register(new RegisterRequest(account.getText().trim(), password.getText(), device.getText().trim()))
                 .thenAccept(result -> Platform.runLater(() -> {
                     profile = result.profile();
                     showReviewPending();
@@ -203,7 +198,7 @@ public class FxFileTransferApp extends Application {
     }
 
     private void showFileTransferPage() {
-        backend.loadRecentDevices().thenAccept(devices -> Platform.runLater(() -> {
+        controller.loadRecentDevices().thenAccept(devices -> Platform.runLater(() -> {
             if (!recentTargetsLoaded) {
                 recentTargets.addAll(devices.subList(0, Math.min(5, devices.size())));
                 recentTargetsLoaded = true;
@@ -227,7 +222,7 @@ public class FxFileTransferApp extends Application {
     }
 
     private void showUserListPage() {
-        backend.loadAllDevices().thenAccept(devices -> Platform.runLater(() -> {
+        controller.loadAllDevices().thenAccept(devices -> Platform.runLater(() -> {
             VBox page = new VBox(8);
             page.getStyleClass().add("page-content");
 
@@ -320,7 +315,7 @@ public class FxFileTransferApp extends Application {
     }
 
     private void showScanPage() {
-        backend.scanLanDevices().thenAccept(devices -> Platform.runLater(() -> {
+        controller.scanLanDevices().thenAccept(devices -> Platform.runLater(() -> {
             VBox page = new VBox(22);
             page.getStyleClass().add("scan-page");
             page.setAlignment(Pos.CENTER);
@@ -450,7 +445,7 @@ public class FxFileTransferApp extends Application {
         }
         Scene scene = new Scene(root, sceneWidth, sceneHeight);
         scene.setFill(Color.TRANSPARENT);
-        scene.getStylesheets().add(Objects.requireNonNull(FxFileTransferApp.class.getResource("app.css")).toExternalForm());
+        scene.getStylesheets().add(Objects.requireNonNull(MainWindow.class.getResource("/css/app.css")).toExternalForm());
         stage.setScene(scene);
         stage.setMinWidth(minWidth);
         stage.setMinHeight(minHeight);
@@ -612,7 +607,7 @@ public class FxFileTransferApp extends Application {
         Label name = titleLabel(file.fileName(), 15);
         name.setWrapText(true);
         name.setMaxWidth(Double.MAX_VALUE);
-        VBox text = new VBox(4, name, mutedLabel(file.size(), 13), mutedLabel(modifiedAt(file.path()), 12));
+        VBox text = new VBox(4, name, mutedLabel(file.size(), 13), mutedLabel(FileIcons.modifiedAtLabel(file.path()), 12));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
 
@@ -627,7 +622,7 @@ public class FxFileTransferApp extends Application {
     }
 
     private Node fileIcon(Path path) {
-        FontIcon icon = new FontIcon(iconFor(path));
+        FontIcon icon = new FontIcon(FileIcons.iconLiteral(path));
         icon.getStyleClass().add("file-card-font-icon");
         icon.setIconSize(24);
         StackPane box = new StackPane(icon);
@@ -635,80 +630,6 @@ public class FxFileTransferApp extends Application {
         box.setMinSize(44, 44);
         box.setMaxSize(44, 44);
         return box;
-    }
-
-    private String modifiedAt(Path path) {
-        if (path == null) {
-            return "修改日期：-";
-        }
-        try {
-            return "修改日期：" + DATE_MINUTE.format(Files.getLastModifiedTime(path).toInstant()
-                    .atZone(ZoneId.systemDefault()).toLocalDateTime());
-        } catch (Exception ignored) {
-            return "修改日期：-";
-        }
-    }
-
-    private String iconFor(Path path) {
-        if (path != null && Files.isDirectory(path)) {
-            return folderIcon(path);
-        }
-        String ext = extension(path == null ? "" : path.getFileName().toString());
-        return switch (ext) {
-            case "pdf" -> "fltral-document-pdf-24";
-            case "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" -> "fltral-image-24";
-            case "mp4", "mov", "mkv", "avi", "webm" -> "fltrmz-video-24";
-            case "mp3", "wav", "flac", "aac", "ogg" -> "fltrmz-music-note-24";
-            case "zip", "rar", "7z", "tar", "gz" -> "fltral-archive-24";
-            case "doc", "docx", "rtf", "txt", "md" -> "fltrmz-text-description-24";
-            case "xls", "xlsx", "csv" -> "fltrmz-table-24";
-            case "ppt", "pptx", "key" -> "fltrmz-slide-text-24";
-            case "java", "kt", "js", "ts", "jsx", "tsx", "py", "c", "cpp", "cs", "go", "rs", "html", "css", "xml", "json", "yml", "yaml" -> "fltral-code-24";
-            case "prproj", "aep", "aepx" -> "fltrmz-video-clip-24";
-            case "psd", "ai", "xd", "indd" -> "fltrmz-paint-brush-24";
-            default -> "fltral-document-24";
-        };
-    }
-
-    private String folderIcon(Path folder) {
-        // ponytail: direct children only; recurse later if folder icon accuracy matters more than drag speed.
-        try (DirectoryStream<Path> children = Files.newDirectoryStream(folder)) {
-            for (Path child : children) {
-                String name = child.getFileName().toString().toLowerCase(Locale.ROOT);
-                if (isAdobeVideoProject(name)) {
-                    return "fltrmz-video-clip-24";
-                }
-                if (isAdobeDesignProject(name)) {
-                    return "fltrmz-paint-brush-24";
-                }
-                if (isIdeProjectMarker(name)) {
-                    return "fltral-app-folder-24";
-                }
-            }
-        } catch (Exception ignored) {
-            return "fltral-folder-24";
-        }
-        return "fltral-folder-24";
-    }
-
-    private boolean isAdobeVideoProject(String name) {
-        return name.endsWith(".prproj") || name.endsWith(".aep") || name.endsWith(".aepx");
-    }
-
-    private boolean isAdobeDesignProject(String name) {
-        return name.endsWith(".psd") || name.endsWith(".ai") || name.endsWith(".xd") || name.endsWith(".indd");
-    }
-
-    private boolean isIdeProjectMarker(String name) {
-        return name.equals(".idea") || name.equals(".vscode") || name.equals("pom.xml") || name.equals("build.gradle")
-                || name.equals("settings.gradle") || name.equals("package.json") || name.equals("pyproject.toml")
-                || name.equals("cargo.toml") || name.equals("go.mod") || name.endsWith(".sln")
-                || name.endsWith(".csproj") || name.endsWith(".vcxproj") || name.endsWith(".xcodeproj");
-    }
-
-    private String extension(String name) {
-        int dot = name.lastIndexOf('.');
-        return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
     private VBox recentTargetsSection(List<UserDevice> devices) {
@@ -979,7 +900,7 @@ public class FxFileTransferApp extends Application {
             return;
         }
         List<UserDevice> targets = selectedTargets.isEmpty() ? new ArrayList<>(recentTargets) : new ArrayList<>(selectedTargets);
-        backend.startTransfer(new ArrayList<>(pendingFiles), targets).thenAccept(summary -> Platform.runLater(() -> {
+        controller.startTransfer(new ArrayList<>(pendingFiles), targets).thenAccept(summary -> Platform.runLater(() -> {
             currentSummary = summary;
             showTransferResultPage();
         }));
@@ -999,30 +920,16 @@ public class FxFileTransferApp extends Application {
         chooser.setTitle("选择要上传的文件夹");
         File folder = chooser.showDialog(stage);
         if (folder != null) {
-            pendingFiles.add(new TransferFile(folder.getName(), readableSize(folder), folder.toPath()));
+            pendingFiles.add(new TransferFile(folder.getName(), FileIcons.readableSize(folder), folder.toPath()));
             showFileTransferPage();
         }
     }
 
     private void addFiles(List<File> files) {
         for (File file : files) {
-            pendingFiles.add(new TransferFile(file.getName(), readableSize(file), file.toPath()));
+            pendingFiles.add(new TransferFile(file.getName(), FileIcons.readableSize(file), file.toPath()));
         }
         showFileTransferPage();
-    }
-
-    private String readableSize(File file) {
-        if (file.isDirectory()) {
-            return "文件夹";
-        }
-        long bytes = file.length();
-        if (bytes >= 1024 * 1024) {
-            return String.format("%.2f MB", bytes / 1024.0 / 1024.0);
-        }
-        if (bytes >= 1024) {
-            return String.format("%.2f KB", bytes / 1024.0);
-        }
-        return bytes + " B";
     }
 
     private UserDevice sampleDeviceFor(int index) {

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.iwmei</groupId>
-    <artifactId>lan-udp-file-distributor</artifactId>
+    <artifactId>lantransfer</artifactId>
     <version>1.0.0</version>
 
     <properties>
@@ -51,7 +51,7 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>com.iwmei.lanudp.app.LanUdpFileDistributorApp</mainClass>
+                    <mainClass>com.iwmei.lantransfer.App</mainClass>
                 </configuration>
             </plugin>
         </plugins>
