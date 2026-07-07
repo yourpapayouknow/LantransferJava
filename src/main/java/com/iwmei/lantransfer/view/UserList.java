@@ -1,6 +1,7 @@
 package com.iwmei.lantransfer.view;
 
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.util.DeviceSearch;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -17,6 +18,7 @@ import java.util.List;
 // 用户列表页面逻辑
 final class UserList {
     private final MainWindow app;
+    private String query = "";
 
     // 初始化用户列表页面对象
     UserList(MainWindow app) {
@@ -30,6 +32,7 @@ final class UserList {
             page.getStyleClass().add("page-content");
 
             TextField search = app.searchField("搜索用户昵称或设备 ID");
+            search.setText(query);
             Button scan = app.primaryButton("扫描用户");
             scan.setOnAction(event -> app.showScanPage());
             Label lastScan = app.mutedLabel("上次扫描： 刚刚", 14);
@@ -52,19 +55,36 @@ final class UserList {
                 app.userListPage = 0;
                 showUserListPage();
             });
-            HBox totalLine = new HBox(12, app.mutedLabel("共 " + devices.size() + " 个用户", 16), new HBox(8, listView, gridView));
+            Label total = app.mutedLabel("", 16);
+            HBox totalLine = new HBox(12, total, new HBox(8, listView, gridView));
             totalLine.setAlignment(Pos.CENTER_LEFT);
 
-            if (app.userListGridView) {
-                page.getChildren().addAll(scanHeader, app.separator(), totalLine, userGrid(devices));
-            } else {
-                VBox list = new VBox(10);
-                list.setMaxWidth(Double.MAX_VALUE);
-                devices.forEach(device -> list.getChildren().add(app.userCard(device, true)));
-                page.getChildren().addAll(scanHeader, app.separator(), totalLine, list);
-            }
+            VBox results = new VBox();
+            results.setMaxWidth(Double.MAX_VALUE);
+            search.textProperty().addListener((unused, oldValue, newValue) -> {
+                query = newValue == null ? "" : newValue;
+                app.userListPage = 0;
+                renderResults(devices, results, total);
+            });
+            page.getChildren().addAll(scanHeader, app.separator(), totalLine, results);
+            renderResults(devices, results, total);
             app.setMainPage("用户列表", page, true, true);
         }));
+    }
+
+    // 按当前搜索词渲染用户列表结果
+    private void renderResults(List<UserDevice> devices, VBox results, Label total) {
+        List<UserDevice> filtered = devices.stream().filter(device -> DeviceSearch.matches(device, query)).toList();
+        total.setText("共 " + filtered.size() + " 个用户");
+        results.getChildren().setAll(app.userListGridView ? userGrid(filtered) : userList(filtered));
+    }
+
+    // 构建用户列表布局
+    private Node userList(List<UserDevice> devices) {
+        VBox list = new VBox(10);
+        list.setMaxWidth(Double.MAX_VALUE);
+        devices.forEach(device -> list.getChildren().add(app.userCard(device, true)));
+        return list;
     }
 
     // 构建用户矩阵分页布局

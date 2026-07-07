@@ -220,6 +220,14 @@
 
 实现方法：`modifiedAtLabel(Path)` 读取 `Files.getLastModifiedTime` 并按 `yyyy-MM-dd HH:mm` 展示，异常时返回占位。`iconLiteral(Path)` 先判断目录，目录交给 `folderIcon(Path)` 扫描直接子项，再按扩展名返回 Ikonli 图标字面量。`readableSize(File)` 用字节数换算 MB/KB/B，文件夹直接显示“文件夹”。`folderIcon(Path)` 只扫描一层，这是为拖拽速度保留的简化；如果以后要求深层识别，再改递归扫描。
 
+## `src/main/java/com/iwmei/lantransfer/util/DeviceSearch.java`
+
+所属功能：用户列表搜索匹配工具。
+
+详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID 和目标主机地址。它不依赖 JavaFX，因此页面和无框架自检都能复用同一套匹配逻辑。
+
+实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID 和 host。`contains(...)` 对 null 字段返回 false，避免局域网演示数据缺少地址时触发异常。
+
 ## `src/main/java/com/iwmei/lantransfer/view/Auth.java`
 
 所属功能：登录与注册页面。
@@ -260,6 +268,14 @@
 
 实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
 
+## `src/test/java/com/iwmei/lantransfer/util/DeviceSearchCheck.java`
+
+所属功能：设备搜索匹配无框架自检。
+
+详细功能：验证用户列表搜索可以命中昵称、设备名、设备 ID 和目标地址，并且不会错误命中无关搜索词。
+
+实现方法：`main(String[] args)` 构造一个带昵称、设备名、ID 和 host 的 `UserDevice`，依次调用 `DeviceSearch.matches(...)` 检查中文昵称、英文设备名大小写、ID 片段、IP 片段和无关姓名。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.util.DeviceSearchCheck`。
+
 ## `src/test/java/com/iwmei/lantransfer/service/TxSimCheck.java`
 
 所属功能：传输模拟器无框架自检。
@@ -288,9 +304,9 @@
 
 所属功能：用户列表页面。
 
-详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页和添加近期传输对象能力。当前设备数据来自 `LocalBackend.loadAllDevices()`：如果局域网已发现其它同程序设备，就显示真实发现结果；如果只发现本机，则显示演示设备列表作为课堂展示兜底。
+详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页和添加近期传输对象能力。当前设备数据来自 `LocalBackend.loadAllDevices()`：如果局域网已发现其它同程序设备，就显示真实发现结果；如果只发现本机，则显示演示设备列表作为课堂展示兜底。搜索框会按昵称、设备名、设备 ID 和目标地址实时过滤当前已加载设备。
 
-实现方法：`showUserListPage()` 调用 `loadAllDevices()` 后在 UI 线程组装页面。列表视图逐个调用 `app.userCard(device, true)`，矩阵视图由 `userGrid(...)` 按 15 个一页分页。点击用户卡中的添加按钮会通过 `MainWindow.addRecentTarget(...)` 维护近期和选中目标。
+实现方法：`showUserListPage()` 调用 `loadAllDevices()` 后在 UI 线程组装页面。搜索框文本保存在 `query` 字段中，`textProperty()` 变化时把页码重置为 0 并调用 `renderResults(...)`。`renderResults(...)` 使用 `DeviceSearch.matches(...)` 过滤设备，更新总数标签，再按当前视图模式渲染列表或矩阵。列表视图逐个调用 `app.userCard(device, true)`，矩阵视图由 `userGrid(...)` 按 15 个一页分页。点击用户卡中的添加按钮会通过 `MainWindow.addRecentTarget(...)` 维护近期和选中目标。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Scan.java`
 
