@@ -29,9 +29,9 @@
 
 所属功能：界面和业务服务之间的控制层。
 
-详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、近期设备、全部设备、扫描设备和启动传输的统一入口。当前实现直接实例化 `MockBackendFacade`，所以所有 UI 调用仍走演示后端。
+详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、近期设备、全部设备、扫描设备和启动传输的统一入口。当前实现实例化 `LocalBackend`，登录注册走本地真实账号仓库，其余暂未落地功能由本地后端临时复用演示数据。
 
-实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`。这种薄控制器适合后续替换真实后端：只需要把字段从 `MockBackendFacade` 换成真实实现或组合实现，页面层不用知道后端细节。后续新增资料保存、状态保存、设置保存时，应先在 `BackendFacade` 补接口，再由这里转发。
+实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`。这种薄控制器保证页面层不直接知道账号文件、UDP 传输或扫描实现。后续新增资料保存、状态保存、设置保存时，应先在 `BackendFacade` 补接口，再由这里转发。
 
 ## `src/main/java/com/iwmei/lantransfer/service/BackendFacade.java`
 
@@ -48,6 +48,22 @@
 详细功能：当前类内置一个 `Profile` 和 18 个 `UserDevice`，支持演示登录、注册、近期设备、全部设备、扫描设备和传输结果。登录只接受 `admin/admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
 
 实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRecentDevices()` 返回前 5 个设备，`scanLanDevices()` 返回前 4 个设备，`startTransfer(...)` 会在未选择目标时使用前 5 个设备作为兜底目标，并根据目标数量构造 `TransferSummary`。后续真实后端完成后，该类只保留给演示或测试，不再作为主实现。
+
+## `src/main/java/com/iwmei/lantransfer/service/AuthStore.java`
+
+所属功能：无服务器登录注册账号仓库。
+
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑。它在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最后登录时间更新和 `Profile` 构造。
+
+实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt` 并返回包含资料的 `AuthResult`。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，`repoSlug()` 提取仓库名作为存储目录；没有 Git 仓库时退回 `LantransferJava`。该实现是本地替代方案，不依赖服务器和 GitHub token。
+
+## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
+
+所属功能：当前主后端组合实现。
+
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把尚未实现的设备列表、扫描、传输、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
+
+实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。其余方法直接调用 `demo` 对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/model/AuthResult.java`
 
@@ -149,9 +165,17 @@
 
 所属功能：登录与注册页面。
 
-详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册提交后写入返回资料并显示审核提示。
+详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册提交后根据后端结果决定显示错误、审核等待页或返回登录页。
 
-实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`loginForm()` 创建账号、密码、记住我控件，点击登录时构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 构造 `RegisterRequest` 调用注册接口。`showReviewPending()` 用主窗口壳显示审核提示和返回登录按钮。
+实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`loginForm()` 创建账号、密码、记住我控件，点击登录时构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 构造 `RegisterRequest` 调用注册接口；失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
+
+## `src/test/java/com/iwmei/lantransfer/service/AuthStoreCheck.java`
+
+所属功能：账号仓库无框架自检。
+
+详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料。
+
+实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册和登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

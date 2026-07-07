@@ -2,14 +2,14 @@ package com.iwmei.lantransfer.controller;
 
 import com.iwmei.lantransfer.model.*;
 import com.iwmei.lantransfer.service.BackendFacade;
-import com.iwmei.lantransfer.service.MockBackendFacade;
+import com.iwmei.lantransfer.service.LocalBackend;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 // 应用控制器，承接界面事件并转发给业务服务
 public final class AppController {
-    private final BackendFacade backend = new MockBackendFacade();
+    private final BackendFacade backend = new LocalBackend();
 
     // 登录功能的后端调用入口
     public CompletableFuture<AuthResult> login(LoginRequest request) {

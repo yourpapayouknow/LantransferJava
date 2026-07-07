@@ -111,8 +111,15 @@ final class Auth {
         submit.setMaxWidth(Double.MAX_VALUE);
         submit.setOnAction(event -> app.controller.register(new RegisterRequest(account.getText().trim(), password.getText(), device.getText().trim()))
                 .thenAccept(result -> Platform.runLater(() -> {
-                    app.profile = result.profile();
-                    showReviewPending();
+                    if (!result.success()) {
+                        app.toast(result.message());
+                    } else if (result.pendingReview()) {
+                        app.profile = result.profile();
+                        showReviewPending();
+                    } else {
+                        app.toast(result.message());
+                        app.showAuth(false);
+                    }
                 })));
         Button backLogin = app.outlineButton("已有账号，返回登录");
         backLogin.setMaxWidth(Double.MAX_VALUE);
