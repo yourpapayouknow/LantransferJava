@@ -10,6 +10,7 @@ public final class LocalBackend implements BackendFacade {
     private final AuthStore auth = new AuthStore();
     private final MockBackendFacade demo = new MockBackendFacade();
     private final TxSim tx = new TxSim();
+    private final LanPeer lan = new LanPeer();
 
     // 登录功能的本地后端调用入口
     @Override
@@ -32,13 +33,16 @@ public final class LocalBackend implements BackendFacade {
     // 加载全部可传输用户设备
     @Override
     public CompletableFuture<List<UserDevice>> loadAllDevices() {
-        return demo.loadAllDevices();
+        return CompletableFuture.supplyAsync(() -> {
+            List<UserDevice> devices = lan.knownDevices();
+            return devices.size() > 1 ? devices : demo.loadAllDevices().join();
+        });
     }
 
     // 扫描局域网用户设备
     @Override
     public CompletableFuture<List<UserDevice>> scanLanDevices() {
-        return demo.scanLanDevices();
+        return CompletableFuture.supplyAsync(lan::scan);
     }
 
     // 启动文件传输任务

@@ -61,9 +61,17 @@
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把传输任务创建交给 `TxSim`，把尚未实现的设备列表、扫描、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把传输任务创建交给 `TxSim`，把局域网扫描和已发现设备列表交给 `LanPeer`，把尚未实现的近期对象、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。其余方法直接调用 `demo` 对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+
+## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
+
+所属功能：局域网设备发现后端。
+
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息和已发现设备表，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。
+
+实现方法：构造器生成本机 `UserDevice` 并放入 `seen`，默认启动 daemon 响应线程。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 写入 `seen`。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后用 `encode(self)` 回复发送方；收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名`。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名和主机名生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
@@ -185,6 +193,14 @@
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册和登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
+## `src/test/java/com/iwmei/lantransfer/service/LanPeerCheck.java`
+
+所属功能：局域网发现协议无框架自检。
+
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底和在线状态转换，不依赖真实网络环境。
+
+实现方法：`main(String[] args)` 使用 `new LanPeer(false)` 禁止启动后台 UDP 线程，构造一个 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认 `knownDevices()` 至少包含本机设备。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.LanPeerCheck`。
+
 ## `src/test/java/com/iwmei/lantransfer/service/TxSimCheck.java`
 
 所属功能：传输模拟器无框架自检。
@@ -205,7 +221,7 @@
 
 所属功能：用户列表页面。
 
-详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页和添加近期传输对象能力。
+详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页和添加近期传输对象能力。当前设备数据来自 `LocalBackend.loadAllDevices()`：如果局域网已发现其它同程序设备，就显示真实发现结果；如果只发现本机，则显示演示设备列表作为课堂展示兜底。
 
 实现方法：`showUserListPage()` 调用 `loadAllDevices()` 后在 UI 线程组装页面。列表视图逐个调用 `app.userCard(device, true)`，矩阵视图由 `userGrid(...)` 按 15 个一页分页。点击用户卡中的添加按钮会通过 `MainWindow.addRecentTarget(...)` 维护近期和选中目标。
 
@@ -213,9 +229,9 @@
 
 所属功能：局域网扫描页面。
 
-详细功能：显示扫描中状态、雷达图、扫描到的设备标签、隐身用户提示和取消扫描按钮。
+详细功能：显示扫描中状态、雷达图、扫描到的设备标签、隐身用户提示和取消扫描按钮。当前扫描结果来自 `LocalBackend.scanLanDevices()`，后端会实际发 UDP 广播查找同样运行本程序的主机。
 
-实现方法：`showScanPage()` 调用 `scanLanDevices()` 获取设备列表，然后用 `app.radar(devices)` 生成雷达布局。取消按钮回到用户列表。当前后端立即返回假设备，后续真实扫描应在服务层实现广播/组播发现并保持同一返回类型。
+实现方法：`showScanPage()` 调用 `scanLanDevices()` 获取设备列表，然后用 `app.radar(devices)` 生成雷达布局。取消按钮回到用户列表。扫描页本身不关心 UDP 细节，只消费 `List<UserDevice>`；广播地址、端口、协议解析和本机响应都在 `LanPeer` 中实现。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Mine.java`
 
