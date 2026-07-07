@@ -10,8 +10,8 @@ public final class LanPeerCheck {
     }
 
     // 运行协议编码、解析和本机设备兜底检查
-    public static void main(String[] args) {
-        LanPeer peer = new LanPeer(false);
+    public static void main(String[] args) throws Exception {
+        LanPeer peer = new LanPeer(false, 1);
         UserDevice source = new UserDevice("D-1", "李四", "PC-1", DeviceStatus.ONLINE, "刚刚", "李", "#4f7bd8", false);
         UserDevice parsed = peer.parse(peer.encode(source));
         require(parsed != null, "encoded peer should parse");
@@ -20,6 +20,15 @@ public final class LanPeerCheck {
         require(parsed.status() == DeviceStatus.ONLINE, "parsed peer should be online");
         require(parsed.reachable(), "parsed peer should include transfer address");
         require(!peer.knownDevices().isEmpty(), "local device should exist");
+        peer.remember(parsed);
+        require(device(peer, "D-1").status() == DeviceStatus.ONLINE, "remembered peer should start online");
+        Thread.sleep(5);
+        require(device(peer, "D-1").status() == DeviceStatus.OFFLINE, "expired peer should become offline");
+    }
+
+    // 按 ID 读取已发现设备
+    private static UserDevice device(LanPeer peer, String id) {
+        return peer.knownDevices().stream().filter(item -> id.equals(item.id())).findFirst().orElseThrow();
     }
 
     // 断言条件为真

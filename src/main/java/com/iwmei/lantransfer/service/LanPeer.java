@@ -28,10 +28,13 @@ final class LanPeer {
     private static final int PORT = 45331;
     static final int TRANSFER_PORT = 45332;
     private static final int WAIT_MILLIS = 900;
+    private static final long OFFLINE_MILLIS = 30_000;
     private static final String DISCOVER = "LANTRANSFER_DISCOVER_V1";
     private static final String HERE = "LANTRANSFER_HERE_V1";
     private static final List<String> COLORS = List.of("#4f7bd8", "#35c6ca", "#7a52d8", "#5ebd3e", "#db3dbd");
     private final ConcurrentMap<String, UserDevice> seen = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Long> seenAt = new ConcurrentHashMap<>();
+    private final long offlineMillis;
     private final UserDevice self;
 
     // 初始化并启动后台响应线程
@@ -41,8 +44,14 @@ final class LanPeer {
 
     // 初始化局域网发现服务
     LanPeer(boolean startResponder) {
+        this(startResponder, OFFLINE_MILLIS);
+    }
+
+    // 初始化局域网发现服务并指定离线阈值
+    LanPeer(boolean startResponder, long offlineMillis) {
+        this.offlineMillis = Math.max(1, offlineMillis);
         self = localDevice();
-        seen.put(self.id(), self);
+        remember(self);
         if (startResponder) {
             startResponder();
         }
@@ -55,7 +64,7 @@ final class LanPeer {
 
     // 广播扫描局域网设备
     List<UserDevice> scan() {
-        seen.put(self.id(), self);
+        remember(self);
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setBroadcast(true);
             socket.setSoTimeout(200);
@@ -106,7 +115,7 @@ final class LanPeer {
             socket.receive(packet);
             UserDevice device = parse(new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8), packet.getAddress().getHostAddress());
             if (device != null) {
-                seen.put(device.id(), device);
+                remember(device);
             }
         } catch (SocketTimeoutException ignored) {
         } catch (Exception ignored) {
@@ -136,7 +145,7 @@ final class LanPeer {
                 } else {
                     UserDevice device = parse(message, packet.getAddress().getHostAddress());
                     if (device != null) {
-                        seen.put(device.id(), device);
+                        remember(device);
                     }
                 }
             }
@@ -165,9 +174,45 @@ final class LanPeer {
 
     // 返回排序后的设备列表
     private List<UserDevice> sorted() {
-        List<UserDevice> devices = new ArrayList<>(seen.values());
+        remember(self);
+        List<UserDevice> devices = new ArrayList<>();
+        for (UserDevice device : seen.values()) {
+            devices.add(withStatus(device));
+        }
         devices.sort(Comparator.comparing(UserDevice::nickname).thenComparing(UserDevice::deviceName));
         return devices;
+    }
+
+    // 记录一次设备发现时间
+    void remember(UserDevice device) {
+        if (device == null || device.id().isBlank()) {
+            return;
+        }
+        seen.put(device.id(), device);
+        seenAt.put(device.id(), System.currentTimeMillis());
+    }
+
+    // 根据最后发现时间生成在线或离线展示对象
+    private UserDevice withStatus(UserDevice device) {
+        long age = System.currentTimeMillis() - seenAt.getOrDefault(device.id(), 0L);
+        boolean online = self.id().equals(device.id()) || age <= offlineMillis;
+        return new UserDevice(device.id(), device.nickname(), device.deviceName(),
+                online ? DeviceStatus.ONLINE : DeviceStatus.OFFLINE, online ? seenText(device, age) : "已离线",
+                device.avatarText(), device.color(), device.imageAvatar(), device.host(), device.port());
+    }
+
+    // 生成最后发现时间展示文本
+    private String seenText(UserDevice device, long age) {
+        if (self.id().equals(device.id())) {
+            return "本机";
+        }
+        if (age < 1000) {
+            return "刚刚";
+        }
+        if (age < 60_000) {
+            return age / 1000 + " 秒前";
+        }
+        return age / 60_000 + " 分钟前";
     }
 
     // 构造本机设备信息
