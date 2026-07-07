@@ -64,6 +64,7 @@ import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 // 主窗口壳，负责窗口、导航和共享控件构建
@@ -249,13 +250,31 @@ public class MainWindow extends Application {
     Parent appRoot(Node shell) {
         StackPane root = new StackPane(shell);
         root.getStyleClass().add("app-root");
-        root.setStyle("-color-accent: " + accentColor + ";");
+        root.setStyle(rootStyle(accentColor, currentSettings));
         if (shell instanceof Region region) {
             region.setMinSize(0, 0);
             region.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
             clipToRoundedWindow(region);
         }
         return root;
+    }
+
+    // 构建根节点主题、字体和缩放样式
+    static String rootStyle(String accentColor, SystemSettings settings) {
+        StringBuilder style = new StringBuilder("-color-accent: ").append(accentColor).append(";");
+        if (settings != null) {
+            int fontSize = Math.max(10, Math.min(32, settings.fontSize()));
+            int zoom = Math.max(50, Math.min(200, settings.zoomPercent()));
+            double scaled = fontSize * zoom / 100.0;
+            style.append("-fx-font-family: \"").append(css(settings.fontFamily())).append("\";");
+            style.append(String.format(Locale.ROOT, "-fx-font-size: %.2fpx;", scaled));
+        }
+        return style.toString();
+    }
+
+    // 转义 CSS 字符串
+    private static String css(String value) {
+        return (value == null || value.isBlank() ? "Microsoft YaHei" : value).replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     // 把内容裁剪到圆角窗口范围内

@@ -46,6 +46,7 @@ final class Settings {
 
     // 渲染系统设置页面
     private void render(SystemSettings settings) {
+        app.currentSettings = settings;
         app.accentColor = settings.accentColor();
         VBox page = new VBox(14);
         page.getStyleClass().add("page-content");
