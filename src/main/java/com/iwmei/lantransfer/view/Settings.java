@@ -29,6 +29,7 @@ final class Settings {
     private TextField fontSize;
     private TextField zoomPercent;
     private TextField receiveDir;
+    private TextField groupCode;
     private ComboBox<String> language;
     private CheckBox autoStart;
     private CheckBox startMinimized;
@@ -59,6 +60,7 @@ final class Settings {
                 settingsRow("字体设置", "自定义界面字体及大小（保存后生效）。", fontControls(settings)),
                 settingsRow("缩放比例", "调整界面整体显示缩放。", zoomControls(settings)),
                 settingsRow("接收目录", "设置接收文件保存位置，真实 UDP 接收服务会写入这里。", receiveDirControls(settings)),
+                settingsRow("传输口令", "只发现并传输给相同口令的小群组设备（留空表示公开）。", groupControls(settings)),
                 settingsRow("语言设置", "设置界面显示语言。", languageControls(settings)),
                 settingsRow("启动设置", "控制软件启动后的默认行为。", startupControls(settings)),
                 saveControls(settings)
@@ -157,6 +159,14 @@ final class Settings {
         return row;
     }
 
+    // 构建传输口令设置区域
+    private HBox groupControls(SystemSettings settings) {
+        groupCode = app.textField("传输口令");
+        groupCode.setText(settings.groupCode());
+        app.fixedWidth(groupCode, 220);
+        return new HBox(groupCode);
+    }
+
     // 构建语言设置区域
     private HBox languageControls(SystemSettings settings) {
         language = app.comboBox(settings.language());
@@ -198,6 +208,7 @@ final class Settings {
                 intValue(fontSize, base.fontSize()),
                 intValue(zoomPercent, base.zoomPercent()),
                 textValue(receiveDir, base.receiveDir()),
+                groupCode.getText().trim(),
                 language.getValue(),
                 autoStart.isSelected(),
                 startMinimized.isSelected(),
@@ -208,7 +219,7 @@ final class Settings {
     private SystemSettings withAccent(SystemSettings settings, String color) {
         return new SystemSettings(settings.ipv4(), settings.ipv6(), settings.uploadLimit(), settings.downloadLimit(),
                 settings.maxRetries(), color, settings.fontFamily(), settings.fontSize(), settings.zoomPercent(),
-                settings.receiveDir(), settings.language(), settings.autoStart(), settings.startMinimized(), settings.soundOnComplete());
+                settings.receiveDir(), settings.groupCode(), settings.language(), settings.autoStart(), settings.startMinimized(), settings.soundOnComplete());
     }
 
     // 读取整数输入框

@@ -38,6 +38,7 @@ final class LanPeer {
     private final ConcurrentMap<String, Long> seenAt = new ConcurrentHashMap<>();
     private final long offlineMillis;
     private volatile UserDevice self;
+    private volatile String groupHash = "";
 
     // 初始化并启动后台响应线程
     LanPeer() {
@@ -70,7 +71,7 @@ final class LanPeer {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setBroadcast(true);
             socket.setSoTimeout(200);
-            byte[] data = DISCOVER.getBytes(StandardCharsets.UTF_8);
+            byte[] data = discoverMessage().getBytes(StandardCharsets.UTF_8);
             for (InetAddress address : broadcastAddresses()) {
                 socket.send(new DatagramPacket(data, data.length, address, PORT));
             }
@@ -88,7 +89,7 @@ final class LanPeer {
     String encode(UserDevice device) {
         return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户")
                 + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port()
-                + "\t" + userStatus(device.userStatus()).name();
+                + "\t" + userStatus(device.userStatus()).name() + "\t" + groupHash;
     }
 
     // 解析 UDP 响应文本
@@ -98,8 +99,11 @@ final class LanPeer {
 
     // 解析 UDP 响应文本并用来源地址兜底
     private UserDevice parse(String message, String fallbackHost) {
-        String[] parts = message == null ? new String[0] : message.split("\t", 7);
+        String[] parts = message == null ? new String[0] : message.split("\t", 8);
         if (parts.length < 4 || !HERE.equals(parts[0])) {
+            return null;
+        }
+        if (!groupMatches(parts.length >= 8 ? parts[7] : "")) {
             return null;
         }
         String id = clean(parts[1], idFor(parts[2] + parts[3]));
@@ -143,7 +147,10 @@ final class LanPeer {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-                if (DISCOVER.equals(message)) {
+                if (isDiscover(message)) {
+                    if (!groupMatches(discoverGroup(message))) {
+                        continue;
+                    }
                     if (!discoverable(self.userStatus())) {
                         continue;
                     }
@@ -222,6 +229,11 @@ final class LanPeer {
         remember(self);
     }
 
+    // 更新传输口令分组摘要
+    void updateGroup(String groupCode) {
+        groupHash = groupHash(groupCode);
+    }
+
     // 根据最后发现时间生成在线或离线展示对象
     private UserDevice withStatus(UserDevice device) {
         long age = System.currentTimeMillis() - seenAt.getOrDefault(device.id(), 0L);
@@ -293,6 +305,40 @@ final class LanPeer {
             return port > 0 ? port : TRANSFER_PORT;
         } catch (Exception ex) {
             return TRANSFER_PORT;
+        }
+    }
+
+    // 构造发现请求文本
+    private String discoverMessage() {
+        return groupHash.isBlank() ? DISCOVER : DISCOVER + "\t" + groupHash;
+    }
+
+    // 判断文本是否为发现请求
+    private boolean isDiscover(String message) {
+        return DISCOVER.equals(message) || (message != null && message.startsWith(DISCOVER + "\t"));
+    }
+
+    // 解析发现请求中的分组摘要
+    private String discoverGroup(String message) {
+        return message == null || !message.startsWith(DISCOVER + "\t") ? "" : message.substring((DISCOVER + "\t").length()).trim();
+    }
+
+    // 判断远端分组是否和本机一致
+    private boolean groupMatches(String remoteHash) {
+        return groupHash.equals(remoteHash == null ? "" : remoteHash.trim());
+    }
+
+    // 生成口令分组摘要
+    private String groupHash(String groupCode) {
+        String value = clean(groupCode, "");
+        if (value.isBlank()) {
+            return "";
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ex) {
+            return "";
         }
     }
 

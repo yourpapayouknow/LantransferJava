@@ -17,7 +17,6 @@
 
 - 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收和接收目录落盘已由 `UdpTx/UdpRx` 实现；未实现的是传输中实时进度推送、接收端进度展示、队列调度和分片级并发。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库，把已确认分片数暴露给 UI；只有在大文件性能不足时再把单文件分片分派到并发 worker。
 - 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和内存 `BitSet` 记录当次接收分片，但分片状态没有持久化到磁盘，应用重启后不能继续；发送端也没有按接收端缺失分片列表定向补发。推荐替代方案：为每个任务保存 chunk bitmap 和元数据文件，重启后恢复 `.part` 状态，并提供缺失分片查询和补发协议。
-- 基于传输口令的虚拟小群组传输：当前 UI 没有口令输入，发现协议也没有群组字段。当前无占位入口。推荐替代方案：先在设置或发送页增加口令字段，再把口令哈希放入发现和发送握手协议。
 
 ## `src/main/java/com/iwmei/lantransfer/App.java`
 
@@ -81,15 +80,15 @@
 
 详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，启动 `UdpRx` 后台接收服务，把传输任务创建交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：构造器调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)`，让发现协议使用当前账号昵称、设备名和用户状态。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料；`updateStatus(...)` 保存状态后调用 `lan.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 参与扫描和发送策略。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)`。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)`，让发现协议使用当前账号昵称、设备名和用户状态。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料；`updateStatus(...)` 保存状态后调用 `lan.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 参与扫描和发送策略。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
 所属功能：系统设置本地仓库。
 
-详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库；保存时会把“开机自启动”同步给 `AutoStart`，让设置项具备系统级效果。
+详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、传输口令、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库；保存时会把“开机自启动”同步给 `AutoStart`，让设置项具备系统级效果。
 
-实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析。`save(SystemSettings)` 把设置写回 properties 文件，记录 `repo.origin` 方便定位来源，然后调用 `autoStart.sync(value.autoStart())` 创建或删除启动目录脚本。默认构造器使用真实 `AutoStart`，测试构造器使用 `AutoStart.none()` 避免系统副作用。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`。
+实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析，传输口令读取 `groupCode`，缺失时回退空字符串表示公开组。`save(SystemSettings)` 把设置写回 properties 文件，记录 `repo.origin` 方便定位来源，然后调用 `autoStart.sync(value.autoStart())` 创建或删除启动目录脚本。默认构造器使用真实 `AutoStart`，测试构造器使用 `AutoStart.none()` 避免系统副作用。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/RecentStore.java`
 
@@ -103,9 +102,9 @@
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表和最后发现时间，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现响应携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据；已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和传输口令分组摘要，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应会携带口令 SHA-256 摘要，只有同一口令的设备互相发现；发现响应还携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
 
-实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后先检查 `discoverable(self.userStatus())`，隐身和离线不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态`；`parse(message, fallbackHost)` 仍兼容旧 4 到 6 字段响应，缺状态时回退 `UserStatus.DEFAULT`。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。`updateGroup(String)` 会把传输口令清洗后计算 SHA-256 十六进制摘要，空口令得到空摘要并表示公开组。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`；公开组发送 `LANTRANSFER_DISCOVER_V1`，非空口令发送 `LANTRANSFER_DISCOVER_V1\t口令摘要`，并在约 900ms 内接收响应、调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后先检查 `groupMatches(discoverGroup(message))` 和 `discoverable(self.userStatus())`，口令不同、隐身和离线都不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t口令摘要`；`parse(message, fallbackHost)` 仍兼容旧 4 到 7 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺口令摘要时只会被公开组接收。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
 
@@ -167,9 +166,9 @@
 
 所属功能：系统设置数据对象。
 
-详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言、开机自启动、启动后最小化和传输完成提示音。当前由 `SettingsStore` 读写，并由系统设置页渲染为可编辑控件。
+详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、传输口令、语言、开机自启动、启动后最小化和传输完成提示音。当前由 `SettingsStore` 读写，并由系统设置页渲染为可编辑控件。
 
-实现方法：使用 `record` 汇总设置页需要保存的数据。保留一个基础字段构造器，旧调用会自动填充默认接收目录、语言和启动选项。`defaultReceiveDir()` 使用用户目录下的 `极速互传/接收文件`。`SettingsStore.load()` 构造或读取它，`Settings` 页面保存时把控件值重新组装成新的 `SystemSettings` 并调用 `AppController.updateSettings(...)`。
+实现方法：使用 `record` 汇总设置页需要保存的数据。保留一个基础字段构造器，旧调用会自动填充默认接收目录、空传输口令、语言和启动选项。`defaultReceiveDir()` 使用用户目录下的 `极速互传/接收文件`。`SettingsStore.load()` 构造或读取它，`Settings` 页面保存时把控件值重新组装成新的 `SystemSettings` 并调用 `AppController.updateSettings(...)`。
 
 ## `src/main/java/com/iwmei/lantransfer/model/UserDevice.java`
 
@@ -263,17 +262,17 @@
 
 所属功能：局域网发现协议无框架自检。
 
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、发现后在线状态和过期离线判定，不依赖真实网络环境。
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、同口令可解析、不同口令会被忽略、发现后在线状态和过期离线判定，不依赖真实网络环境。
 
-实现方法：`main(String[] args)` 使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY，并确认 `knownDevices()` 至少包含本机设备。随后调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
+实现方法：`main(String[] args)` 使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY。随后调用 `updateGroup("team-a")` 编码消息，同组解析应成功；切到 `team-b` 后解析同一消息应返回 null，证明不同口令会被忽略。最后确认 `knownDevices()` 至少包含本机设备，调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/SettingsStoreCheck.java`
 
 所属功能：系统设置仓库无框架自检。
 
-详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、接收目录、语言和提示音设置能够再次读出。
+详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、传输口令、接收目录、语言和提示音设置能够再次读出。
 
-实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数，再保存一份自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
+实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数，再保存一份带 `groupCode` 的自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/RecentStoreCheck.java`
 
@@ -343,9 +342,9 @@
 
 所属功能：系统设置页面。
 
-详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、接收目录、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件；字体、字号和缩放会更新 `MainWindow.currentSettings` 并在页面重绘时应用到全局根节点样式。
+详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、接收目录、传输口令、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件；传输口令用于局域网发现小群组过滤，字体、字号和缩放会更新 `MainWindow.currentSettings` 并在页面重绘时应用到全局根节点样式。
 
-实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 先更新 `app.currentSettings` 和 `app.accentColor`，再根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号、缩放、接收目录、语言和启动选项控件保存到字段，便于保存时读取。`receiveDirControls(...)` 使用 `DirectoryChooser` 选择目录。`colorControls(...)` 点击预设色会用新主题色重绘页面；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色、字体和缩放立即生效。
+实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 先更新 `app.currentSettings` 和 `app.accentColor`，再根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号、缩放、接收目录、传输口令、语言和启动选项控件保存到字段，便于保存时读取。`receiveDirControls(...)` 使用 `DirectoryChooser` 选择目录，`groupControls(...)` 读写传输口令文本框。`colorControls(...)` 点击预设色会用新主题色重绘页面；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色、字体、缩放和传输口令立即生效。
 
 ## `src/main/java/com/iwmei/lantransfer/view/MainWindow.java`
 

@@ -33,7 +33,7 @@ public final class UdpWireCheck {
             Files.writeString(source, "hello udp");
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
-                    receiveDir.toString(), "简体中文", false, true, true));
+                    receiveDir.toString(), "", "简体中文", false, true, true));
             int port = freePort();
             new UdpRx(store, port).start();
             Thread.sleep(120);

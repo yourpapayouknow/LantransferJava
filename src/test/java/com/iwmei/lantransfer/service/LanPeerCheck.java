@@ -22,6 +22,11 @@ public final class LanPeerCheck {
         require(parsed.status() == DeviceStatus.ONLINE, "parsed peer should be online");
         require(parsed.userStatus() == UserStatus.BUSY, "user status should round trip");
         require(parsed.reachable(), "parsed peer should include transfer address");
+        peer.updateGroup("team-a");
+        String teamMessage = peer.encode(source);
+        require(peer.parse(teamMessage) != null, "same group should parse");
+        peer.updateGroup("team-b");
+        require(peer.parse(teamMessage) == null, "different group should be ignored");
         require(!peer.knownDevices().isEmpty(), "local device should exist");
         peer.remember(parsed);
         require(device(peer, "D-1").status() == DeviceStatus.ONLINE, "remembered peer should start online");

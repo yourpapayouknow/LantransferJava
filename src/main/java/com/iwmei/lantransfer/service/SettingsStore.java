@@ -59,6 +59,7 @@ final class SettingsStore {
                 intValue(props, "fontSize", defaults.fontSize()),
                 intValue(props, "zoomPercent", defaults.zoomPercent()),
                 props.getProperty("receiveDir", defaults.receiveDir()),
+                props.getProperty("groupCode", defaults.groupCode()),
                 props.getProperty("language", defaults.language()),
                 boolValue(props, "autoStart", defaults.autoStart()),
                 boolValue(props, "startMinimized", defaults.startMinimized()),
@@ -81,6 +82,7 @@ final class SettingsStore {
         props.setProperty("fontSize", String.valueOf(value.fontSize()));
         props.setProperty("zoomPercent", String.valueOf(value.zoomPercent()));
         props.setProperty("receiveDir", value.receiveDir());
+        props.setProperty("groupCode", value.groupCode());
         props.setProperty("language", value.language());
         props.setProperty("autoStart", String.valueOf(value.autoStart()));
         props.setProperty("startMinimized", String.valueOf(value.startMinimized()));
