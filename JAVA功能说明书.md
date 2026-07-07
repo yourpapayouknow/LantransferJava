@@ -15,10 +15,10 @@
 
 ## 功能跳过记录
 
-- 真实 UDP 多线程文件发送与接收落盘：`UserDevice` 已保存目标 IP/端口，设置页已保存接收目录，但还没有后台接收服务、接收确认、接收进度和真实发送器。当前占位是 `TxSim`，它基于真实文件和目标生成传输报告。推荐替代方案：新增后台 `UdpRx` 接收服务，再实现 `UdpTx` 分片发送、ACK 和多线程调度。
-- 文件临时分片缓存与断点重传：该功能依赖真实 UDP 分片协议、接收端缓存目录、传输任务 ID 和文件写入状态；当前还没有这些协议字段。当前占位是 `TxSim` 的失败重试统计。推荐替代方案：在 `UdpTx/UdpRx` 完成后，为每个文件生成任务 ID 和 chunk index，再保存 `.part` 缓存和 bitmap 进度。
-- 文件接收完整性校验：该功能需要接收端持有完整文件并与发送端交换校验值；当前没有接收端落盘流程。当前占位是按在线/离线生成成功失败结果。推荐替代方案：在真实接收完成后使用 SHA-256 校验整文件，失败时触发重传缺失分片。
-- 根据限速智能分配带宽：设置页已保存上传/下载限速，但当前没有真实传输流可调度。当前占位是 `SystemSettings.uploadLimit/downloadLimit` 的持久化。推荐替代方案：在 UDP 发送器中用令牌桶按目标数分配发送速率。
+- 真实 UDP 多线程传输调度与实时进度：基础单线程 UDP 发送、ACK 等待、后台接收和接收目录落盘已由 `UdpTx/UdpRx` 实现；未实现的是多线程并发发送、传输中实时进度推送、接收端进度展示和队列调度。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库和线程池，把每个目标或文件分片分派到并发 worker，并向 UI 暴露进度快照。
+- 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和内存 `BitSet` 记录当次接收分片，但分片状态没有持久化到磁盘，应用重启后不能继续；发送端也没有按接收端缺失分片列表定向补发。推荐替代方案：为每个任务保存 chunk bitmap 和元数据文件，重启后恢复 `.part` 状态，并提供缺失分片查询和补发协议。
+- 文件接收完整性校验：该功能需要接收端持有完整文件并与发送端交换校验值；当前 `UdpRx` 只确认分片已写入，没有计算和比对整文件校验值。推荐替代方案：在真实接收完成后使用 SHA-256 校验整文件，失败时触发重传缺失分片。
+- 根据限速智能分配带宽：设置页已保存上传/下载限速，`UdpTx` 已有真实发送流，但尚未按配置控制分片发送速度。推荐替代方案：在 UDP 发送器中用令牌桶按目标数分配发送速率。
 - 基于传输口令的虚拟小群组传输：当前 UI 没有口令输入，发现协议也没有群组字段。当前无占位入口。推荐替代方案：先在设置或发送页增加口令字段，再把口令哈希放入发现和发送握手协议。
 - 基于用户设定状态的条件文件传输：当前已保存用户状态和自定义签名，但发现协议尚未广播状态，发送器也未按状态拦截。当前占位是 `AuthStore.updateStatus(...)` 持久化状态。推荐替代方案：扩展 `LanPeer` 响应字段携带 `UserStatus`，再在真实发送前按 ONLINE/BUSY/INVISIBLE/OFFLINE 做接收策略判断。
 
@@ -74,9 +74,9 @@
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把传输任务创建交给 `TxSim`，把局域网扫描和已发现设备列表交给 `LanPeer`，把尚未实现的近期对象临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，启动 `UdpRx` 后台接收服务，把传输任务创建交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，把尚未实现的近期对象临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`updateProfile(...)` 和 `updateStatus(...)` 同步写入本地账号文件。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)`。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：构造器调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`updateProfile(...)` 和 `updateStatus(...)` 同步写入本地账号文件。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)`。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -94,13 +94,29 @@
 
 实现方法：构造器生成本机 `UserDevice` 并放入 `seen`，默认启动 daemon 响应线程。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 写入 `seen`。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后用 `encode(self)` 回复发送方；收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口`。`parse(message, fallbackHost)` 兼容旧 4 字段响应，缺地址时用 UDP 来源地址兜底，缺端口时用 `45332`。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
+## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
+
+所属功能：UDP 文件接收后端。
+
+详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件，按分片序号写入正确偏移量，收齐全部分片后移动为最终接收文件。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
+
+实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数和分片大小；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，全部收齐后 `finish()` 把 `.part` 移动成最终文件。当前没有整文件 SHA-256 校验和断点续传，相关缺口记录在未实现清单。
+
+## `src/main/java/com/iwmei/lantransfer/service/UdpTx.java`
+
+所属功能：UDP 文件发送后端。
+
+详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 发送，在线且可达的设备才会进入真实 UDP 发送；离线或缺少地址的设备会生成失败任务。每个文件先发送开始包，再逐个发送分片包，每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发。
+
+实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，再逐个目标调用 `sendTarget(...)`。`sendTarget(...)` 为目标创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，成功后用 `InputStream` 读取固定大小分片并调用 `sendData(...)`。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是停止等待式单线程传输，能真实落盘但效率不高；多线程、限速、断点续传和完整性校验后续在这个类上继续扩展。
+
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
 所属功能：文件传输结果报告的本地模拟后端。
 
-详细功能：`TxSim` 在真正 UDP 发送内核完成前，先根据用户实际选择的文件和目标设备生成传输汇总。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
+详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类主要保留给回归自检和必要时的演示兜底。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
 
-实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免 UI 被坏路径中断。代码中有 `ponytail` 注释说明这是 UDP 内核完成前的本地模拟，后续替换点就是这个类。
+实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免 UI 被坏路径中断。后续如果 `UdpTx` 已覆盖所有课堂展示路径，可以删除该类和对应自检。
 
 ## `src/main/java/com/iwmei/lantransfer/model/AuthResult.java`
 
@@ -237,6 +253,14 @@
 详细功能：验证一个文件发送给一个在线目标和一个离线目标时，汇总统计、失败重试、任务行和日志数量是否正确。
 
 实现方法：`main(String[] args)` 创建临时文件，构造在线和离线两个 `UserDevice`，调用 `new TxSim().run(...)`，用 `require(...)` 检查目标总数为 2、成功为 1、失败为 1、重试为 3、任务行为 2、日志为 4，最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.TxSimCheck`。
+
+## `src/test/java/com/iwmei/lantransfer/service/UdpWireCheck.java`
+
+所属功能：UDP 发送接收闭环无框架自检。
+
+详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成发送、ACK 确认和接收落盘。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、本机目标设备、发送汇总统计和接收文件内容一致性。
+
+实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括成功目标数为 1、失败目标数为 0、接收文件存在、接收文件内容等于源文件内容。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

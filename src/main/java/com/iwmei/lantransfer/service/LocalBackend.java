@@ -9,9 +9,15 @@ import java.util.concurrent.CompletableFuture;
 public final class LocalBackend implements BackendFacade {
     private final AuthStore auth = new AuthStore();
     private final MockBackendFacade demo = new MockBackendFacade();
-    private final TxSim tx = new TxSim();
-    private final LanPeer lan = new LanPeer();
     private final SettingsStore settings = new SettingsStore();
+    private final UdpTx tx = new UdpTx();
+    private final UdpRx rx = new UdpRx(settings);
+    private final LanPeer lan = new LanPeer();
+
+    // 初始化本地后端并启动 UDP 接收服务
+    public LocalBackend() {
+        rx.start();
+    }
 
     // 登录功能的本地后端调用入口
     @Override
@@ -55,7 +61,7 @@ public final class LocalBackend implements BackendFacade {
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
-        return CompletableFuture.supplyAsync(() -> tx.run(files, targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets));
+        return CompletableFuture.supplyAsync(() -> tx.run(files, targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets, settings.load()));
     }
 
     // 更新用户资料信息
