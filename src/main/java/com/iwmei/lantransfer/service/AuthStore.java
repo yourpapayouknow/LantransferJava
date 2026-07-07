@@ -97,6 +97,7 @@ final class AuthStore {
         props.setProperty(key(account, "deviceName"), cleanText(profile.deviceName(), localDeviceName()));
         props.setProperty(key(account, "signature"), cleanText(profile.signature(), "在线，已连接"));
         props.setProperty(key(account, "language"), cleanText(profile.language(), "简体中文"));
+        props.setProperty(key(account, "status"), profile.status() == null ? UserStatus.DEFAULT.name() : profile.status().name());
         save(props);
     }
 
@@ -175,7 +176,8 @@ final class AuthStore {
                 parseTime(props.getProperty(key(account, "registeredAt"))),
                 parseTime(props.getProperty(key(account, "lastLoginAt"))),
                 VERSION,
-                props.getProperty(key(account, "language"), "简体中文")
+                props.getProperty(key(account, "language"), "简体中文"),
+                status(props.getProperty(key(account, "status")))
         );
     }
 
@@ -276,6 +278,15 @@ final class AuthStore {
             case OFFLINE -> "离线，暂停传输";
             case DEFAULT -> "在线，已连接";
         };
+    }
+
+    // 解析用户状态字段
+    private UserStatus status(String value) {
+        try {
+            return UserStatus.valueOf(value);
+        } catch (Exception ignored) {
+            return UserStatus.DEFAULT;
+        }
     }
 
     // 获取本机设备名

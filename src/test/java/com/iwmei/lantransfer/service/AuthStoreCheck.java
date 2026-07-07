@@ -45,6 +45,7 @@ public final class AuthStoreCheck {
             AuthResult updated = store.login(new LoginRequest("alice", "secret", true));
             require("Alice".equals(updated.profile().nickname()), "profile update should persist nickname");
             require("忙碌中".equals(updated.profile().signature()), "status update should persist signature");
+            require(updated.profile().status() == UserStatus.BUSY, "status update should persist status");
         } finally {
             delete(dir);
         }

@@ -48,7 +48,7 @@
 
 所属功能：前端联调用假数据后端。
 
-详细功能：当前类内置一个 `Profile`、18 个 `UserDevice` 和一份默认 `SystemSettings`，支持演示登录、注册、近期设备、全部设备、扫描设备、设置读取和传输结果。登录只接受 `admin/admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
+详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice` 和一份默认 `SystemSettings`，支持演示登录、注册、近期设备、全部设备、扫描设备、设置读取和传输结果。登录只接受 `admin/admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
 
 实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRecentDevices()` 返回前 5 个设备，`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置，`startTransfer(...)` 会在未选择目标时使用前 5 个设备作为兜底目标，并根据目标数量构造 `TransferSummary`。后续真实后端完成后，该类只保留给演示或测试，不再作为主实现。
 
@@ -66,7 +66,7 @@
 
 详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料和状态保存。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最后登录时间更新、资料更新、状态更新和 `Profile` 构造。
 
-实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`、记录 `currentAccount` 并返回包含资料的 `AuthResult`。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名和语言。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
+实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`、记录 `currentAccount` 并返回包含资料的 `AuthResult`。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -152,9 +152,9 @@
 
 所属功能：当前登录用户资料。
 
-详细功能：保存昵称、用户 ID、设备名称、个性签名、注册时间、最后登录时间、版本信息和语言。文件传输页顶部、我的页面和设置页面都会读取这些信息。
+详细功能：保存昵称、用户 ID、设备名称、个性签名、注册时间、最后登录时间、版本信息、语言和当前用户状态。文件传输页顶部、我的页面和设置页面都会读取这些信息。
 
-实现方法：使用不可变 `record`，因此修改资料时需要构造新的 `Profile` 并替换 `MainWindow.profile`。时间字段使用 `LocalDateTime`，展示时由 `MainWindow.DATE_TIME` 格式化。
+实现方法：使用不可变 `record`，因此修改资料或状态时需要构造新的 `Profile` 并替换 `MainWindow.profile`。保留旧 8 参数构造器，旧调用会自动使用 `UserStatus.DEFAULT`。时间字段使用 `LocalDateTime`，展示时由 `MainWindow.DATE_TIME` 格式化。
 
 ## `src/main/java/com/iwmei/lantransfer/model/SystemSettings.java`
 
@@ -240,7 +240,7 @@
 
 所属功能：账号仓库无框架自检。
 
-详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证资料更新和状态签名更新会持久化。
+详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证资料更新、状态签名和状态枚举会持久化。
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、登录、资料更新、状态更新和再次登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
@@ -320,9 +320,9 @@
 
 所属功能：我的资料页面。
 
-详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。当前“保存”按钮会把现有 `Profile` 写回本地账号文件；自定义状态保存会更新本地账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
+详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。昵称、设备名称和个性签名行点击“编辑”后可以修改，底部“保存”会把新的 `Profile` 写回本地账号文件。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新本地账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
 
-实现方法：`showProfilePage()` 检查 `app.profile`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。保存按钮调用 `app.controller.updateProfile(app.profile)`，重置按钮重新显示页面。`profileEditor(Profile)` 用头像和表格行展示昵称、用户 ID、设备名称和个性签名。`statusCards()` 展示五种 `UserStatus` 对应状态文案。`customStatusField()` 会把当前签名预填到输入框，保存时读取输入框，调用 `app.controller.updateStatus(UserStatus.DEFAULT, text)`，再用 `withSignature(Profile, String)` 构造新的不可变资料对象并刷新页面。
+实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用头像和表格行展示资料，`editableRow(...)` 创建默认只读的 `TextField` 和“编辑”按钮，点击后允许输入。保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Settings.java`
 

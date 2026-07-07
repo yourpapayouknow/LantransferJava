@@ -11,7 +11,7 @@ public final class MockBackendFacade implements BackendFacade {
     private final Profile profile = new Profile("admin", "U-10086", "DESKTOP-8F3K2M1", "在线，已连接",
             LocalDateTime.of(2026, 7, 1, 9, 20),
             LocalDateTime.of(2026, 7, 2, 13, 12),
-            "极速互传 v1.0.0", "简体中文");
+            "极速互传 v1.0.0", "简体中文", UserStatus.DEFAULT);
 
     private final List<UserDevice> devices = List.of(
             new UserDevice("lisi", "李四", "DESKTOP-LISI", DeviceStatus.ONLINE, "2 分钟前", "李", "#4f7bd8", false),
