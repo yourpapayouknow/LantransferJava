@@ -10,6 +10,7 @@ public final class LocalBackend implements BackendFacade {
     private final AuthStore auth = new AuthStore();
     private final MockBackendFacade demo = new MockBackendFacade();
     private final SettingsStore settings = new SettingsStore();
+    private final RecentStore recent = new RecentStore();
     private final UdpTx tx = new UdpTx();
     private final UdpRx rx = new UdpRx(settings);
     private final LanPeer lan = new LanPeer();
@@ -34,7 +35,10 @@ public final class LocalBackend implements BackendFacade {
     // 加载近期传输对象列表
     @Override
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {
-        return demo.loadRecentDevices();
+        return CompletableFuture.supplyAsync(() -> {
+            List<UserDevice> devices = recent.load();
+            return devices.isEmpty() ? demo.loadRecentDevices().join() : devices;
+        });
     }
 
     // 加载全部可传输用户设备
@@ -61,7 +65,12 @@ public final class LocalBackend implements BackendFacade {
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
-        return CompletableFuture.supplyAsync(() -> tx.run(files, targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets, settings.load()));
+        return CompletableFuture.supplyAsync(() -> {
+            List<UserDevice> safeTargets = targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets;
+            TransferSummary summary = tx.run(files, safeTargets, settings.load());
+            recent.remember(safeTargets);
+            return summary;
+        });
     }
 
     // 更新用户资料信息
