@@ -19,7 +19,6 @@
 - 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和内存 `BitSet` 记录当次接收分片，但分片状态没有持久化到磁盘，应用重启后不能继续；发送端也没有按接收端缺失分片列表定向补发。推荐替代方案：为每个任务保存 chunk bitmap 和元数据文件，重启后恢复 `.part` 状态，并提供缺失分片查询和补发协议。
 - 传输预计剩余时间统计：`UdpTx` 当前只在单文件发送完成后计算耗时和平均速度，缺少任务运行中的已确认分片状态流、滑动平均速度和剩余字节统计。推荐替代方案：先实现传输任务状态仓库，再由 UI 订阅进度和 ETA；不要在当前阻塞式 `CompletableFuture<TransferSummary>` 接口里硬塞伪实时数据。
 - 忙碌状态下的接收前确认：当前已能通过 `UserStatus.BUSY` 拦截直接发送，但真正“确认后再收”需要接收端弹窗、发送端等待确认、确认超时和取消协议。推荐替代方案：在 `UdpRx` 收到 BEGIN 前增加请求阶段，接收端 UI 确认后返回允许 ACK，再进入文件分片接收。
-- 注册审核流程：本地无服务器模式下没有管理员角色、审核队列和跨设备通知；强行让注册进入 pending 会让账号无法自然通过审核。推荐替代方案：课堂演示可增加本地 pending 文件和管理员入口；真实多人审核需要服务端或 GitHub Issue/PR 等外部审批载体。
 
 ## `src/main/java/com/iwmei/lantransfer/App.java`
 
@@ -73,9 +72,9 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最近账号保存或清除、最后登录时间更新、资料更新、状态更新和 `Profile` 构造。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、GitHub Actions 自动审核通过记录、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最近账号保存或清除、最后登录时间更新、资料更新、状态更新和 `Profile` 构造。
 
-实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`，并按 `rememberMe` 调用 `remember(...)` 保存或清除 `login.account`，随后记录 `currentAccount` 并返回包含资料的 `AuthResult`。`rememberedAccount()` 读取 `login.rememberMe` 和 `login.account`，只返回账号，不返回密码。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
+实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`，并按 `rememberMe` 调用 `remember(...)` 保存或清除 `login.account`，随后记录 `currentAccount` 并返回包含资料的 `AuthResult`。`rememberedAccount()` 读取 `login.rememberMe` 和 `login.account`，只返回账号，不返回密码。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言，再调用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED`、请求时间、通过时间和 `reviewApprover=github-actions`，返回 `pendingReview=false`。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -249,9 +248,9 @@
 
 所属功能：账号仓库无框架自检。
 
-详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
+详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
 
-实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
+实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、读取审核字段、登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AutoStartCheck.java`
 

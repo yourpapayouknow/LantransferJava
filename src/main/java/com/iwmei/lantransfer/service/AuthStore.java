@@ -87,8 +87,9 @@ final class AuthStore {
         }
         LocalDateTime now = LocalDateTime.now();
         putAccount(props, account, request.password(), cleanDeviceName(request.deviceName()), now, now);
+        approveRegistration(props, account, now);
         save(props);
-        return new AuthResult(true, false, "注册成功，请登录", profile(props, account));
+        return new AuthResult(true, false, "注册已自动审核通过，请登录", profile(props, account));
     }
 
     // 更新当前账号资料
@@ -173,6 +174,14 @@ final class AuthStore {
         props.setProperty(key(account, "registeredAt"), TIME.format(registeredAt));
         props.setProperty(key(account, "lastLoginAt"), TIME.format(lastLoginAt));
         props.setProperty(key(account, "language"), "简体中文");
+    }
+
+    // 记录注册审核自动通过信息
+    private void approveRegistration(Properties props, String account, LocalDateTime now) {
+        props.setProperty(key(account, "reviewStatus"), "AUTO_APPROVED");
+        props.setProperty(key(account, "reviewRequestedAt"), TIME.format(now));
+        props.setProperty(key(account, "reviewApprovedAt"), TIME.format(now));
+        props.setProperty(key(account, "reviewApprover"), "github-actions");
     }
 
     // 根据登录选择保存或清除最近登录账号

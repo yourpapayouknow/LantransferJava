@@ -9,6 +9,7 @@ import com.iwmei.lantransfer.model.UserStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Properties;
 
 // AuthStore 的无框架自检入口
 public final class AuthStoreCheck {
@@ -27,6 +28,12 @@ public final class AuthStoreCheck {
             AuthResult registered = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(registered.success(), "registered account should succeed");
             require(!registered.pendingReview(), "local registration should not wait for review");
+            Properties props = new Properties();
+            try (var reader = Files.newBufferedReader(dir.resolve("users.properties"))) {
+                props.load(reader);
+            }
+            require("AUTO_APPROVED".equals(props.getProperty("account.alice.reviewStatus")), "registration should auto approve");
+            require("github-actions".equals(props.getProperty("account.alice.reviewApprover")), "review approver should be recorded");
 
             AuthResult duplicate = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(!duplicate.success(), "duplicate account should fail");
