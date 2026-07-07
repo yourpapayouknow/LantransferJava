@@ -16,7 +16,7 @@
 ## 功能跳过记录
 
 - 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收和接收目录落盘已由 `UdpTx/UdpRx` 实现；未实现的是传输中实时进度推送、接收端进度展示、队列调度和分片级并发。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库，把已确认分片数暴露给 UI；只有在大文件性能不足时再把单文件分片分派到并发 worker。
-- 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和内存 `BitSet` 记录当次接收分片，但分片状态没有持久化到磁盘，应用重启后不能继续；发送端也没有按接收端缺失分片列表定向补发。推荐替代方案：为每个任务保存 chunk bitmap 和元数据文件，重启后恢复 `.part` 状态，并提供缺失分片查询和补发协议。
+- 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和 `.part.meta` 元数据保存接收分片索引，重启后具备恢复接收端分片状态的基础；仍未实现的是发送端查询接收端缺失分片列表并定向补发。推荐替代方案：在现有 ACK 协议外增加缺失分片查询和补发协议。
 - 传输预计剩余时间统计：`UdpTx` 当前只在单文件发送完成后计算耗时和平均速度，缺少任务运行中的已确认分片状态流、滑动平均速度和剩余字节统计。推荐替代方案：先实现传输任务状态仓库，再由 UI 订阅进度和 ETA；不要在当前阻塞式 `CompletableFuture<TransferSummary>` 接口里硬塞伪实时数据。
 - 忙碌状态下的接收前确认：当前已能通过 `UserStatus.BUSY` 拦截直接发送，但真正“确认后再收”需要接收端弹窗、发送端等待确认、确认超时和取消协议。推荐替代方案：在 `UdpRx` 收到 BEGIN 前增加请求阶段，接收端 UI 确认后返回允许 ACK，再进入文件分片接收。
 
@@ -112,9 +112,9 @@
 
 所属功能：UDP 文件接收后端。
 
-详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件，按分片序号写入正确偏移量，收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
+详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件并删除元数据。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
 
-实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小和发送端 SHA-256；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，全部收齐后 `finish()` 计算 `.part` 的 SHA-256 并与发送端值比对；校验失败时返回 ACK FAIL，校验成功才把 `.part` 移动成最终文件。当前没有断点续传，相关缺口记录在未实现清单。
+实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小和发送端 SHA-256；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，每写入一个新分片就保存 `.part.meta`，全部收齐后 `finish()` 计算 `.part` 的 SHA-256 并与发送端值比对；校验失败时返回 ACK FAIL，校验成功才把 `.part` 移动成最终文件并删除 `.part.meta`。当前发送端还没有缺失分片查询和定向补发协议，完整断点续传缺口记录在未实现清单。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpTx.java`
 
@@ -304,9 +304,9 @@
 
 所属功能：UDP 发送接收闭环无框架自检。
 
-详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验和接收落盘。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性和错误校验拒收。
+详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验、接收落盘和未完成接收元数据保存。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、半文件 `.part.meta` 保存和错误校验拒收。
 
-实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
+实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

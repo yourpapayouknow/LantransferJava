@@ -13,8 +13,10 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 
 // UdpTx 和 UdpRx 的本机真实 UDP 自检入口
@@ -59,6 +61,9 @@ public final class UdpWireCheck {
             require(blocked.successCount() == 0, "busy target should be blocked");
             require(blocked.failedCount() == 1, "busy target should count as failed");
             require(blocked.logs().stream().anyMatch(log -> log.contains("对方忙碌")), "busy block reason should be logged");
+            require(sendPartial(port).endsWith("\tOK"), "partial chunk should be accepted");
+            require(Files.readString(receiveDir.resolve("partial.bin.part.meta")).contains("received=0"),
+                    "partial metadata should persist received chunk index");
             require(sendBadChecksumBegin(port).endsWith("\tFAIL"), "bad checksum should fail");
             require(!Files.exists(receiveDir.resolve("bad.txt")), "bad checksum file should not land");
         } finally {
@@ -70,7 +75,20 @@ public final class UdpWireCheck {
     private static String sendBadChecksumBegin(int port) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("bad.txt".getBytes(StandardCharsets.UTF_8));
         String message = UdpRx.BEGIN + "\tbad-job\t0\t" + name + "\t0\t0\t1024\tbad-sha";
-        byte[] data = message.getBytes(StandardCharsets.UTF_8);
+        return sendAndReceive(port, message.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // 发送一个未完成文件的首个分片并返回接收端确认
+    private static String sendPartial(int port) throws Exception {
+        String name = Base64.getUrlEncoder().encodeToString("partial.bin".getBytes(StandardCharsets.UTF_8));
+        String begin = UdpRx.BEGIN + "\tpartial-job\t0\t" + name + "\t8\t2\t4\t" + sha256("abcdefgh");
+        require(sendAndReceive(port, begin.getBytes(StandardCharsets.UTF_8)).endsWith("\tOK"), "partial begin should ack");
+        String data = UdpRx.DATA + "\tpartial-job\t0\t0\tabcd";
+        return sendAndReceive(port, data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // 发送一个 UDP 包并返回接收端确认
+    private static String sendAndReceive(int port, byte[] data) throws Exception {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(1000);
             socket.send(new DatagramPacket(data, data.length, InetAddress.getByName("127.0.0.1"), port));
@@ -79,6 +97,12 @@ public final class UdpWireCheck {
             socket.receive(packet);
             return new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
         }
+    }
+
+    // 计算测试内容 SHA-256
+    private static String sha256(String value) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(digest);
     }
 
     // 获取一个临时可用 UDP 端口

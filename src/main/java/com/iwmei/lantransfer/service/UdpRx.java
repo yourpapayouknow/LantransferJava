@@ -2,6 +2,8 @@ package com.iwmei.lantransfer.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
+import java.io.Writer;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
@@ -16,6 +18,7 @@ import java.util.Base64;
 import java.util.BitSet;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -140,8 +143,8 @@ final class UdpRx {
         Files.createDirectories(dir);
         Path target = uniqueTarget(dir, safeName(fileName));
         Path part = target.resolveSibling(target.getFileName() + ".part");
-        Files.deleteIfExists(part);
-        return new RxFile(target, part, size, chunkCount, chunkSize, sha256);
+        Path meta = target.resolveSibling(target.getFileName() + ".part.meta");
+        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256);
     }
 
     // 返回不覆盖旧文件的接收路径
@@ -243,6 +246,7 @@ final class UdpRx {
     private static final class RxFile {
         private final Path target;
         private final Path part;
+        private final Path meta;
         private final long size;
         private final int chunkCount;
         private final int chunkSize;
@@ -252,13 +256,15 @@ final class UdpRx {
         private boolean done;
 
         // 初始化接收中文件状态
-        private RxFile(Path target, Path part, long size, int chunkCount, int chunkSize, String sha256) {
+        private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256) throws IOException {
             this.target = target;
             this.part = part;
+            this.meta = meta;
             this.size = size;
             this.chunkCount = chunkCount;
             this.chunkSize = chunkSize;
             this.sha256 = sha256 == null ? "" : sha256;
+            restoreOrReset();
         }
 
         // 写入一个文件分片
@@ -277,6 +283,7 @@ final class UdpRx {
                 channel.write(ByteBuffer.wrap(data, offset, length));
                 received.set(chunkIndex);
                 receivedCount++;
+                saveMeta();
                 if (receivedCount == chunkCount) {
                     return finishOk();
                 }
@@ -308,7 +315,57 @@ final class UdpRx {
                 throw new IOException("sha256 mismatch");
             }
             Files.move(part, target);
+            Files.deleteIfExists(meta);
             done = true;
+        }
+
+        // 从元数据恢复已接收分片，元数据不匹配时清理旧临时文件
+        private void restoreOrReset() throws IOException {
+            if (!Files.exists(meta)) {
+                Files.deleteIfExists(part);
+                return;
+            }
+            Properties props = new Properties();
+            try (Reader reader = Files.newBufferedReader(meta, StandardCharsets.UTF_8)) {
+                props.load(reader);
+            }
+            if (!String.valueOf(size).equals(props.getProperty("size"))
+                    || !String.valueOf(chunkCount).equals(props.getProperty("chunkCount"))
+                    || !String.valueOf(chunkSize).equals(props.getProperty("chunkSize"))
+                    || !sha256.equals(props.getProperty("sha256", ""))) {
+                Files.deleteIfExists(part);
+                Files.deleteIfExists(meta);
+                return;
+            }
+            for (String item : props.getProperty("received", "").split(",")) {
+                try {
+                    int index = Integer.parseInt(item.trim());
+                    if (index >= 0 && index < chunkCount) {
+                        received.set(index);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            receivedCount = received.cardinality();
+        }
+
+        // 保存当前已接收分片元数据
+        private void saveMeta() throws IOException {
+            Properties props = new Properties();
+            props.setProperty("size", String.valueOf(size));
+            props.setProperty("chunkCount", String.valueOf(chunkCount));
+            props.setProperty("chunkSize", String.valueOf(chunkSize));
+            props.setProperty("sha256", sha256);
+            props.setProperty("received", received.stream()
+                    .collect(StringBuilder::new, (builder, value) -> {
+                        if (!builder.isEmpty()) {
+                            builder.append(',');
+                        }
+                        builder.append(value);
+                    }, StringBuilder::append).toString());
+            try (Writer writer = Files.newBufferedWriter(meta, StandardCharsets.UTF_8)) {
+                props.store(writer, "Lantransfer partial file state");
+            }
         }
 
         // 计算接收临时文件 SHA-256
