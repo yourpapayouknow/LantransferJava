@@ -24,6 +24,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 // UDP 文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
 final class UdpTx {
@@ -56,8 +59,7 @@ final class UdpTx {
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
-        for (UserDevice target : safeTargets) {
-            TargetSend sent = sendTarget(sources, target, maxRetries);
+        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries)) {
             tasks.addAll(sent.tasks());
             logs.addAll(sent.logs());
             retries += sent.retries();
@@ -69,6 +71,35 @@ final class UdpTx {
         }
         logs.add(stamp("任务结束：成功 " + success + "，失败 " + failed + "，重试 " + retries));
         return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(started), logs, tasks);
+    }
+
+    // 并发发送到多个目标并按原目标顺序返回结果
+    private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries) {
+        if (targets.size() <= 1) {
+            return targets.stream().map(target -> sendTarget(sources, target, maxRetries)).toList();
+        }
+        int threads = Math.min(targets.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<TargetSend>> futures = new ArrayList<>();
+            for (UserDevice target : targets) {
+                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries)));
+            }
+            List<TargetSend> results = new ArrayList<>();
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    results.add(futures.get(i).get());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    results.add(failedTarget(sources, targets.get(i), maxRetries, "发送线程被中断"));
+                } catch (Exception ex) {
+                    results.add(failedTarget(sources, targets.get(i), maxRetries, "发送线程失败：" + ex.getMessage()));
+                }
+            }
+            return results;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     // 发送所有文件到单个目标
@@ -104,6 +135,15 @@ final class UdpTx {
             logs.add(stamp("⚠ [" + targetLabel(target) + "] UDP 发送初始化失败：" + ex.getMessage()));
         }
         return new TargetSend(success, retries, tasks, logs);
+    }
+
+    // 构造目标级异常失败结果
+    private TargetSend failedTarget(List<SourceFile> sources, UserDevice target, int retries, String reason) {
+        List<TransferTask> tasks = new ArrayList<>();
+        for (SourceFile source : sources) {
+            tasks.add(failedTask(source, target, retries));
+        }
+        return new TargetSend(false, retries, tasks, List.of(stamp("⚠ [" + targetLabel(target) + "] " + reason)));
     }
 
     // 发送单个文件

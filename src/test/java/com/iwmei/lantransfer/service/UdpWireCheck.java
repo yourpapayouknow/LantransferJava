@@ -32,15 +32,20 @@ public final class UdpWireCheck {
             int port = freePort();
             new UdpRx(store, port).start();
             Thread.sleep(120);
-            UserDevice target = new UserDevice("self", "本机", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+            UserDevice first = new UserDevice("self-1", "本机A", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
                     "#4f7bd8", false, "127.0.0.1", port);
+            UserDevice second = new UserDevice("self-2", "本机B", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#35c6ca", false, "127.0.0.1", port);
             TransferSummary summary = new UdpTx(1024).run(List.of(new TransferFile("hello.txt", "9 B", source)),
-                    List.of(target), store.load());
-            Path received = receiveDir.resolve("hello.txt");
-            require(summary.successCount() == 1, "UDP target should succeed");
+                    List.of(first, second), store.load());
+            Path firstFile = receiveDir.resolve("hello.txt");
+            Path secondFile = receiveDir.resolve("hello-1.txt");
+            require(summary.successCount() == 2, "UDP targets should succeed");
             require(summary.failedCount() == 0, "UDP target should not fail");
-            require(Files.exists(received), "received file should exist");
-            require("hello udp".equals(Files.readString(received)), "received content should match");
+            require(Files.exists(firstFile), "first received file should exist");
+            require(Files.exists(secondFile), "second received file should exist");
+            require("hello udp".equals(Files.readString(firstFile)), "first received content should match");
+            require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
         } finally {
             deleteTree(root);
         }

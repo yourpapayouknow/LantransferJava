@@ -13,6 +13,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.BitSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 // UDP 文件接收服务，负责后台监听传输端口并把收到的文件落盘到接收目录
@@ -25,6 +26,7 @@ final class UdpRx {
     private final SettingsStore settings;
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
+    private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
     private volatile boolean running;
 
     // 使用默认传输端口初始化接收服务
@@ -141,7 +143,7 @@ final class UdpRx {
     // 返回不覆盖旧文件的接收路径
     private Path uniqueTarget(Path dir, String fileName) {
         Path target = dir.resolve(fileName);
-        if (!Files.exists(target)) {
+        if (!Files.exists(target) && reserved.add(target)) {
             return target;
         }
         int dot = fileName.lastIndexOf('.');
@@ -149,7 +151,7 @@ final class UdpRx {
         String ext = dot > 0 ? fileName.substring(dot) : "";
         for (int index = 1; ; index++) {
             Path candidate = dir.resolve(name + "-" + index + ext);
-            if (!Files.exists(candidate)) {
+            if (!Files.exists(candidate) && reserved.add(candidate)) {
                 return candidate;
             }
         }
