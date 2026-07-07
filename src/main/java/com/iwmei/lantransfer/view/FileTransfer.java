@@ -30,13 +30,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+// 文件传输页面逻辑
 final class FileTransfer {
     private final MainWindow app;
 
+    // 初始化文件传输页面对象
     FileTransfer(MainWindow app) {
         this.app = app;
     }
 
+    // 显示文件传输主页面
     void showFileTransferPage() {
         app.controller.loadRecentDevices().thenAccept(devices -> Platform.runLater(() -> {
             if (!app.recentTargetsLoaded) {
@@ -50,6 +53,7 @@ final class FileTransfer {
         }));
     }
 
+    // 显示传输结果页面
     void showTransferResultPage() {
         if (app.currentSummary == null) {
             startTransfer();
@@ -61,6 +65,7 @@ final class FileTransfer {
         app.setMainPage("文件传输", page, true, true);
     }
 
+    // 构建上传操作和拖拽区域
     private VBox uploadStrip() {
         VBox strip = app.glassSection("");
         strip.getStyleClass().add("upload-strip");
@@ -118,10 +123,12 @@ final class FileTransfer {
         return strip;
     }
 
+    // 生成上传区域提示文字
     private String uploadHint() {
         return app.pendingFiles.isEmpty() ? "支持拖拽文件或文件夹到此处上传" : "已选择 " + app.pendingFiles.size() + " 个待传输项";
     }
 
+    // 切换拖拽区域高亮状态
     private void setUploadDragActive(VBox strip, boolean active) {
         if (active) {
             if (!strip.getStyleClass().contains("upload-strip-dragover")) {
@@ -132,6 +139,7 @@ final class FileTransfer {
         }
     }
 
+    // 构建待传输文件卡片
     private Node pendingFileCard(TransferFile file) {
         HBox card = new HBox(12);
         card.getStyleClass().addAll("user-card-large", "pending-file-card");
@@ -155,6 +163,7 @@ final class FileTransfer {
         return card;
     }
 
+    // 构建待传输文件图标节点
     private Node fileIcon(Path path) {
         FontIcon icon = new FontIcon(FileIcons.iconLiteral(path));
         icon.getStyleClass().add("file-card-font-icon");
@@ -166,6 +175,7 @@ final class FileTransfer {
         return box;
     }
 
+    // 构建近期传输对象区域
     private VBox recentTargetsSection(List<UserDevice> devices) {
         VBox section = app.glassSection("近期传输对象");
         GridPane cards = app.cardGrid(5, 8, 8);
@@ -176,6 +186,7 @@ final class FileTransfer {
         return section;
     }
 
+    // 构建传输列表区域
     private VBox transferListSection(List<TransferTask> tasks) {
         VBox section = app.glassSection("");
         HBox header = app.sectionHeader("传输列表", null);
@@ -192,6 +203,7 @@ final class FileTransfer {
         return section;
     }
 
+    // 构建传输结果汇总区域
     private VBox resultSummarySection(TransferSummary summary) {
         VBox section = app.glassSection("传输结果");
         HBox stats = new HBox(12, app.statCard("目标总数", String.valueOf(summary.targetCount()), "#4f7bd8", "总"),
@@ -202,6 +214,7 @@ final class FileTransfer {
         return section;
     }
 
+    // 构建传输日志区域
     private VBox transferLogSection(TransferSummary summary) {
         VBox section = app.glassSection("传输日志");
         HBox header = new HBox(12, app.mutedLabel("耗时 " + summary.elapsed(), 14), app.spacer());
@@ -219,6 +232,7 @@ final class FileTransfer {
         return section;
     }
 
+    // 生成前端演示用传输任务
     private List<TransferTask> sampleTransferTasks() {
         return List.of(
                 new TransferTask("产品演示视频.mp4", sampleDeviceFor(0), 72, "512.00 MB", "12.35 MB/s", "00:00:32", "传输中", 0),
@@ -228,6 +242,7 @@ final class FileTransfer {
         );
     }
 
+    // 启动文件传输任务
     private void startTransfer() {
         if (app.pendingFiles.isEmpty()) {
             app.toast("请先选择要上传的文件或文件夹");
@@ -240,6 +255,7 @@ final class FileTransfer {
         }));
     }
 
+    // 打开文件选择器并加入待传输列表
     private void chooseFiles() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("选择要上传的文件");
@@ -249,6 +265,7 @@ final class FileTransfer {
         }
     }
 
+    // 打开文件夹选择器并加入待传输列表
     private void chooseFolder() {
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("选择要上传的文件夹");
@@ -259,6 +276,7 @@ final class FileTransfer {
         }
     }
 
+    // 把选择或拖拽的文件加入待传输列表
     private void addFiles(List<File> files) {
         for (File file : files) {
             app.pendingFiles.add(new TransferFile(file.getName(), FileIcons.readableSize(file), file.toPath()));
@@ -266,6 +284,7 @@ final class FileTransfer {
         showFileTransferPage();
     }
 
+    // 为演示传输任务选择目标设备
     private UserDevice sampleDeviceFor(int index) {
         List<UserDevice> devices = app.selectedTargets.isEmpty() ? app.recentTargets : app.selectedTargets;
         if (devices.isEmpty()) {

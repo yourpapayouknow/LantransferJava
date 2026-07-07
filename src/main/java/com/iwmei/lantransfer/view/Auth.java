@@ -15,13 +15,16 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
+// 登录注册页面逻辑
 final class Auth {
     private final MainWindow app;
 
+    // 初始化登录注册页面对象
     Auth(MainWindow app) {
         this.app = app;
     }
 
+    // 显示登录或注册页面
     void show(boolean registerMode) {
         VBox body = new VBox(24);
         body.getStyleClass().add("auth-body");
@@ -38,6 +41,7 @@ final class Auth {
         app.setAuthPage(body);
     }
 
+    // 显示注册审核等待页面
     void showReviewPending() {
         VBox page = new VBox(20);
         page.getStyleClass().add("page-content");
@@ -65,6 +69,7 @@ final class Auth {
         app.setMainPage("文件传输", page, false, false);
     }
 
+    // 构建登录表单区域
     private Node loginForm() {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");
@@ -95,6 +100,7 @@ final class Auth {
         return form;
     }
 
+    // 构建注册表单区域
     private Node registerForm() {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");

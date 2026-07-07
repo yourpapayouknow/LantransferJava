@@ -14,13 +14,16 @@ import javafx.scene.layout.VBox;
 
 import java.util.List;
 
+// 用户列表页面逻辑
 final class UserList {
     private final MainWindow app;
 
+    // 初始化用户列表页面对象
     UserList(MainWindow app) {
         this.app = app;
     }
 
+    // 显示用户列表页面
     void showUserListPage() {
         app.controller.loadAllDevices().thenAccept(devices -> Platform.runLater(() -> {
             VBox page = new VBox(8);
@@ -64,6 +67,7 @@ final class UserList {
         }));
     }
 
+    // 构建用户矩阵分页布局
     private Node userGrid(List<UserDevice> devices) {
         int pageSize = 15;
         int maxPage = Math.max(0, (devices.size() - 1) / pageSize);

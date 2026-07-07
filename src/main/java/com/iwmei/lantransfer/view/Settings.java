@@ -12,13 +12,16 @@ import javafx.scene.layout.VBox;
 
 import java.util.List;
 
+// 系统设置页面逻辑
 final class Settings {
     private final MainWindow app;
 
+    // 初始化系统设置页面对象
     Settings(MainWindow app) {
         this.app = app;
     }
 
+    // 显示系统设置页面
     void showSettingsPage() {
         VBox page = new VBox(14);
         page.getStyleClass().add("page-content");
@@ -37,16 +40,19 @@ final class Settings {
         app.setMainPage("系统设置", page, true, true);
     }
 
+    // 构建本机局域网地址信息
     private HBox ipInfo() {
         return new HBox(12, app.ipColumn("IPv4 地址", "192.168.1.100"), app.ipColumn("IPv6 地址", "fe80::1a2b:3c4d"));
     }
 
+    // 构建传输速度限制输入区域
     private VBox speedLimitControls() {
         VBox root = new VBox(10, app.limitRow("上传速度限制", 10), app.limitRow("下载速度限制", 20));
         root.setMaxWidth(360);
         return root;
     }
 
+    // 构建失败重试次数输入区域
     private HBox retryControls() {
         Spinner<Integer> retries = new Spinner<>(0, 10, 3);
         retries.getStyleClass().add("dark-spinner");
@@ -54,6 +60,7 @@ final class Settings {
         return new HBox(12, retries, app.mutedLabel("次", 15));
     }
 
+    // 构建主题颜色设置区域
     private VBox colorControls() {
         VBox root = new VBox(10);
         HBox swatches = new HBox(8);
@@ -71,6 +78,7 @@ final class Settings {
         return root;
     }
 
+    // 构建字体设置区域
     private VBox fontControls() {
         VBox root = new VBox(10);
         HBox displayRow = new HBox(8);
@@ -85,22 +93,26 @@ final class Settings {
         return root;
     }
 
+    // 构建界面缩放设置区域
     private VBox zoomControls() {
         TextField zoom = app.textField("100%");
         app.fixedWidth(zoom, 132);
         return new VBox(8, zoom);
     }
 
+    // 构建语言设置区域
     private HBox languageControls() {
         ComboBox<String> language = app.comboBox(app.profile == null ? "简体中文" : app.profile.language());
         app.fixedWidth(language, 132);
         return new HBox(language);
     }
 
+    // 构建启动行为设置区域
     private HBox startupControls() {
         return new HBox(16, app.checkBox("开机自启动", false), app.checkBox("启动后最小化到系统托盘", true), app.checkBox("传输完成后播放提示音", true));
     }
 
+    // 构建系统设置单行配置项
     private HBox settingsRow(String title, String description, Node controls) {
         VBox text = new VBox(4, app.titleLabel(title, 20), app.mutedLabel(description, 14));
         HBox row = new HBox(18);

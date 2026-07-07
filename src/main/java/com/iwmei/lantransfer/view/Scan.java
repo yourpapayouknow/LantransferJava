@@ -6,13 +6,16 @@ import javafx.scene.control.Button;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
+// 局域网扫描页面逻辑
 final class Scan {
     private final MainWindow app;
 
+    // 初始化局域网扫描页面对象
     Scan(MainWindow app) {
         this.app = app;
     }
 
+    // 显示局域网扫描页面
     void showScanPage() {
         app.controller.scanLanDevices().thenAccept(devices -> Platform.runLater(() -> {
             VBox page = new VBox(22);

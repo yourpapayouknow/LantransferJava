@@ -8,12 +8,15 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+// 文件显示工具类，负责大小、日期和图标判断
 public final class FileIcons {
     private static final DateTimeFormatter DATE_MINUTE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+    // 阻止工具类被外部实例化
     private FileIcons() {
     }
 
+    // 生成文件修改日期显示文本
     public static String modifiedAtLabel(Path path) {
         if (path == null) {
             return "修改日期：-";
@@ -26,8 +29,10 @@ public final class FileIcons {
         }
     }
 
+    // 根据文件或文件夹类型选择图标
     public static String iconLiteral(Path path) {
         if (path != null && Files.isDirectory(path)) {
+            // 根据文件夹内容判断项目类型图标
             return folderIcon(path);
         }
         String ext = extension(path == null ? "" : path.getFileName().toString());
@@ -47,6 +52,7 @@ public final class FileIcons {
         };
     }
 
+    // 把文件大小转换成界面可读文本
     public static String readableSize(File file) {
         if (file.isDirectory()) {
             return "文件夹";
@@ -61,6 +67,7 @@ public final class FileIcons {
         return bytes + " B";
     }
 
+    // 根据文件夹内容判断项目类型图标
     private static String folderIcon(Path folder) {
         // ponytail: direct children only; recurse later if folder icon accuracy matters more than drag speed.
         try (DirectoryStream<Path> children = Files.newDirectoryStream(folder)) {
@@ -82,14 +89,17 @@ public final class FileIcons {
         return "fltral-folder-24";
     }
 
+    // 判断是否为 Adobe 视频工程文件
     private static boolean isAdobeVideoProject(String name) {
         return name.endsWith(".prproj") || name.endsWith(".aep") || name.endsWith(".aepx");
     }
 
+    // 判断是否为 Adobe 设计工程文件
     private static boolean isAdobeDesignProject(String name) {
         return name.endsWith(".psd") || name.endsWith(".ai") || name.endsWith(".xd") || name.endsWith(".indd");
     }
 
+    // 判断是否为常见 IDE 项目标记
     private static boolean isIdeProjectMarker(String name) {
         return name.equals(".idea") || name.equals(".vscode") || name.equals("pom.xml") || name.equals("build.gradle")
                 || name.equals("settings.gradle") || name.equals("package.json") || name.equals("pyproject.toml")
@@ -97,6 +107,7 @@ public final class FileIcons {
                 || name.endsWith(".csproj") || name.endsWith(".vcxproj") || name.endsWith(".xcodeproj");
     }
 
+    // 提取文件扩展名用于类型判断
     private static String extension(String name) {
         int dot = name.lastIndexOf('.');
         return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);

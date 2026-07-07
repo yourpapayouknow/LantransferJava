@@ -17,6 +17,12 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 
 - Java/Maven 等本机通用开发工具优先安装到 `D:\Programs\Java_UniversalLanguage\`，不要安装到 `C:\Users\...`，除非用户明确要求。
 
+## Java Comment Rule
+
+- 所有非占位 Java 类、接口、枚举、record 的类型声明前必须有一行 `//` 注释说明职责。
+- 所有显式方法、构造器、接口方法声明前必须有一行 `//` 注释说明该方法负责什么。
+- 注释放在方法头或类型头的上一行；如果方法有 `@Override` 等注解，注释放在注解上一行。
+
 ## Project Layout
 
 - `src/main/java/com/iwmei/lantransfer/App.java`：应用启动入口，只负责启动 JavaFX。

@@ -11,13 +11,16 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
+// 我的资料页面逻辑
 final class Mine {
     private final MainWindow app;
 
+    // 初始化我的页面对象
     Mine(MainWindow app) {
         this.app = app;
     }
 
+    // 显示我的资料页面
     void showProfilePage() {
         if (app.profile == null) {
             app.showAuth(false);
@@ -38,6 +41,7 @@ final class Mine {
         app.setMainPage("我的", page, true, true);
     }
 
+    // 构建个人资料编辑区域
     private HBox profileEditor(Profile profile) {
         HBox root = new HBox(28);
         root.setAlignment(Pos.CENTER_LEFT);
@@ -54,6 +58,7 @@ final class Mine {
         return root;
     }
 
+    // 构建状态选择卡片区域
     private GridPane statusCards() {
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -67,6 +72,7 @@ final class Mine {
         return grid;
     }
 
+    // 构建自定义状态输入区域
     private HBox customStatusField() {
         TextField field = app.textField("输入自定义状态");
         Button save = app.outlineButton("保存");
@@ -77,6 +83,7 @@ final class Mine {
         return row;
     }
 
+    // 构建账号更多信息区域
     private GridPane moreInfo(Profile profile) {
         GridPane grid = new GridPane();
         grid.setHgap(18);
