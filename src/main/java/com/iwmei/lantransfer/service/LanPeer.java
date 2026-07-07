@@ -1,7 +1,9 @@
 package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.DeviceStatus;
+import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -35,7 +37,7 @@ final class LanPeer {
     private final ConcurrentMap<String, UserDevice> seen = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> seenAt = new ConcurrentHashMap<>();
     private final long offlineMillis;
-    private final UserDevice self;
+    private volatile UserDevice self;
 
     // 初始化并启动后台响应线程
     LanPeer() {
@@ -85,7 +87,8 @@ final class LanPeer {
     // 把设备编码成 UDP 响应文本
     String encode(UserDevice device) {
         return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户")
-                + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port();
+                + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port()
+                + "\t" + userStatus(device.userStatus()).name();
     }
 
     // 解析 UDP 响应文本
@@ -95,7 +98,7 @@ final class LanPeer {
 
     // 解析 UDP 响应文本并用来源地址兜底
     private UserDevice parse(String message, String fallbackHost) {
-        String[] parts = message == null ? new String[0] : message.split("\t", 6);
+        String[] parts = message == null ? new String[0] : message.split("\t", 7);
         if (parts.length < 4 || !HERE.equals(parts[0])) {
             return null;
         }
@@ -104,7 +107,8 @@ final class LanPeer {
         String deviceName = clean(parts[3], "LOCAL-PC");
         String host = parts.length >= 5 ? clean(parts[4], fallbackHost) : fallbackHost;
         int port = parts.length >= 6 ? port(parts[5]) : TRANSFER_PORT;
-        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id), false, host, port);
+        UserStatus status = parts.length >= 7 ? userStatus(parts[6]) : UserStatus.DEFAULT;
+        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id), false, host, port, status);
     }
 
     // 接收一次扫描响应
@@ -140,6 +144,9 @@ final class LanPeer {
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
                 if (DISCOVER.equals(message)) {
+                    if (!discoverable(self.userStatus())) {
+                        continue;
+                    }
                     byte[] data = encode(self).getBytes(StandardCharsets.UTF_8);
                     socket.send(new DatagramPacket(data, data.length, packet.getAddress(), packet.getPort()));
                 } else {
@@ -192,13 +199,37 @@ final class LanPeer {
         seenAt.put(device.id(), System.currentTimeMillis());
     }
 
+    // 按当前登录资料刷新本机发现信息
+    void updateSelf(Profile profile) {
+        if (profile == null) {
+            return;
+        }
+        UserDevice current = self;
+        seen.remove(current.id());
+        seenAt.remove(current.id());
+        String nickname = clean(profile.nickname(), current.nickname());
+        String id = clean(profile.userId(), current.id());
+        self = new UserDevice(id, nickname, clean(profile.deviceName(), current.deviceName()), DeviceStatus.ONLINE, "本机",
+                initial(nickname), color(id), false, current.host(), current.port(), userStatus(profile.status()));
+        remember(self);
+    }
+
+    // 按当前状态刷新本机发现信息
+    void updateStatus(UserStatus status) {
+        UserDevice current = self;
+        self = new UserDevice(current.id(), current.nickname(), current.deviceName(), DeviceStatus.ONLINE, "本机",
+                current.avatarText(), current.color(), current.imageAvatar(), current.host(), current.port(), userStatus(status));
+        remember(self);
+    }
+
     // 根据最后发现时间生成在线或离线展示对象
     private UserDevice withStatus(UserDevice device) {
         long age = System.currentTimeMillis() - seenAt.getOrDefault(device.id(), 0L);
-        boolean online = self.id().equals(device.id()) || age <= offlineMillis;
+        UserStatus userStatus = userStatus(device.userStatus());
+        boolean online = (self.id().equals(device.id()) || age <= offlineMillis) && discoverable(userStatus);
         return new UserDevice(device.id(), device.nickname(), device.deviceName(),
-                online ? DeviceStatus.ONLINE : DeviceStatus.OFFLINE, online ? seenText(device, age) : "已离线",
-                device.avatarText(), device.color(), device.imageAvatar(), device.host(), device.port());
+                online ? DeviceStatus.ONLINE : DeviceStatus.OFFLINE, online ? seenText(device, age) : statusText(userStatus),
+                device.avatarText(), device.color(), device.imageAvatar(), device.host(), device.port(), userStatus);
     }
 
     // 生成最后发现时间展示文本
@@ -263,6 +294,35 @@ final class LanPeer {
         } catch (Exception ex) {
             return TRANSFER_PORT;
         }
+    }
+
+    // 解析用户在线状态
+    private UserStatus userStatus(String value) {
+        try {
+            return UserStatus.valueOf(value);
+        } catch (Exception ignored) {
+            return UserStatus.DEFAULT;
+        }
+    }
+
+    // 兜底用户在线状态
+    private UserStatus userStatus(UserStatus status) {
+        return status == null ? UserStatus.DEFAULT : status;
+    }
+
+    // 判断用户状态是否允许被发现和直接传输
+    private boolean discoverable(UserStatus status) {
+        UserStatus value = userStatus(status);
+        return value != UserStatus.INVISIBLE && value != UserStatus.OFFLINE;
+    }
+
+    // 生成状态展示文本
+    private String statusText(UserStatus status) {
+        return switch (userStatus(status)) {
+            case INVISIBLE -> "对方隐身";
+            case OFFLINE -> "对方离线";
+            default -> "已离线";
+        };
     }
 
     // 生成稳定设备 ID

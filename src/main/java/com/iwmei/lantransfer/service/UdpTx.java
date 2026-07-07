@@ -6,6 +6,7 @@ import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.TransferTask;
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -110,12 +111,12 @@ final class UdpTx {
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
         int retries = 0;
-        boolean success = online(target) && target.reachable();
+        boolean success = sendable(target);
         if (!success) {
             for (SourceFile source : sources) {
                 tasks.add(failedTask(source, target, 0));
             }
-            logs.add(stamp("⚠ [" + targetLabel(target) + "] 设备不可达，未执行 UDP 发送"));
+            logs.add(stamp("⚠ [" + targetLabel(target) + "] " + blockReason(target)));
             return new TargetSend(false, retries, tasks, logs);
         }
         String jobId = UUID.randomUUID().toString();
@@ -295,11 +296,43 @@ final class UdpTx {
         return target != null && target.status() == DeviceStatus.ONLINE;
     }
 
+    // 判断目标是否允许直接发送
+    private boolean sendable(UserDevice target) {
+        return online(target) && target.reachable() && allowedStatus(target.userStatus());
+    }
+
+    // 判断用户状态是否允许直接发送
+    private boolean allowedStatus(UserStatus status) {
+        UserStatus value = status == null ? UserStatus.DEFAULT : status;
+        return value == UserStatus.DEFAULT || value == UserStatus.ONLINE;
+    }
+
+    // 生成目标拦截原因
+    private String blockReason(UserDevice target) {
+        if (target == null) {
+            return "目标为空，未执行 UDP 发送";
+        }
+        if (!online(target)) {
+            return "设备离线，未执行 UDP 发送";
+        }
+        UserStatus status = target.userStatus() == null ? UserStatus.DEFAULT : target.userStatus();
+        if (status == UserStatus.BUSY) {
+            return "对方忙碌，等待接收确认功能未完成，已拦截发送";
+        }
+        if (status == UserStatus.INVISIBLE || status == UserStatus.OFFLINE) {
+            return "对方当前状态不允许接收文件，已拦截发送";
+        }
+        if (!target.reachable()) {
+            return "设备不可达，未执行 UDP 发送";
+        }
+        return "目标不满足传输条件，未执行 UDP 发送";
+    }
+
     // 统计可真实发送的目标数量
     private int sendableTargets(List<UserDevice> targets) {
         int count = 0;
         for (UserDevice target : targets) {
-            if (online(target) && target.reachable()) {
+            if (sendable(target)) {
                 count++;
             }
         }

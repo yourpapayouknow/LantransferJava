@@ -23,7 +23,13 @@ public final class LocalBackend implements BackendFacade {
     // 登录功能的本地后端调用入口
     @Override
     public CompletableFuture<AuthResult> login(LoginRequest request) {
-        return CompletableFuture.supplyAsync(() -> auth.login(request));
+        return CompletableFuture.supplyAsync(() -> {
+            AuthResult result = auth.login(request);
+            if (result.success() && result.profile() != null) {
+                lan.updateSelf(result.profile());
+            }
+            return result;
+        });
     }
 
     // 注册功能的本地后端调用入口
@@ -83,12 +89,14 @@ public final class LocalBackend implements BackendFacade {
     @Override
     public void updateProfile(Profile profile) {
         auth.updateProfile(profile);
+        lan.updateSelf(profile);
     }
 
     // 更新用户在线状态
     @Override
     public void updateStatus(UserStatus status, String customText) {
         auth.updateStatus(status, customText);
+        lan.updateStatus(status);
     }
 
     // 更新系统设置参数

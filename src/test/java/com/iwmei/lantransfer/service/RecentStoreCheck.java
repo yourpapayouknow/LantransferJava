@@ -2,6 +2,7 @@ package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +30,7 @@ public final class RecentStoreCheck {
             require("u2".equals(loaded.get(0).id()), "latest device should move to front");
             require(!loaded.get(0).lastSeen().isBlank(), "latest device should record transfer time");
             require(loaded.get(0).reachable(), "network address should persist");
+            require(loaded.get(0).userStatus() == UserStatus.BUSY, "user status should persist");
         } finally {
             Files.deleteIfExists(file);
         }
@@ -37,7 +39,7 @@ public final class RecentStoreCheck {
     // 构造测试设备
     private static UserDevice device(String id, String nickname, String deviceName) {
         return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", nickname.substring(0, 1),
-                "#4f7bd8", false, "127.0.0.1", 45332);
+                "#4f7bd8", false, "127.0.0.1", 45332, UserStatus.BUSY);
     }
 
     // 断言条件为真

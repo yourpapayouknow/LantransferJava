@@ -2,6 +2,7 @@ package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -104,6 +105,7 @@ final class RecentStore {
         props.setProperty(prefix + "imageAvatar", String.valueOf(device.imageAvatar()));
         props.setProperty(prefix + "host", device.host());
         props.setProperty(prefix + "port", String.valueOf(device.port()));
+        props.setProperty(prefix + "userStatus", userStatus(device.userStatus()).name());
     }
 
     // 读取单个设备字段
@@ -122,14 +124,15 @@ final class RecentStore {
                 props.getProperty(prefix + "color", "#4f7bd8"),
                 Boolean.parseBoolean(props.getProperty(prefix + "imageAvatar", "false")),
                 props.getProperty(prefix + "host", ""),
-                intValue(props.getProperty(prefix + "port"), 0));
+                intValue(props.getProperty(prefix + "port"), 0),
+                userStatus(props.getProperty(prefix + "userStatus")));
     }
 
     // 更新时间文本
     private UserDevice touched(UserDevice device) {
         return new UserDevice(device.id(), device.nickname(), device.deviceName(), device.status(),
                 TIME.format(LocalDateTime.now()), device.avatarText(), device.color(), device.imageAvatar(),
-                device.host(), device.port());
+                device.host(), device.port(), userStatus(device.userStatus()));
     }
 
     // 解析设备在线状态
@@ -139,6 +142,20 @@ final class RecentStore {
         } catch (Exception ignored) {
             return DeviceStatus.OFFLINE;
         }
+    }
+
+    // 解析用户在线状态
+    private UserStatus userStatus(String value) {
+        try {
+            return UserStatus.valueOf(value);
+        } catch (Exception ignored) {
+            return UserStatus.DEFAULT;
+        }
+    }
+
+    // 兜底用户在线状态
+    private UserStatus userStatus(UserStatus status) {
+        return status == null ? UserStatus.DEFAULT : status;
     }
 
     // 解析整数

@@ -18,7 +18,6 @@
 - 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收和接收目录落盘已由 `UdpTx/UdpRx` 实现；未实现的是传输中实时进度推送、接收端进度展示、队列调度和分片级并发。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库，把已确认分片数暴露给 UI；只有在大文件性能不足时再把单文件分片分派到并发 worker。
 - 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和内存 `BitSet` 记录当次接收分片，但分片状态没有持久化到磁盘，应用重启后不能继续；发送端也没有按接收端缺失分片列表定向补发。推荐替代方案：为每个任务保存 chunk bitmap 和元数据文件，重启后恢复 `.part` 状态，并提供缺失分片查询和补发协议。
 - 基于传输口令的虚拟小群组传输：当前 UI 没有口令输入，发现协议也没有群组字段。当前无占位入口。推荐替代方案：先在设置或发送页增加口令字段，再把口令哈希放入发现和发送握手协议。
-- 基于用户设定状态的条件文件传输：当前已保存用户状态和自定义签名，但发现协议尚未广播状态，发送器也未按状态拦截。当前占位是 `AuthStore.updateStatus(...)` 持久化状态。推荐替代方案：扩展 `LanPeer` 响应字段携带 `UserStatus`，再在真实发送前按 ONLINE/BUSY/INVISIBLE/OFFLINE 做接收策略判断。
 
 ## `src/main/java/com/iwmei/lantransfer/App.java`
 
@@ -80,9 +79,9 @@
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，启动 `UdpRx` 后台接收服务，把传输任务创建交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，保证 App 在逐步替换后端时仍可运行。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，启动 `UdpRx` 后台接收服务，把传输任务创建交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：构造器调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`updateProfile(...)` 和 `updateStatus(...)` 同步写入本地账号文件。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)`。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：构造器调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)`，让发现协议使用当前账号昵称、设备名和用户状态。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料；`updateStatus(...)` 保存状态后调用 `lan.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 参与扫描和发送策略。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)`。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -96,17 +95,17 @@
 
 所属功能：近期传输对象本地仓库。
 
-详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖内存或演示数据。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、最近传输时间、头像字段、目标地址和传输端口，最多保留 12 个。
+详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖内存或演示数据。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、用户状态、最近传输时间、头像字段、目标地址和传输端口，最多保留 12 个。
 
-实现方法：默认构造器使用 `AppFiles.dataDir().resolve("recent.properties")` 定位文件。`load()` 用 `Properties` 读取 `count` 和每个序号下的设备字段，字段缺失时使用安全默认值，状态解析失败时回退 `DeviceStatus.OFFLINE`。`remember(List<UserDevice>)` 把本次目标更新时间后放到 `LinkedHashMap` 前面，再追加旧记录并按 ID 去重，最后截取前 12 个写回。`save(...)` 创建父目录并写入 properties，同时记录 `repo.origin`。该实现用本地文件替代数据库，足够满足无服务器课堂项目的近期对象恢复。
+实现方法：默认构造器使用 `AppFiles.dataDir().resolve("recent.properties")` 定位文件。`load()` 用 `Properties` 读取 `count` 和每个序号下的设备字段，字段缺失时使用安全默认值，设备在线状态解析失败时回退 `DeviceStatus.OFFLINE`，用户状态解析失败时回退 `UserStatus.DEFAULT`。`remember(List<UserDevice>)` 把本次目标更新时间后放到 `LinkedHashMap` 前面，再追加旧记录并按 ID 去重，最后截取前 12 个写回。`save(...)` 创建父目录并写入 properties，同时记录 `repo.origin`；`put(...)` 会保存 `userStatus`，`touched(...)` 只更新时间文本并保留用户状态。该实现用本地文件替代数据库，足够满足无服务器课堂项目的近期对象恢复。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表和最后发现时间，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现响应携带真实传输 IP 和传输端口，为 `UdpTx/UdpRx` 建立目标地址；已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表和最后发现时间，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现响应携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据；已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
 
-实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后用 `encode(self)` 回复发送方；收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间生成 ONLINE/OFFLINE 和“刚刚/秒前/分钟/已离线”展示文本。`parse(message, fallbackHost)` 兼容旧 4 字段响应，缺地址时用 UDP 来源地址兜底，缺端口时用 `45332`。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后先检查 `discoverable(self.userStatus())`，隐身和离线不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态`；`parse(message, fallbackHost)` 仍兼容旧 4 到 6 字段响应，缺状态时回退 `UserStatus.DEFAULT`。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
 
@@ -120,9 +119,9 @@
 
 所属功能：UDP 文件发送后端。
 
-详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线且可达的设备才会进入真实 UDP 发送，离线或缺少地址的设备会生成失败任务。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，再逐个发送分片包，每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发。
+详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线、可达且用户状态允许接收的设备才会进入真实 UDP 发送，离线、缺少地址、隐身、离线状态或忙碌状态的设备会生成失败任务和拦截日志。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，再逐个发送分片包，每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发。
 
-实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 为目标创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，成功后用 `InputStream` 读取固定大小分片并调用 `sendData(...)`，每个分片 ACK 后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；断点续传和实时进度后续在这个类上继续扩展。
+实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 先调用 `sendable(...)` 检查 `DeviceStatus.ONLINE`、真实地址和 `UserStatus.DEFAULT/ONLINE`；BUSY 会被拦截并提示等待接收确认功能未完成，INVISIBLE/OFFLINE 会被拦截为不允许接收。通过检查后才创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，成功后用 `InputStream` 读取固定大小分片并调用 `sendData(...)`，每个分片 ACK 后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；断点续传和实时进度后续在这个类上继续扩展。
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
@@ -176,9 +175,9 @@
 
 所属功能：局域网用户设备数据对象。
 
-详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、在线状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址和目标传输端口。
+详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、设备在线状态、用户状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址和目标传输端口。
 
-实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。保留旧 8 参数构造器，演示数据不用立刻填写地址；`reachable()` 用于判断设备是否有真实传输地址。`DeviceStatus` 决定在线/离线样式，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
+实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。保留旧 8 参数构造器和带地址的旧构造器，旧调用会自动使用 `UserStatus.DEFAULT`；`reachable()` 用于判断设备是否有真实传输地址。`DeviceStatus` 决定在线/离线样式，`UserStatus` 决定对方是否允许被发现或直接接收文件，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferFile.java`
 
@@ -264,9 +263,9 @@
 
 所属功能：局域网发现协议无框架自检。
 
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、发现后在线状态和过期离线判定，不依赖真实网络环境。
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、发现后在线状态和过期离线判定，不依赖真实网络环境。
 
-实现方法：`main(String[] args)` 使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真，并确认 `knownDevices()` 至少包含本机设备。随后调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
+实现方法：`main(String[] args)` 使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY，并确认 `knownDevices()` 至少包含本机设备。随后调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/SettingsStoreCheck.java`
 
@@ -280,9 +279,9 @@
 
 所属功能：近期传输对象仓库无框架自检。
 
-详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址，避免 App 重启后近期目标退回纯演示数据。
+详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址和用户状态，避免 App 重启后近期目标退回纯演示数据。
 
-实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
+实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线且用户状态为 BUSY 的 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达、用户状态仍为 BUSY。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/util/DeviceSearchCheck.java`
 
@@ -306,7 +305,7 @@
 
 详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验和接收落盘。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性和错误校验拒收。
 
-实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
+实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

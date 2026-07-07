@@ -5,6 +5,7 @@ import com.iwmei.lantransfer.model.SystemSettings;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.UserDevice;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -52,6 +53,12 @@ public final class UdpWireCheck {
             require(Files.exists(secondFile), "second received file should exist");
             require("hello udp".equals(Files.readString(firstFile)), "first received content should match");
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
+            UserDevice busy = new UserDevice("self-3", "本机C", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#7a52d8", false, "127.0.0.1", port, UserStatus.BUSY);
+            TransferSummary blocked = tx.run(List.of(new TransferFile("hello.txt", "9 B", source)), List.of(busy), store.load());
+            require(blocked.successCount() == 0, "busy target should be blocked");
+            require(blocked.failedCount() == 1, "busy target should count as failed");
+            require(blocked.logs().stream().anyMatch(log -> log.contains("对方忙碌")), "busy block reason should be logged");
             require(sendBadChecksumBegin(port).endsWith("\tFAIL"), "bad checksum should fail");
             require(!Files.exists(receiveDir.resolve("bad.txt")), "bad checksum file should not land");
         } finally {
