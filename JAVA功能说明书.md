@@ -184,9 +184,9 @@
 
 所属功能：一次传输结果汇总。
 
-详细功能：保存目标总数、成功数、失败数、重试次数、总耗时、日志列表和任务列表。传输结果页用它展示统计卡、传输列表和日志。
+详细功能：保存目标总数、成功数、失败数、重试次数、总耗时、日志列表和任务列表。传输结果页用它展示统计卡、传输列表和日志，也用它执行“清除已完成”和“清空日志”的内存汇总更新。
 
-实现方法：服务层完成或模拟完成传输后返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。后续真实 UDP 发送应在最终汇总时把每个目标的确认和重试结果折算进这些字段。
+实现方法：服务层完成或模拟完成传输后返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。`withoutCompleted()` 过滤掉状态为“已完成”的任务，并用剩余任务重新计算目标数、成功数、失败数和重试数；`withoutLogs()` 保留统计和任务，只把日志列表换成空列表。后续真实 UDP 发送应在最终汇总时把每个目标的确认和重试结果折算进这些字段。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferTask.java`
 
@@ -280,9 +280,9 @@
 
 所属功能：传输模拟器无框架自检。
 
-详细功能：验证一个文件发送给一个在线目标和一个离线目标时，汇总统计、失败重试、任务行和日志数量是否正确。
+详细功能：验证一个文件发送给一个在线目标和一个离线目标时，汇总统计、失败重试、任务行、日志数量、清除已完成和清空日志是否正确。
 
-实现方法：`main(String[] args)` 创建临时文件，构造在线和离线两个 `UserDevice`，调用 `new TxSim().run(...)`，用 `require(...)` 检查目标总数为 2、成功为 1、失败为 1、重试为 3、任务行为 2、日志为 4，最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.TxSimCheck`。
+实现方法：`main(String[] args)` 创建临时文件，构造在线和离线两个 `UserDevice`，调用 `new TxSim().run(...)`，用 `require(...)` 检查目标总数为 2、成功为 1、失败为 1、重试为 3、任务行为 2、日志为 4；随后调用 `withoutCompleted()` 检查已完成行被移除且只剩失败行，调用 `withoutLogs()` 检查日志为空，最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.TxSimCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/UdpWireCheck.java`
 
@@ -296,9 +296,9 @@
 
 所属功能：文件传输首页、待发送列表和传输结果页。
 
-详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计和传输日志。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。
+详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计和传输日志。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
 
-实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，再调用后端返回 `TransferSummary` 并跳转结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
+实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，再调用后端返回 `TransferSummary` 并跳转结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
 
 ## `src/main/java/com/iwmei/lantransfer/view/UserList.java`
 

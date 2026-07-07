@@ -29,6 +29,10 @@ public final class TxSimCheck {
             require(summary.retryCount() == 3, "offline target should retry three times");
             require(summary.tasks().size() == 2, "one file to two targets should create two rows");
             require(summary.logs().size() == 4, "start, two targets, end logs should exist");
+            TransferSummary withoutCompleted = summary.withoutCompleted();
+            require(withoutCompleted.successCount() == 0, "completed rows should be removed from success count");
+            require(withoutCompleted.tasks().size() == 1, "only failed row should remain after clearing completed");
+            require(summary.withoutLogs().logs().isEmpty(), "logs should clear");
         } finally {
             Files.deleteIfExists(file);
         }

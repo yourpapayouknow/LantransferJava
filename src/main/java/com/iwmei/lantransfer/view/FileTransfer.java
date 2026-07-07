@@ -191,10 +191,11 @@ final class FileTransfer {
         VBox section = app.glassSection("");
         HBox header = app.sectionHeader("传输列表", null);
         Button clearCompleted = app.ghostTextButton("清除已完成");
-        clearCompleted.setOnAction(event -> app.toast("清除已完成传输记录接口已预留。"));
         long running = tasks.stream().filter(task -> "传输中".equals(task.status())).count();
         long completed = tasks.stream().filter(task -> "已完成".equals(task.status())).count();
         long failed = tasks.stream().filter(task -> task.status().contains("失败")).count();
+        clearCompleted.setDisable(completed == 0 || app.currentSummary == null);
+        clearCompleted.setOnAction(event -> clearCompletedTasks());
         header.getChildren().addAll(app.tabPill("全部", String.valueOf(tasks.size()), true), app.tabPill("进行中", String.valueOf(running), false),
                 app.tabPill("已完成", String.valueOf(completed), false), app.tabPill("已失败", String.valueOf(failed), false), app.spacer(), clearCompleted);
         section.getChildren().add(header);
@@ -222,7 +223,8 @@ final class FileTransfer {
         VBox section = app.glassSection("传输日志");
         HBox header = new HBox(12, app.mutedLabel("耗时 " + summary.elapsed(), 14), app.spacer());
         Button clear = app.secondaryButton("清空日志");
-        clear.setOnAction(event -> app.toast("清空日志接口已预留。"));
+        clear.setDisable(summary.logs().isEmpty());
+        clear.setOnAction(event -> clearLogs());
         ToggleButton autoScroll = new ToggleButton();
         autoScroll.getStyleClass().add("switch-toggle");
         header.getChildren().addAll(app.mutedLabel("自动滚动", 14), autoScroll, clear);
@@ -233,6 +235,24 @@ final class FileTransfer {
         logScroll.getStyleClass().add("log-scroll");
         section.getChildren().addAll(header, logScroll);
         return section;
+    }
+
+    // 清除当前汇总中的已完成任务
+    private void clearCompletedTasks() {
+        if (app.currentSummary == null) {
+            return;
+        }
+        app.currentSummary = app.currentSummary.withoutCompleted();
+        showTransferResultPage();
+    }
+
+    // 清空当前汇总日志
+    private void clearLogs() {
+        if (app.currentSummary == null) {
+            return;
+        }
+        app.currentSummary = app.currentSummary.withoutLogs();
+        showTransferResultPage();
     }
 
     // 启动文件传输任务
