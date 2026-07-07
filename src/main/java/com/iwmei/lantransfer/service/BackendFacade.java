@@ -21,6 +21,9 @@ public interface BackendFacade {
     // 扫描局域网用户设备
     CompletableFuture<List<UserDevice>> scanLanDevices();
 
+    // 加载系统设置参数
+    CompletableFuture<SystemSettings> loadSettings();
+
     // 启动文件传输任务
     CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets);
 

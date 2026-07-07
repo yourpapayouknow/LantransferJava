@@ -11,6 +11,7 @@ public final class LocalBackend implements BackendFacade {
     private final MockBackendFacade demo = new MockBackendFacade();
     private final TxSim tx = new TxSim();
     private final LanPeer lan = new LanPeer();
+    private final SettingsStore settings = new SettingsStore();
 
     // 登录功能的本地后端调用入口
     @Override
@@ -45,6 +46,12 @@ public final class LocalBackend implements BackendFacade {
         return CompletableFuture.supplyAsync(lan::scan);
     }
 
+    // 加载系统设置参数
+    @Override
+    public CompletableFuture<SystemSettings> loadSettings() {
+        return CompletableFuture.supplyAsync(settings::load);
+    }
+
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
@@ -66,6 +73,6 @@ public final class LocalBackend implements BackendFacade {
     // 更新系统设置参数
     @Override
     public void updateSettings(SystemSettings settings) {
-        demo.updateSettings(settings);
+        this.settings.save(settings);
     }
 }

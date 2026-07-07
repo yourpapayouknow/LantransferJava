@@ -36,6 +36,11 @@ public final class AppController {
         return backend.scanLanDevices();
     }
 
+    // 加载系统设置参数
+    public CompletableFuture<SystemSettings> loadSettings() {
+        return backend.loadSettings();
+    }
+
     // 启动文件传输任务
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
         return backend.startTransfer(files, targets);

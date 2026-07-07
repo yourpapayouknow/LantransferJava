@@ -67,6 +67,13 @@ public final class MockBackendFacade implements BackendFacade {
         return CompletableFuture.completedFuture(devices.subList(0, 4));
     }
 
+    // 加载系统设置参数
+    @Override
+    public CompletableFuture<SystemSettings> loadSettings() {
+        return CompletableFuture.completedFuture(new SystemSettings("192.168.1.100", "fe80::1a2b:3c4d", 10, 20, 3,
+                "#ff8500", "Microsoft YaHei", 14, 100));
+    }
+
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {

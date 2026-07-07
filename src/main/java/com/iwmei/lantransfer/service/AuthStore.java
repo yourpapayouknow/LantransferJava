@@ -131,7 +131,7 @@ final class AuthStore {
     private void save(Properties props) {
         try {
             Files.createDirectories(store.getParent());
-            props.setProperty("repo.origin", repoOrigin());
+            props.setProperty("repo.origin", AppFiles.repoOrigin());
             try (Writer writer = Files.newBufferedWriter(store, StandardCharsets.UTF_8)) {
                 props.store(writer, "Lantransfer local accounts");
             }
@@ -289,37 +289,7 @@ final class AuthStore {
 
     // 生成默认账号文件路径
     private static Path defaultStore() {
-        return Path.of(System.getProperty("user.home"), ".lantransfer", repoSlug(), "users.properties");
-    }
-
-    // 读取 GitHub 远程仓库名作为本地账号命名空间
-    private static String repoSlug() {
-        String origin = repoOrigin();
-        int slash = origin.lastIndexOf('/');
-        String name = slash >= 0 ? origin.substring(slash + 1) : origin;
-        return name.replace(".git", "").replaceAll("[^A-Za-z0-9_.-]", "_");
-    }
-
-    // 读取当前仓库 origin 地址
-    private static String repoOrigin() {
-        Path config = Path.of(".git", "config");
-        if (!Files.exists(config)) {
-            return "LantransferJava";
-        }
-        try {
-            boolean inOrigin = false;
-            for (String line : Files.readAllLines(config, StandardCharsets.UTF_8)) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("[remote ")) {
-                    inOrigin = trimmed.equals("[remote \"origin\"]");
-                } else if (inOrigin && trimmed.startsWith("url =")) {
-                    return trimmed.substring("url =".length()).trim();
-                }
-            }
-        } catch (IOException ignored) {
-            return "LantransferJava";
-        }
-        return "LantransferJava";
+        return AppFiles.dataDir().resolve("users.properties");
     }
 
     // 构造失败认证结果
