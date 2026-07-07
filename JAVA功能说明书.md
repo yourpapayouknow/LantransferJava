@@ -60,6 +60,14 @@
 
 实现方法：`dataDir()` 使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore` 和 `SettingsStore` 都通过它定位文件。
 
+## `src/main/java/com/iwmei/lantransfer/service/AutoStart.java`
+
+所属功能：Windows 开机自启动管理。
+
+详细功能：`AutoStart` 负责把系统设置里的“开机自启动”落到 Windows 当前用户启动目录。启用时创建 `极速互传.cmd`，关闭时删除该脚本；生产默认构造只在 Windows 系统上生效，非 Windows 系统不做副作用。它不修改注册表，不需要管理员权限，适合课程项目和本机演示。
+
+实现方法：默认构造器通过 `%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup` 定位启动目录，`sync(boolean)` 根据开关创建目录、写入脚本或删除脚本。脚本先切到当前项目根目录，再优先运行 `mvnw.cmd -q javafx:run`，没有 Maven Wrapper 时运行 `mvn -q javafx:run`，并用 `start /min` 尽量最小化启动命令窗口。`AutoStart(Path)` 允许自检把启动脚本写到临时目录，`none()` 给设置仓库测试使用，避免测试污染真实系统启动项。
+
 ## `src/main/java/com/iwmei/lantransfer/service/AuthStore.java`
 
 所属功能：无服务器登录注册账号仓库。
@@ -80,9 +88,9 @@
 
 所属功能：系统设置本地仓库。
 
-详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库。
+详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库；保存时会把“开机自启动”同步给 `AutoStart`，让设置项具备系统级效果。
 
-实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析。`save(SystemSettings)` 把设置写回 properties 文件，并记录 `repo.origin` 方便定位来源。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`。
+实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析。`save(SystemSettings)` 把设置写回 properties 文件，记录 `repo.origin` 方便定位来源，然后调用 `autoStart.sync(value.autoStart())` 创建或删除启动目录脚本。默认构造器使用真实 `AutoStart`，测试构造器使用 `AutoStart.none()` 避免系统副作用。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/RecentStore.java`
 
@@ -243,6 +251,14 @@
 详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
+
+## `src/test/java/com/iwmei/lantransfer/service/AutoStartCheck.java`
+
+所属功能：开机自启动脚本无框架自检。
+
+详细功能：验证 `AutoStart` 能在指定目录创建启动脚本、脚本内容包含 JavaFX 启动命令，并能在关闭自启动时删除脚本。它只使用临时目录，不会写入真实 Windows 启动目录。
+
+实现方法：`main(String[] args)` 创建临时目录，用 `new AutoStart(dir)` 指向该目录，先调用 `sync(true)` 并检查 `scriptPath()` 存在和脚本内容，再调用 `sync(false)` 检查脚本删除，最后递归删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AutoStartCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/LanPeerCheck.java`
 

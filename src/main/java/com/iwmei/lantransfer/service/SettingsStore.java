@@ -18,15 +18,22 @@ import java.util.Properties;
 // 本地设置仓库，负责系统设置的读取和保存
 final class SettingsStore {
     private final Path store;
+    private final AutoStart autoStart;
 
     // 使用默认用户目录设置文件初始化仓库
     SettingsStore() {
-        this(AppFiles.dataDir().resolve("settings.properties"));
+        this(AppFiles.dataDir().resolve("settings.properties"), new AutoStart());
     }
 
     // 使用指定设置文件初始化仓库，供测试复用
     SettingsStore(Path store) {
+        this(store, AutoStart.none());
+    }
+
+    // 使用指定设置文件和自启动管理器初始化仓库，供测试复用
+    SettingsStore(Path store, AutoStart autoStart) {
         this.store = store;
+        this.autoStart = autoStart;
     }
 
     // 加载系统设置
@@ -83,6 +90,7 @@ final class SettingsStore {
             try (Writer writer = Files.newBufferedWriter(store, StandardCharsets.UTF_8)) {
                 props.store(writer, "Lantransfer settings");
             }
+            autoStart.sync(value.autoStart());
         } catch (IOException ex) {
             throw new IllegalStateException("保存设置文件失败：" + store, ex);
         }
