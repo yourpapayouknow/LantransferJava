@@ -13,6 +13,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -229,7 +231,7 @@ final class UdpTx {
     // 构造文件开始协议包
     private String beginMessage(SourceFile source, String jobId, int fileIndex, int chunkCount) {
         return UdpRx.BEGIN + "\t" + jobId + "\t" + fileIndex + "\t" + encodeName(source.name())
-                + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes;
+                + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes + "\t" + source.sha256();
     }
 
     // 读取一个固定大小文件分片
@@ -255,7 +257,7 @@ final class UdpTx {
             if (Files.isDirectory(file.path())) {
                 addDirectory(sources, file);
             } else if (Files.isRegularFile(file.path())) {
-                sources.add(new SourceFile(file.fileName(), file.path(), sizeOf(file.path())));
+                sources.add(new SourceFile(file.fileName(), file.path(), sizeOf(file.path()), sha256(file.path())));
             }
         }
         return sources;
@@ -267,7 +269,7 @@ final class UdpTx {
         try (var paths = Files.walk(root)) {
             paths.filter(Files::isRegularFile).forEach(path -> {
                 String relative = root.relativize(path).toString().replace('\\', '/');
-                sources.add(new SourceFile(file.fileName() + "/" + relative, path, sizeOf(path)));
+                sources.add(new SourceFile(file.fileName() + "/" + relative, path, sizeOf(path), sha256(path)));
             });
         } catch (Exception ignored) {
         }
@@ -309,6 +311,20 @@ final class UdpTx {
             return Files.size(path);
         } catch (Exception ignored) {
             return 0;
+        }
+    }
+
+    // 计算文件 SHA-256
+    private String sha256(Path path) {
+        try (InputStream input = Files.newInputStream(path)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[chunkBytes];
+            for (int read = input.read(buffer); read >= 0; read = input.read(buffer)) {
+                digest.update(buffer, 0, read);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (Exception ignored) {
+            return "";
         }
     }
 
@@ -356,7 +372,7 @@ final class UdpTx {
     }
 
     // 待发送的真实文件
-    private record SourceFile(String name, Path path, long bytes) {
+    private record SourceFile(String name, Path path, long bytes, String sha256) {
     }
 
     // 单个文件发送结果

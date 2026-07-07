@@ -6,9 +6,13 @@ import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.UserDevice;
 
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 
@@ -46,8 +50,25 @@ public final class UdpWireCheck {
             require(Files.exists(secondFile), "second received file should exist");
             require("hello udp".equals(Files.readString(firstFile)), "first received content should match");
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
+            require(sendBadChecksumBegin(port).endsWith("\tFAIL"), "bad checksum should fail");
+            require(!Files.exists(receiveDir.resolve("bad.txt")), "bad checksum file should not land");
         } finally {
             deleteTree(root);
+        }
+    }
+
+    // 发送一个 SHA-256 错误的开始包并返回接收端确认
+    private static String sendBadChecksumBegin(int port) throws Exception {
+        String name = Base64.getUrlEncoder().encodeToString("bad.txt".getBytes(StandardCharsets.UTF_8));
+        String message = UdpRx.BEGIN + "\tbad-job\t0\t" + name + "\t0\t0\t1024\tbad-sha";
+        byte[] data = message.getBytes(StandardCharsets.UTF_8);
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setSoTimeout(1000);
+            socket.send(new DatagramPacket(data, data.length, InetAddress.getByName("127.0.0.1"), port));
+            byte[] buffer = new byte[256];
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            return new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
         }
     }
 

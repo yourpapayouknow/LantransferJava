@@ -1,6 +1,7 @@
 package com.iwmei.lantransfer.service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
@@ -10,8 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.BitSet;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -79,8 +82,8 @@ final class UdpRx {
 
     // 处理文件开始包并创建接收状态
     private void handleBegin(DatagramSocket socket, DatagramPacket packet) {
-        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 7);
-        if (parts.length != 7) {
+        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 8);
+        if (parts.length < 7) {
             return;
         }
         String jobId = parts[1];
@@ -96,7 +99,8 @@ final class UdpRx {
             long size = longValue(parts[4], -1);
             int chunkCount = intValue(parts[5], -1);
             int chunkSize = intValue(parts[6], -1);
-            RxFile file = createFile(fileName, size, chunkCount, chunkSize);
+            String sha256 = parts.length >= 8 ? parts[7] : "";
+            RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
             active.put(key, file);
             if (chunkCount == 0) {
                 file.finish();
@@ -128,7 +132,7 @@ final class UdpRx {
     }
 
     // 创建单个文件的接收状态
-    private RxFile createFile(String fileName, long size, int chunkCount, int chunkSize) throws IOException {
+    private RxFile createFile(String fileName, long size, int chunkCount, int chunkSize, String sha256) throws IOException {
         if (size < 0 || chunkCount < 0 || chunkSize <= 0) {
             throw new IOException("bad file metadata");
         }
@@ -137,7 +141,7 @@ final class UdpRx {
         Path target = uniqueTarget(dir, safeName(fileName));
         Path part = target.resolveSibling(target.getFileName() + ".part");
         Files.deleteIfExists(part);
-        return new RxFile(target, part, size, chunkCount, chunkSize);
+        return new RxFile(target, part, size, chunkCount, chunkSize, sha256);
     }
 
     // 返回不覆盖旧文件的接收路径
@@ -242,17 +246,19 @@ final class UdpRx {
         private final long size;
         private final int chunkCount;
         private final int chunkSize;
+        private final String sha256;
         private final BitSet received = new BitSet();
         private int receivedCount;
         private boolean done;
 
         // 初始化接收中文件状态
-        private RxFile(Path target, Path part, long size, int chunkCount, int chunkSize) {
+        private RxFile(Path target, Path part, long size, int chunkCount, int chunkSize, String sha256) {
             this.target = target;
             this.part = part;
             this.size = size;
             this.chunkCount = chunkCount;
             this.chunkSize = chunkSize;
+            this.sha256 = sha256 == null ? "" : sha256;
         }
 
         // 写入一个文件分片
@@ -264,7 +270,7 @@ final class UdpRx {
                 return false;
             }
             if (received.get(chunkIndex)) {
-                return true;
+                return receivedCount < chunkCount || finishOk();
             }
             try (FileChannel channel = FileChannel.open(part, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
                 channel.position((long) chunkIndex * chunkSize);
@@ -272,8 +278,18 @@ final class UdpRx {
                 received.set(chunkIndex);
                 receivedCount++;
                 if (receivedCount == chunkCount) {
-                    finish();
+                    return finishOk();
                 }
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        // 完成文件接收并把校验失败转成 ACK 失败
+        private boolean finishOk() {
+            try {
+                finish();
                 return true;
             } catch (Exception ignored) {
                 return false;
@@ -288,8 +304,25 @@ final class UdpRx {
             if (size == 0 && !Files.exists(part)) {
                 Files.write(part, new byte[0]);
             }
+            if (!sha256.isBlank() && !sha256.equalsIgnoreCase(sha256(part))) {
+                throw new IOException("sha256 mismatch");
+            }
             Files.move(part, target);
             done = true;
+        }
+
+        // 计算接收临时文件 SHA-256
+        private String sha256(Path path) throws IOException {
+            try (InputStream input = Files.newInputStream(path)) {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] buffer = new byte[8192];
+                for (int read = input.read(buffer); read >= 0; read = input.read(buffer)) {
+                    digest.update(buffer, 0, read);
+                }
+                return HexFormat.of().formatHex(digest.digest());
+            } catch (Exception ex) {
+                throw new IOException("sha256 failed", ex);
+            }
         }
     }
 }
