@@ -40,7 +40,9 @@ public final class UdpWireCheck {
                     "#4f7bd8", false, "127.0.0.1", port);
             UserDevice second = new UserDevice("self-2", "本机B", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
                     "#35c6ca", false, "127.0.0.1", port);
-            TransferSummary summary = new UdpTx(1024).run(List.of(new TransferFile("hello.txt", "9 B", source)),
+            UdpTx tx = new UdpTx(1024);
+            require(tx.perTargetBytesPerSecond(store.load(), 2) == 5L * 1024 * 1024, "upload limit should split by target count");
+            TransferSummary summary = tx.run(List.of(new TransferFile("hello.txt", "9 B", source)),
                     List.of(first, second), store.load());
             Path firstFile = receiveDir.resolve("hello.txt");
             Path secondFile = receiveDir.resolve("hello-1.txt");

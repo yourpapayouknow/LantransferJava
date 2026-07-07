@@ -55,13 +55,14 @@ final class UdpTx {
         List<SourceFile> sources = sources(files == null ? List.of() : files);
         List<UserDevice> safeTargets = targets == null ? List.of() : targets;
         int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
+        long bytesPerSecond = perTargetBytesPerSecond(settings, sendableTargets(safeTargets));
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
         int success = 0;
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
-        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries)) {
+        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond)) {
             tasks.addAll(sent.tasks());
             logs.addAll(sent.logs());
             retries += sent.retries();
@@ -76,16 +77,16 @@ final class UdpTx {
     }
 
     // 并发发送到多个目标并按原目标顺序返回结果
-    private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries) {
+    private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries, long bytesPerSecond) {
         if (targets.size() <= 1) {
-            return targets.stream().map(target -> sendTarget(sources, target, maxRetries)).toList();
+            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond)).toList();
         }
         int threads = Math.min(targets.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
         ExecutorService pool = Executors.newFixedThreadPool(threads);
         try {
             List<Future<TargetSend>> futures = new ArrayList<>();
             for (UserDevice target : targets) {
-                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries)));
+                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond)));
             }
             List<TargetSend> results = new ArrayList<>();
             for (int i = 0; i < futures.size(); i++) {
@@ -105,7 +106,7 @@ final class UdpTx {
     }
 
     // 发送所有文件到单个目标
-    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries) {
+    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond) {
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
         int retries = 0;
@@ -118,11 +119,12 @@ final class UdpTx {
             return new TargetSend(false, retries, tasks, logs);
         }
         String jobId = UUID.randomUUID().toString();
+        RateLimit rate = new RateLimit(bytesPerSecond);
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.connect(InetAddress.getByName(target.host()), target.port());
             socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
             for (int i = 0; i < sources.size(); i++) {
-                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries);
+                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate);
                 tasks.add(sent.task());
                 logs.addAll(sent.logs());
                 retries += sent.retries();
@@ -149,7 +151,7 @@ final class UdpTx {
     }
 
     // 发送单个文件
-    private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex, int maxRetries) {
+    private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex, int maxRetries, RateLimit rate) {
         long started = System.nanoTime();
         List<String> logs = new ArrayList<>();
         int chunkCount = chunkCount(source.bytes());
@@ -169,6 +171,7 @@ final class UdpTx {
                     logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 第 " + chunkIndex + " 个分片未确认"));
                     return new FileSend(false, retries, failedTask(source, target, retries), logs);
                 }
+                rate.pause(read);
             }
             logs.add(stamp("✓ [" + targetLabel(target) + "] " + source.name() + " UDP 发送完成"));
             return new FileSend(true, retries, successTask(source, target, started, retries), logs);
@@ -292,6 +295,26 @@ final class UdpTx {
         return target != null && target.status() == DeviceStatus.ONLINE;
     }
 
+    // 统计可真实发送的目标数量
+    private int sendableTargets(List<UserDevice> targets) {
+        int count = 0;
+        for (UserDevice target : targets) {
+            if (online(target) && target.reachable()) {
+                count++;
+            }
+        }
+        return Math.max(1, count);
+    }
+
+    // 计算每个目标分到的上传限速字节数
+    long perTargetBytesPerSecond(SystemSettings settings, int targetCount) {
+        int limit = settings == null ? 0 : settings.uploadLimit();
+        if (limit <= 0) {
+            return 0;
+        }
+        return Math.max(1L, limit * 1024L * 1024L / Math.max(1, targetCount));
+    }
+
     // 生成目标展示名
     private String targetLabel(UserDevice target) {
         if (target == null) {
@@ -385,5 +408,35 @@ final class UdpTx {
 
     // 单个数据包确认结果
     private record AckResult(boolean success, int retries) {
+    }
+
+    // 简单目标级限速器，按已发送字节和目标速率短暂休眠
+    private static final class RateLimit {
+        private final long bytesPerSecond;
+        private final long started = System.nanoTime();
+        private long sent;
+
+        // 初始化目标级限速器
+        private RateLimit(long bytesPerSecond) {
+            this.bytesPerSecond = bytesPerSecond;
+        }
+
+        // 根据已发送字节数等待到目标速率
+        private void pause(int bytes) {
+            if (bytesPerSecond <= 0 || bytes <= 0) {
+                return;
+            }
+            sent += bytes;
+            long expected = (long) (sent * 1_000_000_000.0 / bytesPerSecond);
+            long wait = expected - (System.nanoTime() - started);
+            if (wait <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(wait / 1_000_000, (int) (wait % 1_000_000));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
