@@ -18,6 +18,7 @@ public final class LanPeerCheck {
         require("D-1".equals(parsed.id()), "id should round trip");
         require("李四".equals(parsed.nickname()), "nickname should round trip");
         require(parsed.status() == DeviceStatus.ONLINE, "parsed peer should be online");
+        require(parsed.reachable(), "parsed peer should include transfer address");
         require(!peer.knownDevices().isEmpty(), "local device should exist");
     }
 

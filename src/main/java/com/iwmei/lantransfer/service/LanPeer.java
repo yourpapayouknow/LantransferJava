@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 // 局域网设备发现服务，负责 UDP 广播扫描和本机发现响应
 final class LanPeer {
     private static final int PORT = 45331;
+    static final int TRANSFER_PORT = 45332;
     private static final int WAIT_MILLIS = 900;
     private static final String DISCOVER = "LANTRANSFER_DISCOVER_V1";
     private static final String HERE = "LANTRANSFER_HERE_V1";
@@ -74,19 +75,27 @@ final class LanPeer {
 
     // 把设备编码成 UDP 响应文本
     String encode(UserDevice device) {
-        return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户") + "\t" + clean(device.deviceName(), "LOCAL-PC");
+        return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户")
+                + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port();
     }
 
     // 解析 UDP 响应文本
     UserDevice parse(String message) {
-        String[] parts = message == null ? new String[0] : message.split("\t", 4);
-        if (parts.length != 4 || !HERE.equals(parts[0])) {
+        return parse(message, "");
+    }
+
+    // 解析 UDP 响应文本并用来源地址兜底
+    private UserDevice parse(String message, String fallbackHost) {
+        String[] parts = message == null ? new String[0] : message.split("\t", 6);
+        if (parts.length < 4 || !HERE.equals(parts[0])) {
             return null;
         }
         String id = clean(parts[1], idFor(parts[2] + parts[3]));
         String nickname = clean(parts[2], "用户");
         String deviceName = clean(parts[3], "LOCAL-PC");
-        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id), false);
+        String host = parts.length >= 5 ? clean(parts[4], fallbackHost) : fallbackHost;
+        int port = parts.length >= 6 ? port(parts[5]) : TRANSFER_PORT;
+        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id), false, host, port);
     }
 
     // 接收一次扫描响应
@@ -95,7 +104,7 @@ final class LanPeer {
             byte[] buffer = new byte[512];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
-            UserDevice device = parse(new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8));
+            UserDevice device = parse(new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8), packet.getAddress().getHostAddress());
             if (device != null) {
                 seen.put(device.id(), device);
             }
@@ -125,7 +134,7 @@ final class LanPeer {
                     byte[] data = encode(self).getBytes(StandardCharsets.UTF_8);
                     socket.send(new DatagramPacket(data, data.length, packet.getAddress(), packet.getPort()));
                 } else {
-                    UserDevice device = parse(message);
+                    UserDevice device = parse(message, packet.getAddress().getHostAddress());
                     if (device != null) {
                         seen.put(device.id(), device);
                     }
@@ -166,7 +175,7 @@ final class LanPeer {
         String deviceName = localHostName();
         String nickname = clean(System.getProperty("user.name"), "本机");
         String id = idFor(nickname + "@" + deviceName);
-        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "本机", initial(nickname), color(id), false);
+        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "本机", initial(nickname), color(id), false, localIp(), TRANSFER_PORT);
     }
 
     // 获取本机主机名
@@ -175,6 +184,39 @@ final class LanPeer {
             return InetAddress.getLocalHost().getHostName();
         } catch (Exception ignored) {
             return "LOCAL-PC";
+        }
+    }
+
+    // 获取本机可传输 IP
+    private String localIp() {
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                NetworkInterface item = interfaces.nextElement();
+                if (!item.isUp() || item.isLoopback() || item.isVirtual()) {
+                    continue;
+                }
+                Enumeration<InetAddress> addresses = item.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress address = addresses.nextElement();
+                    if (!address.isLoopbackAddress() && address.getHostAddress().indexOf(':') < 0) {
+                        return address.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            return "127.0.0.1";
+        }
+        return "127.0.0.1";
+    }
+
+    // 解析端口
+    private int port(String value) {
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port > 0 ? port : TRANSFER_PORT;
+        } catch (Exception ex) {
+            return TRANSFER_PORT;
         }
     }
 

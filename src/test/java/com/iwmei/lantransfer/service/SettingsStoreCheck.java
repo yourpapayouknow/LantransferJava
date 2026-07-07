@@ -26,6 +26,9 @@ public final class SettingsStoreCheck {
             require(loaded.maxRetries() == 4, "retry count should persist");
             require("#2f80ed".equals(loaded.accentColor()), "accent color should persist");
             require(loaded.zoomPercent() == 125, "zoom should persist");
+            require(!loaded.receiveDir().isBlank(), "receive dir should exist");
+            require("简体中文".equals(loaded.language()), "language should persist");
+            require(loaded.soundOnComplete(), "sound flag should persist");
         } finally {
             Files.deleteIfExists(file);
         }

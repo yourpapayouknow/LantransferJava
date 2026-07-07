@@ -88,6 +88,7 @@ public class MainWindow extends Application {
     Stage stage;
     Profile profile;
     TransferSummary currentSummary;
+    SystemSettings currentSettings;
     String accentColor = ACCENT_ORANGE;
     boolean userListGridView;
     boolean recentTargetsLoaded;
@@ -111,7 +112,14 @@ public class MainWindow extends Application {
         stage = primaryStage;
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle(APP_TITLE);
-        showAuth(false);
+        controller.loadSettings().thenAccept(settings -> Platform.runLater(() -> {
+            currentSettings = settings;
+            accentColor = settings.accentColor();
+            showAuth(false);
+        })).exceptionally(error -> {
+            Platform.runLater(() -> showAuth(false));
+            return null;
+        });
     }
 
     // 显示登录或注册入口页面
@@ -353,10 +361,11 @@ public class MainWindow extends Application {
         footer.getStyleClass().add("status-footer");
         footer.setAlignment(Pos.CENTER_LEFT);
         Button changePath = ghostTextButton("更改");
-        changePath.setOnAction(event -> toast("存储位置接口已预留。"));
+        changePath.setOnAction(event -> showSettingsPage());
+        String receiveDir = currentSettings == null ? SystemSettings.defaultReceiveDir() : currentSettings.receiveDir();
         footer.getChildren().addAll(mutedLabel("传输模式： 局域网直连", 14), separatorVertical(),
                 mutedLabel("当前网速：", 14), accentLabel("↑ 23.6 MB/s", 14), mutedLabel("↓ 4.8 MB/s", 14),
-                spacer(), mutedLabel("存储位置： D:\\极速互传\\接收文件", 14), changePath);
+                spacer(), mutedLabel("存储位置： " + receiveDir, 14), changePath);
         return footer;
     }
 

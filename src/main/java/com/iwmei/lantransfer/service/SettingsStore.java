@@ -50,7 +50,12 @@ final class SettingsStore {
                 props.getProperty("accentColor", defaults.accentColor()),
                 props.getProperty("fontFamily", defaults.fontFamily()),
                 intValue(props, "fontSize", defaults.fontSize()),
-                intValue(props, "zoomPercent", defaults.zoomPercent())
+                intValue(props, "zoomPercent", defaults.zoomPercent()),
+                props.getProperty("receiveDir", defaults.receiveDir()),
+                props.getProperty("language", defaults.language()),
+                boolValue(props, "autoStart", defaults.autoStart()),
+                boolValue(props, "startMinimized", defaults.startMinimized()),
+                boolValue(props, "soundOnComplete", defaults.soundOnComplete())
         );
     }
 
@@ -68,6 +73,11 @@ final class SettingsStore {
         props.setProperty("fontFamily", value.fontFamily());
         props.setProperty("fontSize", String.valueOf(value.fontSize()));
         props.setProperty("zoomPercent", String.valueOf(value.zoomPercent()));
+        props.setProperty("receiveDir", value.receiveDir());
+        props.setProperty("language", value.language());
+        props.setProperty("autoStart", String.valueOf(value.autoStart()));
+        props.setProperty("startMinimized", String.valueOf(value.startMinimized()));
+        props.setProperty("soundOnComplete", String.valueOf(value.soundOnComplete()));
         try {
             Files.createDirectories(store.getParent());
             try (Writer writer = Files.newBufferedWriter(store, StandardCharsets.UTF_8)) {
@@ -90,6 +100,11 @@ final class SettingsStore {
         } catch (NumberFormatException ex) {
             return fallback;
         }
+    }
+
+    // 读取布尔设置
+    private boolean boolValue(Properties props, String key, boolean fallback) {
+        return Boolean.parseBoolean(props.getProperty(key, String.valueOf(fallback)));
     }
 
     // 获取本机 IP 地址

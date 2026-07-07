@@ -15,10 +15,10 @@
 
 ## 功能跳过记录
 
-- 真实 UDP 多线程文件发送与接收落盘：当前 `UserDevice` 只保存展示信息，没有目标 IP/端口；界面也没有接收目录、接收确认、接收进度或后台接收状态入口。直接写发送端会无法定位目标，也无法验证接收端正确落盘。当前占位是 `TxSim`，它基于真实文件和目标生成传输报告。推荐替代方案：先扩展发现协议保存目标地址，新增后台 `UdpRx` 接收服务和接收目录设置，再实现 `UdpTx` 分片发送、ACK 和多线程调度。
+- 真实 UDP 多线程文件发送与接收落盘：`UserDevice` 已保存目标 IP/端口，设置页已保存接收目录，但还没有后台接收服务、接收确认、接收进度和真实发送器。当前占位是 `TxSim`，它基于真实文件和目标生成传输报告。推荐替代方案：新增后台 `UdpRx` 接收服务，再实现 `UdpTx` 分片发送、ACK 和多线程调度。
 - 文件临时分片缓存与断点重传：该功能依赖真实 UDP 分片协议、接收端缓存目录、传输任务 ID 和文件写入状态；当前还没有这些协议字段。当前占位是 `TxSim` 的失败重试统计。推荐替代方案：在 `UdpTx/UdpRx` 完成后，为每个文件生成任务 ID 和 chunk index，再保存 `.part` 缓存和 bitmap 进度。
 - 文件接收完整性校验：该功能需要接收端持有完整文件并与发送端交换校验值；当前没有接收端落盘流程。当前占位是按在线/离线生成成功失败结果。推荐替代方案：在真实接收完成后使用 SHA-256 校验整文件，失败时触发重传缺失分片。
-- 据限速智能分配带宽：设置页已保存上传/下载限速，但当前没有真实传输流可调度。当前占位是 `SystemSettings.uploadLimit/downloadLimit` 的持久化。推荐替代方案：在 UDP 发送器中用令牌桶按目标数分配发送速率。
+- 根据限速智能分配带宽：设置页已保存上传/下载限速，但当前没有真实传输流可调度。当前占位是 `SystemSettings.uploadLimit/downloadLimit` 的持久化。推荐替代方案：在 UDP 发送器中用令牌桶按目标数分配发送速率。
 - 基于传输口令的虚拟小群组传输：当前 UI 没有口令输入，发现协议也没有群组字段。当前无占位入口。推荐替代方案：先在设置或发送页增加口令字段，再把口令哈希放入发现和发送握手协议。
 - 基于用户设定状态的条件文件传输：当前已保存用户状态和自定义签名，但发现协议尚未广播状态，发送器也未按状态拦截。当前占位是 `AuthStore.updateStatus(...)` 持久化状态。推荐替代方案：扩展 `LanPeer` 响应字段携带 `UserStatus`，再在真实发送前按 ONLINE/BUSY/INVISIBLE/OFFLINE 做接收策略判断。
 
@@ -82,17 +82,17 @@
 
 所属功能：系统设置本地仓库。
 
-详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号和缩放比例。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库。
+详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库。
 
-实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值。`save(SystemSettings)` 把设置写回 properties 文件，并记录 `repo.origin` 方便定位来源。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。
+实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析。`save(SystemSettings)` 把设置写回 properties 文件，并记录 `repo.origin` 方便定位来源。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息和已发现设备表，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息和已发现设备表，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现响应现在携带真实传输 IP 和传输端口，为后续 `UdpTx/UdpRx` 建立目标地址。
 
-实现方法：构造器生成本机 `UserDevice` 并放入 `seen`，默认启动 daemon 响应线程。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 写入 `seen`。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后用 `encode(self)` 回复发送方；收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名`。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名和主机名生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并放入 `seen`，默认启动 daemon 响应线程。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `LANTRANSFER_DISCOVER_V1`，在约 900ms 内接收响应并调用 `parse(...)` 写入 `seen`。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后用 `encode(self)` 回复发送方；收到设备响应时也会解析并缓存。协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口`。`parse(message, fallbackHost)` 兼容旧 4 字段响应，缺地址时用 UDP 来源地址兜底，缺端口时用 `45332`。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
@@ -138,17 +138,17 @@
 
 所属功能：系统设置数据对象。
 
-详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号和缩放比例。当前由 `SettingsStore` 读写，并由系统设置页渲染为可编辑控件。
+详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、语言、开机自启动、启动后最小化和传输完成提示音。当前由 `SettingsStore` 读写，并由系统设置页渲染为可编辑控件。
 
-实现方法：使用 `record` 汇总设置页需要保存的数据。`SettingsStore.load()` 构造或读取它，`Settings` 页面保存时把控件值重新组装成新的 `SystemSettings` 并调用 `AppController.updateSettings(...)`。
+实现方法：使用 `record` 汇总设置页需要保存的数据。保留一个基础字段构造器，旧调用会自动填充默认接收目录、语言和启动选项。`defaultReceiveDir()` 使用用户目录下的 `极速互传/接收文件`。`SettingsStore.load()` 构造或读取它，`Settings` 页面保存时把控件值重新组装成新的 `SystemSettings` 并调用 `AppController.updateSettings(...)`。
 
 ## `src/main/java/com/iwmei/lantransfer/model/UserDevice.java`
 
 所属功能：局域网用户设备数据对象。
 
-详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、在线状态、上次在线时间、头像文字、头像颜色和是否使用图片头像。
+详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、在线状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址和目标传输端口。
 
-实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。`DeviceStatus` 决定在线/离线样式，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
+实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。保留旧 8 参数构造器，演示数据不用立刻填写地址；`reachable()` 用于判断设备是否有真实传输地址。`DeviceStatus` 决定在线/离线样式，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferFile.java`
 
@@ -218,17 +218,17 @@
 
 所属功能：局域网发现协议无框架自检。
 
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底和在线状态转换，不依赖真实网络环境。
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、在线状态转换和传输地址携带，不依赖真实网络环境。
 
-实现方法：`main(String[] args)` 使用 `new LanPeer(false)` 禁止启动后台 UDP 线程，构造一个 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认 `knownDevices()` 至少包含本机设备。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.LanPeerCheck`。
+实现方法：`main(String[] args)` 使用 `new LanPeer(false)` 禁止启动后台 UDP 线程，构造一个 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真，并确认 `knownDevices()` 至少包含本机设备。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.LanPeerCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/SettingsStoreCheck.java`
 
 所属功能：系统设置仓库无框架自检。
 
-详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色和缩放比例能够再次读出。
+详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、接收目录、语言和提示音设置能够再次读出。
 
-实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数，再保存一份自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
+实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数，再保存一份自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/TxSimCheck.java`
 
@@ -274,14 +274,14 @@
 
 所属功能：系统设置页面。
 
-详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件。
+详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、接收目录、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件。
 
-实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号和缩放控件保存到字段，便于保存时读取。`colorControls(...)` 点击预设色会用新主题色重绘页面；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色立即生效。语言和启动设置当前仍是展示控件，后续模型扩展时再写入。
+实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号、缩放、接收目录、语言和启动选项控件保存到字段，便于保存时读取。`receiveDirControls(...)` 使用 `DirectoryChooser` 选择目录。`colorControls(...)` 点击预设色会用新主题色重绘页面；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色立即生效。
 
 ## `src/main/java/com/iwmei/lantransfer/view/MainWindow.java`
 
 所属功能：JavaFX 主窗口、路由和共享 UI 组件库。
 
-详细功能：该类继承 `Application`，管理窗口尺寸、标题栏、认证窗口壳、主窗口壳、侧边栏、顶部栏、底部状态栏、页面路由、共享状态和大量复用控件。它持有 `AppController`、当前用户资料、待传输文件、近期目标、选中目标、当前传输汇总、主题色和用户列表分页状态。
+详细功能：该类继承 `Application`，管理窗口尺寸、标题栏、认证窗口壳、主窗口壳、侧边栏、顶部栏、底部状态栏、页面路由、共享状态和大量复用控件。它持有 `AppController`、当前用户资料、当前系统设置、待传输文件、近期目标、选中目标、当前传输汇总、主题色和用户列表分页状态。
 
-实现方法：`start(Stage)` 初始化透明窗口并进入登录页。`showAuth(...)`、`showFileTransferPage()`、`showUserListPage()`、`showScanPage()`、`showProfilePage()`、`showSettingsPage()` 等方法只做页面路由转发。`setAuthPage(...)` 和 `setMainPage(...)` 把页面内容放入统一窗口壳，`setWindow(...)` 负责 Scene、CSS、尺寸和首次显示。`windowShell(...)`、`mainWindowShell(...)`、`titleBar()`、`sidebar(...)`、`mainTopbar()` 和 `statusFooter()` 组成应用外框。`cardGrid(...)`、`addCard(...)`、`userCard(...)`、`addRecentTarget(...)`、`tableGrid(...)`、`addTransferRow(...)` 等提供业务页面共享布局。`titleLabel(...)`、`mutedLabel(...)`、`accentLabel(...)`、`textField(...)`、`passwordField(...)`、`primaryButton(...)`、`secondaryButton(...)`、`outlineButton(...)`、`ghostTextButton(...)`、`compactButton(...)`、`iconToggleButton(...)` 和 `textButton(...)` 统一控件样式。`radar(...)`、`scanDeviceLabel(...)`、`statusLine(...)`、`avatar(...)`、`statCard(...)`、`statusCard(...)`、`progressCell(...)`、`operationCell(...)`、`statusBadge(...)` 和 `logLine(...)` 构造具体视觉组件。`copyToClipboard(...)` 和 `toast(...)` 处理用户反馈。后续后端接入时，避免把业务逻辑继续塞进这个类，只让它保留页面状态和控件构建职责。
+实现方法：`start(Stage)` 初始化透明窗口后先异步读取系统设置，拿到 `accentColor` 和 `currentSettings` 后再进入登录页；读取失败时仍进入登录页。`showAuth(...)`、`showFileTransferPage()`、`showUserListPage()`、`showScanPage()`、`showProfilePage()`、`showSettingsPage()` 等方法只做页面路由转发。`setAuthPage(...)` 和 `setMainPage(...)` 把页面内容放入统一窗口壳，`setWindow(...)` 负责 Scene、CSS、尺寸和首次显示。`windowShell(...)`、`mainWindowShell(...)`、`titleBar()`、`sidebar(...)`、`mainTopbar()` 和 `statusFooter()` 组成应用外框；`statusFooter()` 会显示 `currentSettings.receiveDir()`，更改按钮跳转设置页。`cardGrid(...)`、`addCard(...)`、`userCard(...)`、`addRecentTarget(...)`、`tableGrid(...)`、`addTransferRow(...)` 等提供业务页面共享布局。`titleLabel(...)`、`mutedLabel(...)`、`accentLabel(...)`、`textField(...)`、`passwordField(...)`、`primaryButton(...)`、`secondaryButton(...)`、`outlineButton(...)`、`ghostTextButton(...)`、`compactButton(...)`、`iconToggleButton(...)` 和 `textButton(...)` 统一控件样式。`radar(...)`、`scanDeviceLabel(...)`、`statusLine(...)`、`avatar(...)`、`statCard(...)`、`statusCard(...)`、`progressCell(...)`、`operationCell(...)`、`statusBadge(...)` 和 `logLine(...)` 构造具体视觉组件。`copyToClipboard(...)` 和 `toast(...)` 处理用户反馈。
