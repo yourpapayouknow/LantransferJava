@@ -4,6 +4,7 @@ import com.iwmei.lantransfer.model.AuthResult;
 import com.iwmei.lantransfer.model.LoginRequest;
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.RegisterRequest;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -29,6 +30,7 @@ final class AuthStore {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final SecureRandom RANDOM = new SecureRandom();
     private final Path store;
+    private String currentAccount;
 
     // 使用默认用户目录账号文件初始化仓库
     AuthStore() {
@@ -43,7 +45,8 @@ final class AuthStore {
     // 校验账号密码并返回登录结果
     synchronized AuthResult login(LoginRequest request) {
         String account = normalize(request.account());
-        if (account.isBlank() || request.password().isBlank()) {
+        String password = request.password();
+        if (account.isBlank() || password == null || password.isBlank()) {
             return fail("请输入账号和密码");
         }
         Properties props = load();
@@ -51,12 +54,13 @@ final class AuthStore {
         if (!props.containsKey(key(account, "hash"))) {
             return fail("账号不存在，请先注册");
         }
-        if (!verify(request.password(), props.getProperty(key(account, "salt")), props.getProperty(key(account, "hash")))) {
+        if (!verify(password, props.getProperty(key(account, "salt")), props.getProperty(key(account, "hash")))) {
             return fail("账号或密码错误");
         }
         LocalDateTime now = LocalDateTime.now();
         props.setProperty(key(account, "lastLoginAt"), TIME.format(now));
         save(props);
+        currentAccount = account;
         return new AuthResult(true, false, "登录成功", profile(props, account));
     }
 
@@ -76,6 +80,37 @@ final class AuthStore {
         putAccount(props, account, request.password(), cleanDeviceName(request.deviceName()), now, now);
         save(props);
         return new AuthResult(true, false, "注册成功，请登录", profile(props, account));
+    }
+
+    // 更新当前账号资料
+    synchronized void updateProfile(Profile profile) {
+        if (profile == null) {
+            return;
+        }
+        Properties props = load();
+        ensureAdmin(props);
+        String account = findByUserId(props, profile.userId());
+        if (account == null) {
+            return;
+        }
+        props.setProperty(key(account, "nickname"), cleanText(profile.nickname(), account));
+        props.setProperty(key(account, "deviceName"), cleanText(profile.deviceName(), localDeviceName()));
+        props.setProperty(key(account, "signature"), cleanText(profile.signature(), "在线，已连接"));
+        props.setProperty(key(account, "language"), cleanText(profile.language(), "简体中文"));
+        save(props);
+    }
+
+    // 更新当前账号状态和自定义状态文本
+    synchronized void updateStatus(UserStatus status, String customText) {
+        String account = currentAccount;
+        if (account == null) {
+            return;
+        }
+        Properties props = load();
+        ensureAdmin(props);
+        props.setProperty(key(account, "status"), status == null ? UserStatus.DEFAULT.name() : status.name());
+        props.setProperty(key(account, "signature"), cleanText(customText, statusText(status)));
+        save(props);
     }
 
     // 加载账号文件
@@ -210,6 +245,37 @@ final class AuthStore {
     // 清洗设备名称输入
     private String cleanDeviceName(String deviceName) {
         return deviceName == null || deviceName.isBlank() ? localDeviceName() : deviceName.trim();
+    }
+
+    // 清洗普通资料文本
+    private String cleanText(String value, String fallback) {
+        String cleaned = value == null ? "" : value.trim();
+        return cleaned.isBlank() ? fallback : cleaned;
+    }
+
+    // 根据用户 ID 查找账号名
+    private String findByUserId(Properties props, String userId) {
+        if (userId == null) {
+            return null;
+        }
+        String suffix = ".userId";
+        for (String name : props.stringPropertyNames()) {
+            if (name.startsWith("account.") && name.endsWith(suffix) && userId.equals(props.getProperty(name))) {
+                return name.substring("account.".length(), name.length() - suffix.length());
+            }
+        }
+        return null;
+    }
+
+    // 生成状态默认文案
+    private String statusText(UserStatus status) {
+        return switch (status == null ? UserStatus.DEFAULT : status) {
+            case ONLINE -> "在线，允许接收文件";
+            case BUSY -> "忙碌，接收前请确认";
+            case INVISIBLE -> "隐身，不参与扫描";
+            case OFFLINE -> "离线，暂停传输";
+            case DEFAULT -> "在线，已连接";
+        };
     }
 
     // 获取本机设备名

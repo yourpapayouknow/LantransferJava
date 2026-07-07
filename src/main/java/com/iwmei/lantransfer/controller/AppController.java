@@ -40,4 +40,19 @@ public final class AppController {
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
         return backend.startTransfer(files, targets);
     }
+
+    // 更新用户资料信息
+    public void updateProfile(Profile profile) {
+        backend.updateProfile(profile);
+    }
+
+    // 更新用户在线状态
+    public void updateStatus(UserStatus status, String customText) {
+        backend.updateStatus(status, customText);
+    }
+
+    // 更新系统设置参数
+    public void updateSettings(SystemSettings settings) {
+        backend.updateSettings(settings);
+    }
 }

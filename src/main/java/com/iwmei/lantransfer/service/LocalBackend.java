@@ -54,13 +54,13 @@ public final class LocalBackend implements BackendFacade {
     // 更新用户资料信息
     @Override
     public void updateProfile(Profile profile) {
-        demo.updateProfile(profile);
+        auth.updateProfile(profile);
     }
 
     // 更新用户在线状态
     @Override
     public void updateStatus(UserStatus status, String customText) {
-        demo.updateStatus(status, customText);
+        auth.updateStatus(status, customText);
     }
 
     // 更新系统设置参数

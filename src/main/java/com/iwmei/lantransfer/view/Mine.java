@@ -1,6 +1,7 @@
 package com.iwmei.lantransfer.view;
 
 import com.iwmei.lantransfer.model.Profile;
+import com.iwmei.lantransfer.model.UserStatus;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
@@ -35,7 +36,14 @@ final class Mine {
         statusSection.getChildren().add(customStatusField());
         VBox moreSection = app.glassSection("更多信息");
         moreSection.getChildren().add(moreInfo(app.profile));
-        HBox actions = new HBox(20, app.fixedWidth(app.primaryButton("保存"), 164), app.fixedWidth(app.secondaryButton("重置"), 164));
+        Button save = app.primaryButton("保存");
+        save.setOnAction(event -> {
+            app.controller.updateProfile(app.profile);
+            app.toast("资料已保存");
+        });
+        Button reset = app.secondaryButton("重置");
+        reset.setOnAction(event -> showProfilePage());
+        HBox actions = new HBox(20, app.fixedWidth(save, 164), app.fixedWidth(reset, 164));
         actions.setAlignment(Pos.CENTER);
         page.getChildren().addAll(profileSection, statusSection, moreSection, actions);
         app.setMainPage("我的", page, true, true);
@@ -75,12 +83,25 @@ final class Mine {
     // 构建自定义状态输入区域
     private HBox customStatusField() {
         TextField field = app.textField("输入自定义状态");
+        field.setText(app.profile.signature());
         Button save = app.outlineButton("保存");
-        save.setOnAction(event -> app.toast("状态设置接口已预留。"));
+        save.setOnAction(event -> {
+            String text = field.getText().trim();
+            app.controller.updateStatus(UserStatus.DEFAULT, text);
+            app.profile = withSignature(app.profile, text.isBlank() ? "在线，已连接" : text);
+            app.toast("状态已保存");
+            showProfilePage();
+        });
         HBox row = new HBox(12, field, save);
         row.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(field, Priority.ALWAYS);
         return row;
+    }
+
+    // 复制资料并替换个性签名
+    private Profile withSignature(Profile profile, String signature) {
+        return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), signature,
+                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language());
     }
 
     // 构建账号更多信息区域

@@ -2,7 +2,9 @@ package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.AuthResult;
 import com.iwmei.lantransfer.model.LoginRequest;
+import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.RegisterRequest;
+import com.iwmei.lantransfer.model.UserStatus;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +37,14 @@ public final class AuthStoreCheck {
             AuthResult ok = store.login(new LoginRequest("alice", "secret", true));
             require(ok.success(), "registered account should login");
             require("alice".equals(ok.profile().nickname()), "profile should use account nickname");
+
+            Profile renamed = new Profile("Alice", ok.profile().userId(), "LAPTOP-B", "新的状态",
+                    ok.profile().registeredAt(), ok.profile().lastLoginAt(), ok.profile().version(), ok.profile().language());
+            store.updateProfile(renamed);
+            store.updateStatus(UserStatus.BUSY, "忙碌中");
+            AuthResult updated = store.login(new LoginRequest("alice", "secret", true));
+            require("Alice".equals(updated.profile().nickname()), "profile update should persist nickname");
+            require("忙碌中".equals(updated.profile().signature()), "status update should persist signature");
         } finally {
             delete(dir);
         }

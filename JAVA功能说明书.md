@@ -29,9 +29,9 @@
 
 所属功能：界面和业务服务之间的控制层。
 
-详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、近期设备、全部设备、扫描设备和启动传输的统一入口。当前实现实例化 `LocalBackend`，登录注册走本地真实账号仓库，其余暂未落地功能由本地后端临时复用演示数据。
+详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、近期设备、全部设备、扫描设备、启动传输、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册走本地真实账号仓库，局域网扫描和传输报告走本地实现，其余暂未落地功能由本地后端临时复用演示数据。
 
-实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`。这种薄控制器保证页面层不直接知道账号文件、UDP 传输或扫描实现。后续新增资料保存、状态保存、设置保存时，应先在 `BackendFacade` 补接口，再由这里转发。
+实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道账号文件、UDP 传输或扫描实现。
 
 ## `src/main/java/com/iwmei/lantransfer/service/BackendFacade.java`
 
@@ -53,17 +53,17 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑。它在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最后登录时间更新和 `Profile` 构造。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料和状态保存。它在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最后登录时间更新、资料更新、状态更新和 `Profile` 构造。
 
-实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt` 并返回包含资料的 `AuthResult`。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，`repoSlug()` 提取仓库名作为存储目录；没有 Git 仓库时退回 `LantransferJava`。该实现是本地替代方案，不依赖服务器和 GitHub token。
+实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`、记录 `currentAccount` 并返回包含资料的 `AuthResult`。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名和语言。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，`repoSlug()` 提取仓库名作为存储目录；没有 Git 仓库时退回 `LantransferJava`。该实现是本地替代方案，不依赖服务器和 GitHub token。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把传输任务创建交给 `TxSim`，把局域网扫描和已发现设备列表交给 `LanPeer`，把尚未实现的近期对象、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、资料保存和状态保存交给 `AuthStore`，把传输任务创建交给 `TxSim`，把局域网扫描和已发现设备列表交给 `LanPeer`，把尚未实现的近期对象和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`updateProfile(...)` 和 `updateStatus(...)` 同步写入本地账号文件。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
@@ -189,9 +189,9 @@
 
 所属功能：账号仓库无框架自检。
 
-详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料。
+详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证资料更新和状态签名更新会持久化。
 
-实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册和登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
+实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、登录、资料更新、状态更新和再次登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/LanPeerCheck.java`
 
@@ -237,9 +237,9 @@
 
 所属功能：我的资料页面。
 
-详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。
+详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。当前“保存”按钮会把现有 `Profile` 写回本地账号文件；自定义状态保存会更新本地账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
 
-实现方法：`showProfilePage()` 检查 `app.profile`，再组装资料、状态和更多信息三个分区。`profileEditor(Profile)` 用头像和表格行展示昵称、用户 ID、设备名称和个性签名。`statusCards()` 展示五种 `UserStatus` 对应状态文案。`customStatusField()` 当前只提示接口预留，后续应调用控制器保存状态。
+实现方法：`showProfilePage()` 检查 `app.profile`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。保存按钮调用 `app.controller.updateProfile(app.profile)`，重置按钮重新显示页面。`profileEditor(Profile)` 用头像和表格行展示昵称、用户 ID、设备名称和个性签名。`statusCards()` 展示五种 `UserStatus` 对应状态文案。`customStatusField()` 会把当前签名预填到输入框，保存时读取输入框，调用 `app.controller.updateStatus(UserStatus.DEFAULT, text)`，再用 `withSignature(Profile, String)` 构造新的不可变资料对象并刷新页面。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Settings.java`
 
