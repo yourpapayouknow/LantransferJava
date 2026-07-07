@@ -61,9 +61,17 @@
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把尚未实现的设备列表、扫描、传输、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录和注册交给 `AuthStore`，把传输任务创建交给 `TxSim`，把尚未实现的设备列表、扫描、资料、状态和设置功能临时委托给 `MockBackendFacade`，保证 App 在逐步替换后端时仍可运行。
 
-实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。其余方法直接调用 `demo` 对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：`login(...)` 和 `register(...)` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程。`startTransfer(...)` 使用异步任务调用 `TxSim.run(...)`，如果 UI 未选择目标，则沿用近期传输对象作为兜底目标。其余方法直接调用 `demo` 对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+
+## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
+
+所属功能：文件传输结果报告的本地模拟后端。
+
+详细功能：`TxSim` 在真正 UDP 发送内核完成前，先根据用户实际选择的文件和目标设备生成传输汇总。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
+
+实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免 UI 被坏路径中断。代码中有 `ponytail` 注释说明这是 UDP 内核完成前的本地模拟，后续替换点就是这个类。
 
 ## `src/main/java/com/iwmei/lantransfer/model/AuthResult.java`
 
@@ -177,13 +185,21 @@
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册和登录接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
+## `src/test/java/com/iwmei/lantransfer/service/TxSimCheck.java`
+
+所属功能：传输模拟器无框架自检。
+
+详细功能：验证一个文件发送给一个在线目标和一个离线目标时，汇总统计、失败重试、任务行和日志数量是否正确。
+
+实现方法：`main(String[] args)` 创建临时文件，构造在线和离线两个 `UserDevice`，调用 `new TxSim().run(...)`，用 `require(...)` 检查目标总数为 2、成功为 1、失败为 1、重试为 3、任务行为 2、日志为 4，最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.TxSimCheck`。
+
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 
 所属功能：文件传输首页、待发送列表和传输结果页。
 
-详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计和传输日志。它也是从登录后进入的第一个主功能页。
+详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计和传输日志。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。
 
-实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，再调用后端返回 `TransferSummary` 并跳转结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
+实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，再调用后端返回 `TransferSummary` 并跳转结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
 
 ## `src/main/java/com/iwmei/lantransfer/view/UserList.java`
 

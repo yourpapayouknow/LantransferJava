@@ -9,6 +9,7 @@ import java.util.concurrent.CompletableFuture;
 public final class LocalBackend implements BackendFacade {
     private final AuthStore auth = new AuthStore();
     private final MockBackendFacade demo = new MockBackendFacade();
+    private final TxSim tx = new TxSim();
 
     // 登录功能的本地后端调用入口
     @Override
@@ -43,7 +44,7 @@ public final class LocalBackend implements BackendFacade {
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
-        return demo.startTransfer(files, targets);
+        return CompletableFuture.supplyAsync(() -> tx.run(files, targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets));
     }
 
     // 更新用户资料信息

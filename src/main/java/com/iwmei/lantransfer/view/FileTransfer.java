@@ -1,6 +1,5 @@
 package com.iwmei.lantransfer.view;
 
-import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.TransferTask;
@@ -48,7 +47,8 @@ final class FileTransfer {
             }
             VBox page = new VBox(8);
             page.getStyleClass().add("page-content");
-            page.getChildren().addAll(uploadStrip(), recentTargetsSection(app.recentTargets), transferListSection(sampleTransferTasks()));
+            List<TransferTask> tasks = app.currentSummary == null ? List.of() : app.currentSummary.tasks();
+            page.getChildren().addAll(uploadStrip(), recentTargetsSection(app.recentTargets), transferListSection(tasks));
             app.setMainPage("文件传输", page, true, true);
         }));
     }
@@ -192,8 +192,11 @@ final class FileTransfer {
         HBox header = app.sectionHeader("传输列表", null);
         Button clearCompleted = app.ghostTextButton("清除已完成");
         clearCompleted.setOnAction(event -> app.toast("清除已完成传输记录接口已预留。"));
-        header.getChildren().addAll(app.tabPill("全部", "4", true), app.tabPill("进行中", "2", false), app.tabPill("已完成", "1", false),
-                app.tabPill("已失败", "1", false), app.spacer(), clearCompleted);
+        long running = tasks.stream().filter(task -> "传输中".equals(task.status())).count();
+        long completed = tasks.stream().filter(task -> "已完成".equals(task.status())).count();
+        long failed = tasks.stream().filter(task -> task.status().contains("失败")).count();
+        header.getChildren().addAll(app.tabPill("全部", String.valueOf(tasks.size()), true), app.tabPill("进行中", String.valueOf(running), false),
+                app.tabPill("已完成", String.valueOf(completed), false), app.tabPill("已失败", String.valueOf(failed), false), app.spacer(), clearCompleted);
         section.getChildren().add(header);
         GridPane table = app.tableGrid("文件名", "目标对象", "进度", "大小", "速度", "时间", "状态", "操作");
         for (int i = 0; i < tasks.size(); i++) {
@@ -230,16 +233,6 @@ final class FileTransfer {
         logScroll.getStyleClass().add("log-scroll");
         section.getChildren().addAll(header, logScroll);
         return section;
-    }
-
-    // 生成前端演示用传输任务
-    private List<TransferTask> sampleTransferTasks() {
-        return List.of(
-                new TransferTask("产品演示视频.mp4", sampleDeviceFor(0), 72, "512.00 MB", "12.35 MB/s", "00:00:32", "传输中", 0),
-                new TransferTask("会议纪要.png", sampleDeviceFor(1), 36, "3.21 MB", "2.11 MB/s", "00:00:08", "传输中", 0),
-                new TransferTask("用户手册.pdf", sampleDeviceFor(3), 100, "8.34 MB", "-", "2025-05-18 10:42:15", "已完成", 0),
-                new TransferTask("数据备份_20250517.zip", sampleDeviceFor(2), 0, "1024.00 MB", "-", "2025-05-18 09:15:33", "传输失败", 3)
-        );
     }
 
     // 启动文件传输任务
@@ -284,12 +277,4 @@ final class FileTransfer {
         showFileTransferPage();
     }
 
-    // 为演示传输任务选择目标设备
-    private UserDevice sampleDeviceFor(int index) {
-        List<UserDevice> devices = app.selectedTargets.isEmpty() ? app.recentTargets : app.selectedTargets;
-        if (devices.isEmpty()) {
-            return new UserDevice("empty", "未选择", "未选择目标", DeviceStatus.OFFLINE, "-", "?", "#5f656b", false);
-        }
-        return devices.get(Math.floorMod(index, devices.size()));
-    }
 }
