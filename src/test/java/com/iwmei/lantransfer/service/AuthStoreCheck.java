@@ -37,6 +37,7 @@ public final class AuthStoreCheck {
             AuthResult ok = store.login(new LoginRequest("alice", "secret", true));
             require(ok.success(), "registered account should login");
             require("alice".equals(ok.profile().nickname()), "profile should use account nickname");
+            require("alice".equals(store.rememberedAccount()), "remembered account should persist");
 
             Profile renamed = new Profile("Alice", ok.profile().userId(), "LAPTOP-B", "新的状态",
                     ok.profile().registeredAt(), ok.profile().lastLoginAt(), ok.profile().version(), ok.profile().language());
@@ -46,6 +47,8 @@ public final class AuthStoreCheck {
             require("Alice".equals(updated.profile().nickname()), "profile update should persist nickname");
             require("忙碌中".equals(updated.profile().signature()), "status update should persist signature");
             require(updated.profile().status() == UserStatus.BUSY, "status update should persist status");
+            store.login(new LoginRequest("alice", "secret", false));
+            require(store.rememberedAccount().isBlank(), "remembered account should clear when unchecked");
         } finally {
             delete(dir);
         }

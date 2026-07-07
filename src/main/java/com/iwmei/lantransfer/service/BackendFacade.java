@@ -12,6 +12,9 @@ public interface BackendFacade {
     // 注册功能的后端调用入口
     CompletableFuture<AuthResult> register(RegisterRequest request);
 
+    // 加载本地记住的最近登录账号
+    CompletableFuture<String> loadRememberedAccount();
+
     // 加载近期传输对象列表
     CompletableFuture<List<UserDevice>> loadRecentDevices();
 

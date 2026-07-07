@@ -21,6 +21,11 @@ public final class AppController {
         return backend.register(request);
     }
 
+    // 加载本地记住的最近登录账号
+    public CompletableFuture<String> loadRememberedAccount() {
+        return backend.loadRememberedAccount();
+    }
+
     // 加载近期传输对象列表
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {
         return backend.loadRecentDevices();

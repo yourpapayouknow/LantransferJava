@@ -32,6 +32,12 @@ public final class LocalBackend implements BackendFacade {
         return CompletableFuture.supplyAsync(() -> auth.register(request));
     }
 
+    // 加载本地记住的最近登录账号
+    @Override
+    public CompletableFuture<String> loadRememberedAccount() {
+        return CompletableFuture.supplyAsync(auth::rememberedAccount);
+    }
+
     // 加载近期传输对象列表
     @Override
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {

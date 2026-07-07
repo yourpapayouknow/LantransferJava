@@ -78,6 +78,13 @@ final class Auth {
         account.setText("admin");
         password.setText("admin");
         CheckBox rememberMe = app.checkBox("记住我", false);
+        app.controller.loadRememberedAccount().thenAccept(saved -> Platform.runLater(() -> {
+            if (saved != null && !saved.isBlank()) {
+                account.setText(saved);
+                password.clear();
+                rememberMe.setSelected(true);
+            }
+        }));
 
         Button loginButton = app.primaryButton("登录");
         loginButton.setMaxWidth(Double.MAX_VALUE);

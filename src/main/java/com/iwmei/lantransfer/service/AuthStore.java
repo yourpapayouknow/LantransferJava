@@ -59,9 +59,18 @@ final class AuthStore {
         }
         LocalDateTime now = LocalDateTime.now();
         props.setProperty(key(account, "lastLoginAt"), TIME.format(now));
+        remember(props, account, request.rememberMe());
         save(props);
         currentAccount = account;
         return new AuthResult(true, false, "登录成功", profile(props, account));
+    }
+
+    // 读取已记住的最近登录账号
+    synchronized String rememberedAccount() {
+        Properties props = load();
+        return Boolean.parseBoolean(props.getProperty("login.rememberMe"))
+                ? props.getProperty("login.account", "")
+                : "";
     }
 
     // 创建本地账号并返回注册结果
@@ -164,6 +173,17 @@ final class AuthStore {
         props.setProperty(key(account, "registeredAt"), TIME.format(registeredAt));
         props.setProperty(key(account, "lastLoginAt"), TIME.format(lastLoginAt));
         props.setProperty(key(account, "language"), "简体中文");
+    }
+
+    // 根据登录选择保存或清除最近登录账号
+    private void remember(Properties props, String account, boolean enabled) {
+        if (enabled) {
+            props.setProperty("login.rememberMe", "true");
+            props.setProperty("login.account", account);
+        } else {
+            props.remove("login.rememberMe");
+            props.remove("login.account");
+        }
     }
 
     // 从账号属性构造用户资料对象

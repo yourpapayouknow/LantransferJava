@@ -49,6 +49,12 @@ public final class MockBackendFacade implements BackendFacade {
         return CompletableFuture.completedFuture(new AuthResult(true, true, "注册申请已提交", profile));
     }
 
+    // 加载本地记住的最近登录账号
+    @Override
+    public CompletableFuture<String> loadRememberedAccount() {
+        return CompletableFuture.completedFuture("admin");
+    }
+
     // 加载近期传输对象列表
     @Override
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {
