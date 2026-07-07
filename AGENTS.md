@@ -36,10 +36,27 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - `src/main/resources/icons/`：图标资源。
 - `MockBackendFacade` 只给前端联调使用；真实后端写好后替换它。
 
+## Java Manual Rule
+
+- 根目录必须维护 `JAVA功能说明书.md`，按照 Java 文件分类记录每个类在 App 中的所属功能、详细代码功能、实现方法和维护注意事项。
+- 每新增或修改一个 Java 类，都必须在同一轮改动中更新 `JAVA功能说明书.md` 的对应条目；同一个 Java 文件中的多个功能不能遗漏。
+- 如果某个功能因复杂、不可实现或不合理而暂不实现，必须在 `JAVA功能说明书.md` 的“功能跳过记录”中写明功能、原因、当前占位方式和推荐替代方案。
+
+## Backend Implementation Rules
+
+- 当前阶段开始明确编写后端功能；旧前端范围限制不再阻止修改 `model/`、`service/`、`util/`、`controller/` 和必要的新后端目录。
+- 后端功能按 App UI 使用顺序实现：先登录/注册，再文件传输首页、用户列表、局域网扫描、我的资料、系统设置和传输结果相关能力。
+- 核心功能以 `doc/实验报告.docx` 为准：局域网广播或组播发现、多目标选择、UDP 多线程文件发送、确认机制、失败三次重试、发送结果报告，以及登录注册、拖拽文件类型匹配、近期对象记录、在线检测、限速分配、分片缓存与断点重传、完整性校验、剩余时间统计、传输口令小群组、按用户状态条件传输。
+- 第一页登录与注册没有服务器时，可用当前 GitHub 远程仓库能力或本地可提交文件做简单替代实现；不得引入重型服务端框架。
+- 每完成一个大功能再测试，避免每个小函数都单独跑测试；测试失败必须先修复或在说明书记录原因。
+- 一旦某功能实现复杂度过高、当前环境无法实现或需求本身不合理，跳过实现并保留占位，记录原因和替代方案，然后继续后续功能。
+- Java 文件命名从简，避免冗长完整英文名；类型和方法职责靠头部 `//` 注释说明。
+- 每完成一个独立改动，必须验证并创建本地 git commit；提交只包含本次相关文件。
+
 ## Frontend Scope
 
 - 不恢复 Swing 旧前端；除非用户明确要求，`javax.swing` / `java.awt` 前端代码不应重新出现。
-- 本线程后续仅修改这些前端相关路径：
+- 前端改动仍只修改这些路径；后端阶段不受此列表限制：
   - `src/main/java/com/iwmei/lantransfer/view/`
   - `src/main/java/com/iwmei/lantransfer/controller/`
   - `src/main/resources/css/`
