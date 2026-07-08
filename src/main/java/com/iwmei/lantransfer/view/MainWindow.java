@@ -118,6 +118,7 @@ public class MainWindow extends Application {
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle(APP_TITLE);
         controller.setRxAsk(this::confirmReceive);
+        controller.setRxProgress(this::showRxProgress);
         controller.loadSettings().thenAccept(settings -> Platform.runLater(() -> {
             currentSettings = settings;
             accentColor = settings.accentColor();
@@ -190,6 +191,15 @@ public class MainWindow extends Application {
         alert.setHeaderText("收到文件：" + fileName);
         alert.setContentText("当前状态为忙碌，是否接收 " + bytes + " B？");
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+    }
+
+    // 展示接收端进度提示
+    private void showRxProgress(String fileName, int percent) {
+        if (Platform.isFxApplicationThread()) {
+            toast("接收 " + fileName + " " + percent + "%");
+            return;
+        }
+        Platform.runLater(() -> toast("接收 " + fileName + " " + percent + "%"));
     }
 
     // 把登录注册内容放入认证窗口壳

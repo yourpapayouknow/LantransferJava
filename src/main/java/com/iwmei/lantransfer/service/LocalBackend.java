@@ -109,6 +109,12 @@ public final class LocalBackend implements BackendFacade {
         rx.setAsk(ask);
     }
 
+    // 设置接收进度回调
+    @Override
+    public void setRxProgress(RxProgress progress) {
+        rx.setProgress(progress);
+    }
+
     // 更新用户资料信息
     @Override
     public void updateProfile(Profile profile) {

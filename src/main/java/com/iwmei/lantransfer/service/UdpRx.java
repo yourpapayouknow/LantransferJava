@@ -37,6 +37,8 @@ final class UdpRx {
     private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
     private volatile UserStatus status = UserStatus.DEFAULT;
     private volatile RxAsk ask = (fileName, bytes) -> true;
+    private volatile RxProgress progress = (fileName, percent) -> {
+    };
     private volatile boolean running;
 
     // 使用默认传输端口初始化接收服务
@@ -69,6 +71,12 @@ final class UdpRx {
     // 设置接收前确认回调
     void setAsk(RxAsk ask) {
         this.ask = ask == null ? (fileName, bytes) -> true : ask;
+    }
+
+    // 设置接收进度回调
+    void setProgress(RxProgress progress) {
+        this.progress = progress == null ? (fileName, percent) -> {
+        } : progress;
     }
 
     // 持续监听 UDP 文件传输数据包
@@ -180,7 +188,7 @@ final class UdpRx {
         Path target = uniqueTarget(dir, safeName(fileName));
         Path part = target.resolveSibling(target.getFileName() + ".part");
         Path meta = target.resolveSibling(target.getFileName() + ".part.meta");
-        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256);
+        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), progress);
     }
 
     // 返回不覆盖旧文件的接收路径
@@ -293,12 +301,16 @@ final class UdpRx {
         private final int chunkCount;
         private final int chunkSize;
         private final String sha256;
+        private final String fileName;
+        private final RxProgress progress;
         private final BitSet received = new BitSet();
+        private int nextProgress = 25;
         private int receivedCount;
         private boolean done;
 
         // 初始化接收中文件状态
-        private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256) throws IOException {
+        private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256,
+                       String fileName, RxProgress progress) throws IOException {
             this.target = target;
             this.part = part;
             this.meta = meta;
@@ -306,6 +318,8 @@ final class UdpRx {
             this.chunkCount = chunkCount;
             this.chunkSize = chunkSize;
             this.sha256 = sha256 == null ? "" : sha256;
+            this.fileName = fileName;
+            this.progress = progress;
             restoreOrReset();
         }
 
@@ -327,11 +341,36 @@ final class UdpRx {
                 receivedCount++;
                 saveMeta();
                 if (receivedCount == chunkCount) {
-                    return finishOk();
+                    boolean finished = finishOk();
+                    if (finished) {
+                        publish(100);
+                    }
+                    return finished;
                 }
+                publishProgress();
                 return true;
             } catch (Exception ignored) {
                 return false;
+            }
+        }
+
+        // 按进度节点推送接收进度
+        private void publishProgress() {
+            int percent = chunkCount <= 0 ? 100 : Math.min(100, receivedCount * 100 / chunkCount);
+            if (percent < nextProgress) {
+                return;
+            }
+            publish(percent);
+            while (nextProgress <= percent) {
+                nextProgress += 25;
+            }
+        }
+
+        // 调用接收进度回调
+        private void publish(int percent) {
+            try {
+                progress.update(fileName, percent);
+            } catch (Exception ignored) {
             }
         }
 

@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
@@ -45,7 +46,10 @@ public final class UdpWireCheck {
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
             int port = freePort();
-            new UdpRx(store, port).start();
+            List<String> rxProgress = Collections.synchronizedList(new ArrayList<>());
+            UdpRx rx = new UdpRx(store, port);
+            rx.setProgress((name, percent) -> rxProgress.add(name + ":" + percent));
+            rx.start();
             Thread.sleep(120);
             UserDevice first = new UserDevice("self-1", "本机A", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
                     "#4f7bd8", false, "127.0.0.1", port);
@@ -63,6 +67,8 @@ public final class UdpWireCheck {
             require(Files.exists(secondFile), "second received file should exist");
             require("hello udp".equals(Files.readString(firstFile)), "first received content should match");
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
+            require(rxProgress.stream().anyMatch(item -> item.equals("hello.txt:100")),
+                    "receiver progress should publish completion");
             int busyAcceptPort = freePort();
             UdpRx busyAcceptRx = new UdpRx(store, busyAcceptPort);
             busyAcceptRx.updateStatus(UserStatus.BUSY);

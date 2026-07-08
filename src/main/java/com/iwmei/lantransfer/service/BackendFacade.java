@@ -41,6 +41,10 @@ public interface BackendFacade {
     default void setRxAsk(RxAsk ask) {
     }
 
+    // 设置接收进度回调
+    default void setRxProgress(RxProgress progress) {
+    }
+
     // 更新用户资料信息
     void updateProfile(Profile profile);
 
