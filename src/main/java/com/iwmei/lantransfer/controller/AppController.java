@@ -6,6 +6,7 @@ import com.iwmei.lantransfer.service.LocalBackend;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 // 应用控制器，承接界面事件并转发给业务服务
 public final class AppController {
@@ -49,6 +50,12 @@ public final class AppController {
     // 启动文件传输任务
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
         return backend.startTransfer(files, targets);
+    }
+
+    // 启动文件传输任务并接收传输中进度快照
+    public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            Consumer<TransferSummary> progress) {
+        return backend.startTransfer(files, targets, progress);
     }
 
     // 更新用户资料信息

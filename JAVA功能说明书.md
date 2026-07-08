@@ -15,7 +15,7 @@
 
 ## 功能跳过记录
 
-- 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收、接收目录落盘和后端 FIFO 传输队列已由 `UdpTx/UdpRx/LocalBackend` 实现；未实现的是传输中实时进度推送、接收端进度展示和分片级并发。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库，把已确认分片数暴露给 UI；只有在大文件性能不足时再把单文件分片分派到并发 worker。
+- 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收、接收目录落盘、后端 FIFO 传输队列和发送端进度快照推送已由 `UdpTx/UdpRx/LocalBackend/FileTransfer` 实现；未实现的是接收端进度展示和分片级并发。推荐替代方案：接收端在 `UdpRx` 写入分片时同样上报状态；只有在大文件性能不足时再把单文件分片分派到并发 worker。
 - 忙碌状态下的接收前确认：当前已能通过 `UserStatus.BUSY` 拦截直接发送，但真正“确认后再收”需要接收端弹窗、发送端等待确认、确认超时和取消协议。推荐替代方案：在 `UdpRx` 收到 BEGIN 前增加请求阶段，接收端 UI 确认后返回允许 ACK，再进入文件分片接收。
 
 ## `src/main/java/com/iwmei/lantransfer/App.java`
@@ -30,17 +30,17 @@
 
 所属功能：界面和业务服务之间的控制层。
 
-详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、扫描设备、加载设置、启动传输、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，局域网扫描、设置保存和传输报告走本地实现，其余暂未落地功能由本地后端临时复用演示数据。
+详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、扫描设备、加载设置、启动传输、启动传输并接收进度快照、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，局域网扫描、设置保存和传输报告走本地实现，其余暂未落地功能由本地后端临时复用演示数据。
 
-实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`loadSettings()` 返回 `backend.loadSettings()`，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道账号文件、设置文件、UDP 传输或扫描实现。
+实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`loadSettings()` 返回 `backend.loadSettings()`，`startTransfer(files, targets, progress)` 把页面传来的 `Consumer<TransferSummary>` 继续交给后端，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道账号文件、设置文件、UDP 传输或扫描实现。
 
 ## `src/main/java/com/iwmei/lantransfer/service/BackendFacade.java`
 
 所属功能：前后端交互接口。
 
-详细功能：该接口定义 UI 当前需要的业务能力，包括登录、注册、加载已记住账号、加载近期传输对象、加载全部设备、扫描局域网设备、加载系统设置、启动传输、更新资料、更新状态和更新设置。它是页面层和真实业务实现之间的边界。
+详细功能：该接口定义 UI 当前需要的业务能力，包括登录、注册、加载已记住账号、加载近期传输对象、加载全部设备、扫描局域网设备、加载系统设置、启动传输、启动传输并接收传输中进度快照、更新资料、更新状态和更新设置。它是页面层和真实业务实现之间的边界。
 
-实现方法：查询和长耗时操作返回 `CompletableFuture`，便于 JavaFX 页面在完成后用 `Platform.runLater` 回到 UI 线程；纯写入接口目前是同步 `void`，后续如果写文件或网络操作变慢，应改成 `CompletableFuture<Void>`。`loadRememberedAccount()` 只返回账号字符串，不返回密码；`loadSettings()` 是设置页进入时读取 `SystemSettings` 的入口。新增后端功能时先判断 UI 是否真的需要接口，避免提前铺接口。
+实现方法：查询和长耗时操作返回 `CompletableFuture`，便于 JavaFX 页面在完成后用 `Platform.runLater` 回到 UI 线程；纯写入接口目前是同步 `void`，后续如果写文件或网络操作变慢，应改成 `CompletableFuture<Void>`。`loadRememberedAccount()` 只返回账号字符串，不返回密码；`loadSettings()` 是设置页进入时读取 `SystemSettings` 的入口。带 `Consumer<TransferSummary>` 的 `startTransfer(...)` 是实时进度入口，默认实现回退到旧的两参数方法，保证 `MockBackendFacade` 等旧实现不必强制改写也能编译。新增后端功能时先判断 UI 是否真的需要接口，避免提前铺接口。
 
 ## `src/main/java/com/iwmei/lantransfer/service/MockBackendFacade.java`
 
@@ -78,9 +78,9 @@
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，启动 `UdpRx` 后台接收服务，把传输任务创建交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，启动 `UdpRx` 后台接收服务，把传输任务创建和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
 
-实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)`，让发现协议使用当前账号昵称、设备名和用户状态。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料；`updateStatus(...)` 保存状态后调用 `lan.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 参与扫描和发送策略。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；`startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队调用 `UdpTx.run(...)`，传入当前设置中的最大重试次数；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)`，让发现协议使用当前账号昵称、设备名和用户状态。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料；`updateStatus(...)` 保存状态后调用 `lan.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 参与扫描和发送策略。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 优先读取 `RecentStore.load()`，本地还没有传输历史时才回退到演示设备列表。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队调用 `UdpTx.run(files, targets, settings, progress)`，把发送端产生的进度快照继续推给界面；如果 UI 未选择目标，则沿用近期传输对象作为兜底目标，传输结束后调用 `RecentStore.remember(...)` 保存近期对象。后续每完成一个大功能，就把对应方法从 `demo.xxx(...)` 替换为真实实现，并同步更新本文档。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -118,9 +118,9 @@
 
 所属功能：UDP 文件发送后端。
 
-详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线、可达且用户状态允许接收的设备才会进入真实 UDP 发送，离线、缺少地址、隐身、离线状态或忙碌状态的设备会生成失败任务和拦截日志。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，如果接收端 BEGIN ACK 返回缺失分片列表，就只补发这些缺失分片；没有缺失列表时按普通新任务逐个发送全部分片。每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发；多分片文件会在 25%/50%/75% 进度点记录预计剩余时间日志。
+详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线、可达且用户状态允许接收的设备才会进入真实 UDP 发送，离线、缺少地址、隐身、离线状态或忙碌状态的设备会生成失败任务和拦截日志。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，如果接收端 BEGIN ACK 返回缺失分片列表，就只补发这些缺失分片；没有缺失列表时按普通新任务逐个发送全部分片。每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发；多分片文件会在 25%/50%/75% 进度点记录预计剩余时间日志，并通过进度回调推送一条状态为“传输中”的 `TransferSummary` 快照。
 
-实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 先调用 `sendable(...)` 检查 `DeviceStatus.ONLINE`、真实地址和 `UserStatus.DEFAULT/ONLINE`；BUSY 会被拦截并提示等待接收确认功能未完成，INVISIBLE/OFFLINE 会被拦截为不允许接收。通过检查后才创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，`sendWithAck(...)` 会解析 ACK 第 6 个字段并放入 `AckResult.detail()`；`chunksToSend(...)` 把该字段中的逗号分隔缺失分片索引转成待发送列表，字段为空或解析失败时回退发送全部分片。发送文件内容时使用 `FileChannel` 和 `readChunk(...)` 按 `chunkIndex * chunkBytes` 随机定位读取，所以续传时可以跳过已接收分片，只补缺失分片，并在日志中记录“断点续传：仅补发 N 个缺失分片”。每个分片 ACK 后累计已发送字节；`progress(...)` 达到下一个 25% 进度点时调用 `eta(...)`，按已耗时、已发送字节和总字节估算剩余时间并写入日志，然后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；实时 UI 进度和队列调度后续在这个类上继续扩展。
+实现方法：两参数 `run(...)` 调用四参数 `run(..., Consumer<TransferSummary>)` 并传入空回调，供旧自检和旧接口继续使用。四参数 `run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 先调用 `sendable(...)` 检查 `DeviceStatus.ONLINE`、真实地址和 `UserStatus.DEFAULT/ONLINE`；BUSY 会被拦截并提示等待接收确认功能未完成，INVISIBLE/OFFLINE 会被拦截为不允许接收。通过检查后才创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，`sendWithAck(...)` 会解析 ACK 第 6 个字段并放入 `AckResult.detail()`；`chunksToSend(...)` 把该字段中的逗号分隔缺失分片索引转成待发送列表，字段为空或解析失败时回退发送全部分片。发送文件内容时使用 `FileChannel` 和 `readChunk(...)` 按 `chunkIndex * chunkBytes` 随机定位读取，所以续传时可以跳过已接收分片，只补缺失分片，并在日志中记录“断点续传：仅补发 N 个缺失分片”。文件开始发送时 `publishProgress(...)` 先推送 0% 快照；每个分片 ACK 后累计已发送字节，`progress(...)` 达到下一个 25% 进度点时调用 `eta(...)`，按已耗时、已发送字节和总字节估算剩余时间并写入日志，再调用 `publishProgress(...)` 推送包含当前文件、目标、百分比、速度、耗时和日志副本的快照，然后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；分片级并发后续在这个类上继续扩展。
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
@@ -302,17 +302,17 @@
 
 所属功能：UDP 发送接收闭环无框架自检。
 
-详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验、ETA 日志、接收落盘、未完成接收元数据保存和缺失分片定向补发。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、两分片文件预计剩余时间日志、半文件 `.part.meta` 保存、重启后从 `.part.meta` 返回缺失分片、发送端只补缺失分片和错误校验拒收。
+详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验、ETA 日志、发送端传输中进度快照、接收落盘、未完成接收元数据保存和缺失分片定向补发。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、两分片文件预计剩余时间日志、进度回调里出现“传输中”任务、半文件 `.part.meta` 保存、重启后从 `.part.meta` 返回缺失分片、发送端只补缺失分片和错误校验拒收。
 
-实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志；再用 `new UdpTx(4)` 发送两分片文件，确认日志包含“预计剩余”。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。续传检查先用 `sendResumePartial(...)` 在旧接收器上留下 `resume.bin.part` 和 `resume.bin.part.meta`，再启动新的 `UdpRx` 并用 `sendResumeBegin(...)` 确认 BEGIN ACK 带回缺失分片 `1`，最后让 `new UdpTx(512)` 真实发送同一文件，要求汇总成功、日志包含“断点续传”、最终 `resume.bin` 内容与源文件一致。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
+实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志；再用 `new UdpTx(512).run(..., progressSnapshots::add)` 发送两分片文件，确认日志包含“预计剩余”，并确认回调列表中至少有一条 `TransferTask.status()` 为“传输中”且进度达到 25% 以上的快照。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。续传检查先用 `sendResumePartial(...)` 在旧接收器上留下 `resume.bin.part` 和 `resume.bin.part.meta`，再启动新的 `UdpRx` 并用 `sendResumeBegin(...)` 确认 BEGIN ACK 带回缺失分片 `1`，最后让 `new UdpTx(512)` 真实发送同一文件，要求汇总成功、日志包含“断点续传”、最终 `resume.bin` 内容与源文件一致。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 
 所属功能：文件传输首页、待发送列表和传输结果页。
 
-详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计和传输日志。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
+详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计、传输日志和发送端传输中进度快照。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输开始后页面会先进入结果页显示空汇总，后续收到后端进度回调时刷新“传输中”行，最终 Future 完成后再刷新为完整结果。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
 
-实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，再调用后端返回 `TransferSummary` 并跳转结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
+实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项，选择 `selectedTargets` 或近期目标作为目标列表，先写入一个空 `TransferSummary` 并进入结果页，再调用 `app.controller.startTransfer(files, targets, progress)`；进度回调和最终完成回调都通过 `Platform.runLater(...)` 调用 `showTransferProgress(...)`，把最新汇总保存到 `app.currentSummary` 并重绘结果页。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
 
 ## `src/main/java/com/iwmei/lantransfer/view/UserList.java`
 

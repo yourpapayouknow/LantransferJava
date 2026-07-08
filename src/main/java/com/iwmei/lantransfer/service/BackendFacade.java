@@ -3,6 +3,7 @@ package com.iwmei.lantransfer.service;
 import com.iwmei.lantransfer.model.*;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 // 前后端交互接口，定义界面需要的业务能力
 public interface BackendFacade {
@@ -29,6 +30,12 @@ public interface BackendFacade {
 
     // 启动文件传输任务
     CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets);
+
+    // 启动文件传输任务并推送传输中进度快照
+    default CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            Consumer<TransferSummary> progress) {
+        return startTransfer(files, targets);
+    }
 
     // 更新用户资料信息
     void updateProfile(Profile profile);

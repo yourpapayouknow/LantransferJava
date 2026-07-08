@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 // 本地业务后端，负责已落地功能并临时复用演示数据补齐未实现页面
 public final class LocalBackend implements BackendFacade {
@@ -85,9 +86,17 @@ public final class LocalBackend implements BackendFacade {
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
+        return startTransfer(files, targets, summary -> {
+        });
+    }
+
+    // 启动文件传输任务并推送传输中进度快照
+    @Override
+    public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            Consumer<TransferSummary> progress) {
         return CompletableFuture.supplyAsync(() -> {
             List<UserDevice> safeTargets = targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets;
-            TransferSummary summary = tx.run(files, safeTargets, settings.load());
+            TransferSummary summary = tx.run(files, safeTargets, settings.load(), progress);
             recent.remember(safeTargets);
             return summary;
         }, transferQueue);

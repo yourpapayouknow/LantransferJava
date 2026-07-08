@@ -33,6 +33,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 // UDP 文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
 final class UdpTx {
@@ -55,9 +56,18 @@ final class UdpTx {
 
     // 发送文件到目标设备并返回传输汇总
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings) {
+        return run(files, targets, settings, summary -> {
+        });
+    }
+
+    // 发送文件到目标设备并在传输中推送进度快照
+    TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings,
+                        Consumer<TransferSummary> progress) {
         long started = System.nanoTime();
         List<SourceFile> sources = sources(files == null ? List.of() : files);
         List<UserDevice> safeTargets = targets == null ? List.of() : targets;
+        Consumer<TransferSummary> safeProgress = progress == null ? summary -> {
+        } : progress;
         int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
         long bytesPerSecond = perTargetBytesPerSecond(settings, sendableTargets(safeTargets));
         List<TransferTask> tasks = new ArrayList<>();
@@ -66,7 +76,7 @@ final class UdpTx {
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
-        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond)) {
+        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, safeProgress)) {
             tasks.addAll(sent.tasks());
             logs.addAll(sent.logs());
             retries += sent.retries();
@@ -81,16 +91,19 @@ final class UdpTx {
     }
 
     // 并发发送到多个目标并按原目标顺序返回结果
-    private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries, long bytesPerSecond) {
+    private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries,
+                                         long bytesPerSecond, Consumer<TransferSummary> progress) {
         if (targets.size() <= 1) {
-            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond)).toList();
+            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond, progress,
+                    targets.size())).toList();
         }
         int threads = Math.min(targets.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
         ExecutorService pool = Executors.newFixedThreadPool(threads);
         try {
             List<Future<TargetSend>> futures = new ArrayList<>();
             for (UserDevice target : targets) {
-                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond)));
+                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond, progress,
+                        targets.size())));
             }
             List<TargetSend> results = new ArrayList<>();
             for (int i = 0; i < futures.size(); i++) {
@@ -110,7 +123,8 @@ final class UdpTx {
     }
 
     // 发送所有文件到单个目标
-    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond) {
+    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond,
+                                  Consumer<TransferSummary> progress, int targetCount) {
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
         int retries = 0;
@@ -128,7 +142,8 @@ final class UdpTx {
             socket.connect(InetAddress.getByName(target.host()), target.port());
             socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
             for (int i = 0; i < sources.size(); i++) {
-                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate);
+                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate, progress,
+                        targetCount);
                 tasks.add(sent.task());
                 logs.addAll(sent.logs());
                 retries += sent.retries();
@@ -155,7 +170,8 @@ final class UdpTx {
     }
 
     // 发送单个文件
-    private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex, int maxRetries, RateLimit rate) {
+    private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex,
+                              int maxRetries, RateLimit rate, Consumer<TransferSummary> progress, int targetCount) {
         long started = System.nanoTime();
         List<String> logs = new ArrayList<>();
         int chunkCount = chunkCount(source.bytes());
@@ -170,6 +186,7 @@ final class UdpTx {
             logs.add(stamp("↻ [" + targetLabel(target) + "] " + source.name() + " 断点续传：仅补发 "
                     + chunks.size() + " 个缺失分片"));
         }
+        publishProgress(progress, targetCount, source, target, started, 0, 0, retries, logs);
         try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
             byte[] buffer = new byte[chunkBytes];
             long sentBytes = 0;
@@ -186,6 +203,8 @@ final class UdpTx {
                 while (chunkCount > 1 && nextProgressLog < 100 && progress(sentBytes, source.bytes()) >= nextProgressLog) {
                     logs.add(stamp("… [" + targetLabel(target) + "] " + source.name() + " 进度 "
                             + nextProgressLog + "%，预计剩余 " + eta(started, sentBytes, source.bytes())));
+                    publishProgress(progress, targetCount, source, target, started, sentBytes, nextProgressLog, retries,
+                            logs);
                     nextProgressLog += 25;
                 }
                 rate.pause(read);
@@ -195,6 +214,20 @@ final class UdpTx {
         } catch (Exception ex) {
             logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 读取或发送失败：" + ex.getMessage()));
             return new FileSend(false, retries, failedTask(source, target, retries), logs);
+        }
+    }
+
+    // 推送当前文件的传输中快照给界面
+    private void publishProgress(Consumer<TransferSummary> progress, int targetCount, SourceFile source,
+                                 UserDevice target, long started, long sentBytes, int percent, int retries,
+                                 List<String> logs) {
+        try {
+            String speed = sentBytes <= 0 ? "-" : speed(sentBytes, started);
+            TransferTask task = new TransferTask(source.name(), target, percent, readable(source.bytes()), speed,
+                    elapsed(started), "传输中", retries);
+            progress.accept(new TransferSummary(targetCount, 0, 0, retries, elapsed(started), List.copyOf(logs),
+                    List.of(task)));
+        } catch (Exception ignored) {
         }
     }
 

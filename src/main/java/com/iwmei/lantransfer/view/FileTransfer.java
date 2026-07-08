@@ -262,10 +262,17 @@ final class FileTransfer {
             return;
         }
         List<UserDevice> targets = app.selectedTargets.isEmpty() ? new ArrayList<>(app.recentTargets) : new ArrayList<>(app.selectedTargets);
-        app.controller.startTransfer(new ArrayList<>(app.pendingFiles), targets).thenAccept(summary -> Platform.runLater(() -> {
-            app.currentSummary = summary;
-            showTransferResultPage();
-        }));
+        app.currentSummary = new TransferSummary(targets.size(), 0, 0, 0, "00:00:00", List.of(), List.of());
+        showTransferResultPage();
+        app.controller.startTransfer(new ArrayList<>(app.pendingFiles), targets,
+                summary -> Platform.runLater(() -> showTransferProgress(summary)))
+                .thenAccept(summary -> Platform.runLater(() -> showTransferProgress(summary)));
+    }
+
+    // 显示最新传输进度或最终结果
+    private void showTransferProgress(TransferSummary summary) {
+        app.currentSummary = summary;
+        showTransferResultPage();
     }
 
     // 打开文件选择器并加入待传输列表

@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -66,9 +67,14 @@ public final class UdpWireCheck {
             require(blocked.successCount() == 0, "busy target should be blocked");
             require(blocked.failedCount() == 1, "busy target should count as failed");
             require(blocked.logs().stream().anyMatch(log -> log.contains("对方忙碌")), "busy block reason should be logged");
-            TransferSummary etaSummary = new UdpTx(512).run(List.of(new TransferFile("eta.txt", "1.00 KB", etaSource)), List.of(first), store.load());
+            List<TransferSummary> progressSnapshots = new ArrayList<>();
+            TransferSummary etaSummary = new UdpTx(512).run(List.of(new TransferFile("eta.txt", "1.00 KB", etaSource)),
+                    List.of(first), store.load(), progressSnapshots::add);
             require(etaSummary.logs().stream().anyMatch(log -> log.contains("预计剩余")),
                     "ETA should be logged during chunk send: " + etaSummary.logs());
+            require(progressSnapshots.stream().anyMatch(snapshot -> snapshot.tasks().stream()
+                            .anyMatch(task -> "传输中".equals(task.status()) && task.progressPercent() >= 25)),
+                    "progress callback should publish running snapshots");
             require(sendPartial(port).endsWith("\tOK"), "partial chunk should be accepted");
             require(Files.readString(receiveDir.resolve("partial.bin.part.meta")).contains("received=0"),
                     "partial metadata should persist received chunk index");
