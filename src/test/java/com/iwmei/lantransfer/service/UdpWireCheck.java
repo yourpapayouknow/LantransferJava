@@ -101,6 +101,8 @@ public final class UdpWireCheck {
                     List.of(first), store.load(), progressSnapshots::add);
             require(etaSummary.logs().stream().anyMatch(log -> log.contains("预计剩余")),
                     "ETA should be logged during chunk send: " + etaSummary.logs());
+            require(etaSummary.logs().stream().anyMatch(log -> log.contains("分片并发")),
+                    "chunk-level concurrency should be logged: " + etaSummary.logs());
             require(progressSnapshots.stream().anyMatch(snapshot -> snapshot.tasks().stream()
                             .anyMatch(task -> "传输中".equals(task.status()) && task.progressPercent() >= 25)),
                     "progress callback should publish running snapshots");

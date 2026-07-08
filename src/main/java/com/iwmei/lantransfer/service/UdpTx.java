@@ -33,6 +33,8 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 // UDP 文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
@@ -40,6 +42,7 @@ final class UdpTx {
     private static final int DEFAULT_CHUNK_BYTES = 8192;
     private static final int ACK_TIMEOUT_MILLIS = 500;
     private static final int BEGIN_ACK_TIMEOUT_MILLIS = 15_000;
+    private static final int MAX_CHUNK_WORKERS = 8;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final DateTimeFormatter DONE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -193,32 +196,123 @@ final class UdpTx {
         }
         publishProgress(progress, targetCount, source, target, started, 0, 0, retries, logs);
         try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
-            byte[] buffer = new byte[chunkBytes];
-            long sentBytes = 0;
-            int nextProgressLog = 25;
-            for (int chunkIndex : chunks) {
-                int read = readChunk(input, chunkIndex, buffer);
-                AckResult data = sendData(socket, buffer, read, jobId, fileIndex, chunkIndex, maxRetries);
-                retries += data.retries();
-                if (!data.success()) {
-                    logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 第 " + chunkIndex + " 个分片未确认"));
-                    return new FileSend(false, retries, failedTask(source, target, retries), logs);
-                }
-                sentBytes += read;
-                while (chunkCount > 1 && nextProgressLog < 100 && progress(sentBytes, source.bytes()) >= nextProgressLog) {
-                    logs.add(stamp("… [" + targetLabel(target) + "] " + source.name() + " 进度 "
-                            + nextProgressLog + "%，预计剩余 " + eta(started, sentBytes, source.bytes())));
-                    publishProgress(progress, targetCount, source, target, started, sentBytes, nextProgressLog, retries,
-                            logs);
-                    nextProgressLog += 25;
-                }
-                rate.pause(read);
+            ChunkBatch batch = sendChunks(input, socket.getInetAddress(), socket.getPort(), source, target, jobId,
+                    fileIndex, chunks, maxRetries, rate, progress, targetCount, started, retries, logs);
+            retries += batch.retries();
+            if (!batch.success()) {
+                logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " "
+                        + failedChunkLabel(batch.failedChunk()) + "未确认"));
+                return new FileSend(false, retries, failedTask(source, target, retries), logs);
             }
             logs.add(stamp("✓ [" + targetLabel(target) + "] " + source.name() + " UDP 发送完成"));
             return new FileSend(true, retries, successTask(source, target, started, retries), logs);
         } catch (Exception ex) {
             logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 读取或发送失败：" + ex.getMessage()));
             return new FileSend(false, retries, failedTask(source, target, retries), logs);
+        }
+    }
+
+    // 并发发送单个文件的分片并汇总分片确认结果
+    private ChunkBatch sendChunks(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
+                                  String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
+                                  Consumer<TransferSummary> progress, int targetCount, long started, int retriesBefore,
+                                  List<String> logs) {
+        int workers = chunkWorkers(chunks.size());
+        if (workers > 1) {
+            addLog(logs, stamp("⇄ [" + targetLabel(target) + "] " + source.name() + " 分片并发："
+                    + workers + " 个 worker"));
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(workers);
+        AtomicInteger cursor = new AtomicInteger();
+        AtomicInteger failedChunk = new AtomicInteger(-1);
+        AtomicInteger totalRetries = new AtomicInteger(retriesBefore);
+        AtomicInteger nextProgressLog = new AtomicInteger(25);
+        AtomicLong sentBytes = new AtomicLong();
+        try {
+            List<Future<WorkerSend>> futures = new ArrayList<>();
+            for (int worker = 0; worker < workers; worker++) {
+                futures.add(pool.submit(() -> sendWorker(input, address, port, source, target, jobId, fileIndex, chunks,
+                        maxRetries, rate, progress, targetCount, started, logs, cursor, failedChunk, totalRetries,
+                        nextProgressLog, sentBytes)));
+            }
+            for (Future<WorkerSend> future : futures) {
+                try {
+                    WorkerSend sent = future.get();
+                    if (!sent.success() && failedChunk.get() < 0) {
+                        failedChunk.compareAndSet(-1, sent.failedChunk());
+                    }
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    failedChunk.compareAndSet(-1, -2);
+                } catch (Exception ex) {
+                    failedChunk.compareAndSet(-1, -2);
+                }
+            }
+            return new ChunkBatch(failedChunk.get() < 0, totalRetries.get() - retriesBefore, failedChunk.get());
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    // 单个 worker 使用自己的 UDP socket 发送多个分片
+    private WorkerSend sendWorker(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
+                                  String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
+                                  Consumer<TransferSummary> progress, int targetCount, long started, List<String> logs,
+                                  AtomicInteger cursor, AtomicInteger failedChunk, AtomicInteger totalRetries,
+                                  AtomicInteger nextProgressLog, AtomicLong sentBytes) {
+        int localRetries = 0;
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(address, port);
+            socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
+            while (failedChunk.get() < 0) {
+                int position = cursor.getAndIncrement();
+                if (position >= chunks.size()) {
+                    break;
+                }
+                int chunkIndex = chunks.get(position);
+                ChunkSend sent = sendChunk(socket, input, jobId, fileIndex, chunkIndex, maxRetries);
+                localRetries += sent.retries();
+                totalRetries.addAndGet(sent.retries());
+                if (!sent.success()) {
+                    failedChunk.compareAndSet(-1, chunkIndex);
+                    return new WorkerSend(false, localRetries, chunkIndex);
+                }
+                long done = sentBytes.addAndGet(sent.bytes());
+                publishChunkProgress(progress, targetCount, source, target, started, done, totalRetries.get(), logs,
+                        nextProgressLog);
+                rate.pause(sent.bytes());
+            }
+            return new WorkerSend(true, localRetries, -1);
+        } catch (Exception ignored) {
+            failedChunk.compareAndSet(-1, -2);
+            return new WorkerSend(false, localRetries, -2);
+        }
+    }
+
+    // 读取并发送一个分片
+    private ChunkSend sendChunk(DatagramSocket socket, FileChannel input, String jobId, int fileIndex, int chunkIndex,
+                                int maxRetries) throws Exception {
+        byte[] buffer = new byte[chunkBytes];
+        int read = readChunk(input, chunkIndex, buffer);
+        AckResult data = sendData(socket, buffer, read, jobId, fileIndex, chunkIndex, maxRetries);
+        return new ChunkSend(data.success(), data.retries(), read);
+    }
+
+    // 根据已确认字节推送发送进度
+    private void publishChunkProgress(Consumer<TransferSummary> progress, int targetCount, SourceFile source,
+                                      UserDevice target, long started, long sentBytes, int retries, List<String> logs,
+                                      AtomicInteger nextProgressLog) {
+        int percent = progress(sentBytes, source.bytes());
+        while (source.bytes() > 0) {
+            int threshold = nextProgressLog.get();
+            if (threshold >= 100 || percent < threshold) {
+                return;
+            }
+            if (nextProgressLog.compareAndSet(threshold, threshold + 25)) {
+                addLog(logs, stamp("… [" + targetLabel(target) + "] " + source.name() + " 进度 "
+                        + threshold + "%，预计剩余 " + eta(started, sentBytes, source.bytes())));
+                publishProgress(progress, targetCount, source, target, started, sentBytes, threshold, retries, logs);
+            }
         }
     }
 
@@ -230,7 +324,7 @@ final class UdpTx {
             String speed = sentBytes <= 0 ? "-" : speed(sentBytes, started);
             TransferTask task = new TransferTask(source.name(), target, percent, readable(source.bytes()), speed,
                     elapsed(started), "传输中", retries);
-            progress.accept(new TransferSummary(targetCount, 0, 0, retries, elapsed(started), List.copyOf(logs),
+            progress.accept(new TransferSummary(targetCount, 0, 0, retries, elapsed(started), logSnapshot(logs),
                     List.of(task)));
         } catch (Exception ignored) {
         }
@@ -317,10 +411,10 @@ final class UdpTx {
 
     // 读取一个固定大小文件分片
     private int readChunk(FileChannel input, int chunkIndex, byte[] buffer) throws Exception {
-        input.position((long) chunkIndex * chunkBytes);
+        long offset = (long) chunkIndex * chunkBytes;
         ByteBuffer chunk = ByteBuffer.wrap(buffer);
         while (chunk.hasRemaining()) {
-            int read = input.read(chunk);
+            int read = input.read(chunk, offset + chunk.position());
             if (read < 0) {
                 break;
             }
@@ -329,6 +423,33 @@ final class UdpTx {
             }
         }
         return chunk.position();
+    }
+
+    // 计算单文件分片并发 worker 数量
+    private int chunkWorkers(int chunks) {
+        if (chunks <= 1) {
+            return 1;
+        }
+        return Math.min(chunks, Math.min(MAX_CHUNK_WORKERS, Math.max(2, Runtime.getRuntime().availableProcessors())));
+    }
+
+    // 生成分片失败展示文本
+    private String failedChunkLabel(int chunkIndex) {
+        return chunkIndex < 0 ? "未知分片" : "第 " + chunkIndex + " 个分片";
+    }
+
+    // 添加一条线程安全日志
+    private void addLog(List<String> logs, String line) {
+        synchronized (logs) {
+            logs.add(line);
+        }
+    }
+
+    // 复制当前日志快照
+    private List<String> logSnapshot(List<String> logs) {
+        synchronized (logs) {
+            return List.copyOf(logs);
+        }
     }
 
     // 解析接收端返回的缺失分片列表
@@ -572,6 +693,18 @@ final class UdpTx {
     private record AckResult(boolean success, int retries, String detail) {
     }
 
+    // 单个分片发送结果
+    private record ChunkSend(boolean success, int retries, int bytes) {
+    }
+
+    // 单个 worker 发送结果
+    private record WorkerSend(boolean success, int retries, int failedChunk) {
+    }
+
+    // 单个文件所有分片发送结果
+    private record ChunkBatch(boolean success, int retries, int failedChunk) {
+    }
+
     // 简单目标级限速器，按已发送字节和目标速率短暂休眠
     private static final class RateLimit {
         private final long bytesPerSecond;
@@ -584,7 +717,7 @@ final class UdpTx {
         }
 
         // 根据已发送字节数等待到目标速率
-        private void pause(int bytes) {
+        private synchronized void pause(int bytes) {
             if (bytesPerSecond <= 0 || bytes <= 0) {
                 return;
             }
