@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 final class UdpTx {
     private static final int DEFAULT_CHUNK_BYTES = 8192;
     private static final int ACK_TIMEOUT_MILLIS = 500;
+    private static final int BEGIN_ACK_TIMEOUT_MILLIS = 15_000;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final DateTimeFormatter DONE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -141,6 +142,9 @@ final class UdpTx {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.connect(InetAddress.getByName(target.host()), target.port());
             socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
+            if (target.userStatus() == UserStatus.BUSY) {
+                logs.add(stamp("… [" + targetLabel(target) + "] 对方忙碌，等待接收确认"));
+            }
             for (int i = 0; i < sources.size(); i++) {
                 FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate, progress,
                         targetCount);
@@ -175,7 +179,8 @@ final class UdpTx {
         long started = System.nanoTime();
         List<String> logs = new ArrayList<>();
         int chunkCount = chunkCount(source.bytes());
-        AckResult begin = sendText(socket, beginMessage(source, jobId, fileIndex, chunkCount), jobId, fileIndex, -1, maxRetries);
+        AckResult begin = sendText(socket, beginMessage(source, jobId, fileIndex, chunkCount), jobId, fileIndex, -1,
+                maxRetries, beginTimeout(target));
         int retries = begin.retries();
         if (!begin.success()) {
             logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 发送请求未确认"));
@@ -233,7 +238,14 @@ final class UdpTx {
 
     // 发送文本协议包并等待确认
     private AckResult sendText(DatagramSocket socket, String message, String jobId, int fileIndex, int chunkIndex, int maxRetries) {
-        return sendWithAck(socket, message.getBytes(StandardCharsets.UTF_8), jobId, fileIndex, chunkIndex, maxRetries);
+        return sendText(socket, message, jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
+    }
+
+    // 发送文本协议包并按指定超时等待确认
+    private AckResult sendText(DatagramSocket socket, String message, String jobId, int fileIndex, int chunkIndex,
+                               int maxRetries, int timeoutMillis) {
+        return sendWithAck(socket, message.getBytes(StandardCharsets.UTF_8), jobId, fileIndex, chunkIndex, maxRetries,
+                timeoutMillis);
     }
 
     // 发送二进制分片包并等待确认
@@ -242,26 +254,40 @@ final class UdpTx {
         ByteArrayOutputStream out = new ByteArrayOutputStream(head.length + length);
         out.writeBytes(head);
         out.write(chunk, 0, length);
-        return sendWithAck(socket, out.toByteArray(), jobId, fileIndex, chunkIndex, maxRetries);
+        return sendWithAck(socket, out.toByteArray(), jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
     }
 
     // 发送数据包并按最大重试次数等待 ACK
-    private AckResult sendWithAck(DatagramSocket socket, byte[] data, String jobId, int fileIndex, int chunkIndex, int maxRetries) {
+    private AckResult sendWithAck(DatagramSocket socket, byte[] data, String jobId, int fileIndex, int chunkIndex,
+                                  int maxRetries, int timeoutMillis) {
         int retries = 0;
-        for (int attempt = 0; attempt <= maxRetries; attempt++) {
-            if (attempt > 0) {
-                retries++;
-            }
-            try {
-                socket.send(new DatagramPacket(data, data.length));
-                AckResult ack = awaitAck(socket, jobId, fileIndex, chunkIndex);
-                if (ack.success()) {
-                    return new AckResult(true, retries, ack.detail());
+        int oldTimeout = ACK_TIMEOUT_MILLIS;
+        try {
+            oldTimeout = socket.getSoTimeout();
+            socket.setSoTimeout(timeoutMillis);
+        } catch (Exception ignored) {
+        }
+        try {
+            for (int attempt = 0; attempt <= maxRetries; attempt++) {
+                if (attempt > 0) {
+                    retries++;
                 }
+                try {
+                    socket.send(new DatagramPacket(data, data.length));
+                    AckResult ack = awaitAck(socket, jobId, fileIndex, chunkIndex);
+                    if (ack.success()) {
+                        return new AckResult(true, retries, ack.detail());
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            return new AckResult(false, retries, "");
+        } finally {
+            try {
+                socket.setSoTimeout(oldTimeout);
             } catch (Exception ignored) {
             }
         }
-        return new AckResult(false, retries, "");
     }
 
     // 等待并校验接收端 ACK
@@ -385,7 +411,12 @@ final class UdpTx {
     // 判断用户状态是否允许直接发送
     private boolean allowedStatus(UserStatus status) {
         UserStatus value = status == null ? UserStatus.DEFAULT : status;
-        return value == UserStatus.DEFAULT || value == UserStatus.ONLINE;
+        return value == UserStatus.DEFAULT || value == UserStatus.ONLINE || value == UserStatus.BUSY;
+    }
+
+    // 根据目标状态选择开始包确认等待时间
+    private int beginTimeout(UserDevice target) {
+        return target != null && target.userStatus() == UserStatus.BUSY ? BEGIN_ACK_TIMEOUT_MILLIS : ACK_TIMEOUT_MILLIS;
     }
 
     // 生成目标拦截原因
@@ -396,15 +427,12 @@ final class UdpTx {
         if (!online(target)) {
             return "设备离线，未执行 UDP 发送";
         }
-        UserStatus status = target.userStatus() == null ? UserStatus.DEFAULT : target.userStatus();
-        if (status == UserStatus.BUSY) {
-            return "对方忙碌，等待接收确认功能未完成，已拦截发送";
-        }
-        if (status == UserStatus.INVISIBLE || status == UserStatus.OFFLINE) {
-            return "对方当前状态不允许接收文件，已拦截发送";
-        }
         if (!target.reachable()) {
             return "设备不可达，未执行 UDP 发送";
+        }
+        UserStatus status = target.userStatus() == null ? UserStatus.DEFAULT : target.userStatus();
+        if (status == UserStatus.INVISIBLE || status == UserStatus.OFFLINE) {
+            return "对方当前状态不允许接收文件，已拦截发送";
         }
         return "目标不满足传输条件，未执行 UDP 发送";
     }

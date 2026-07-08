@@ -1,5 +1,7 @@
 package com.iwmei.lantransfer.service;
 
+import com.iwmei.lantransfer.model.UserStatus;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -33,6 +35,8 @@ final class UdpRx {
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
     private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
+    private volatile UserStatus status = UserStatus.DEFAULT;
+    private volatile RxAsk ask = (fileName, bytes) -> true;
     private volatile boolean running;
 
     // 使用默认传输端口初始化接收服务
@@ -55,6 +59,16 @@ final class UdpRx {
         Thread thread = new Thread(this::listen, "lantransfer-udp-rx");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    // 更新本机接收状态
+    void updateStatus(UserStatus status) {
+        this.status = status == null ? UserStatus.DEFAULT : status;
+    }
+
+    // 设置接收前确认回调
+    void setAsk(RxAsk ask) {
+        this.ask = ask == null ? (fileName, bytes) -> true : ask;
     }
 
     // 持续监听 UDP 文件传输数据包
@@ -104,16 +118,36 @@ final class UdpRx {
             int chunkCount = intValue(parts[5], -1);
             int chunkSize = intValue(parts[6], -1);
             String sha256 = parts.length >= 8 ? parts[7] : "";
-            RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
-            active.put(key, file);
-            detail = file.missing();
-            if (chunkCount == 0) {
-                file.finish();
+            if (allowBegin(fileName, size)) {
+                RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
+                active.put(key, file);
+                detail = file.missing();
+                if (chunkCount == 0) {
+                    file.finish();
+                }
+                ok = true;
+            } else {
+                detail = "REJECTED";
             }
-            ok = true;
         } catch (Exception ignored) {
         }
         ack(socket, packet, jobId, fileIndex, -1, ok, detail);
+    }
+
+    // 判断当前状态是否允许开始接收文件
+    private boolean allowBegin(String fileName, long size) {
+        UserStatus value = status == null ? UserStatus.DEFAULT : status;
+        if (value == UserStatus.INVISIBLE || value == UserStatus.OFFLINE) {
+            return false;
+        }
+        if (value != UserStatus.BUSY) {
+            return true;
+        }
+        try {
+            return ask.approve(fileName, size);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     // 处理文件内容分片并在收齐后移动到最终文件

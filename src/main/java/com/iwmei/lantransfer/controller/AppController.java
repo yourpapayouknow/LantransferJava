@@ -3,6 +3,7 @@ package com.iwmei.lantransfer.controller;
 import com.iwmei.lantransfer.model.*;
 import com.iwmei.lantransfer.service.BackendFacade;
 import com.iwmei.lantransfer.service.LocalBackend;
+import com.iwmei.lantransfer.service.RxAsk;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -56,6 +57,11 @@ public final class AppController {
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return backend.startTransfer(files, targets, progress);
+    }
+
+    // 设置接收前确认回调
+    public void setRxAsk(RxAsk ask) {
+        backend.setRxAsk(ask);
     }
 
     // 更新用户资料信息

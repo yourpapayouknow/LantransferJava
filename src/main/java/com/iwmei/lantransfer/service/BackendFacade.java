@@ -37,6 +37,10 @@ public interface BackendFacade {
         return startTransfer(files, targets);
     }
 
+    // 设置接收前确认回调
+    default void setRxAsk(RxAsk ask) {
+    }
+
     // 更新用户资料信息
     void updateProfile(Profile profile);
 

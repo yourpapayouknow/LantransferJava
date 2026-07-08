@@ -34,11 +34,13 @@ public final class UdpWireCheck {
         Path source = root.resolve("hello.txt");
         Path etaSource = root.resolve("eta.txt");
         Path resumeSource = root.resolve("resume.bin");
+        Path busySource = root.resolve("busy.txt");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
             String resumeContent = "b".repeat(1024);
             Files.writeString(resumeSource, resumeContent);
+            Files.writeString(busySource, "busy confirm");
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -61,12 +63,33 @@ public final class UdpWireCheck {
             require(Files.exists(secondFile), "second received file should exist");
             require("hello udp".equals(Files.readString(firstFile)), "first received content should match");
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
+            int busyAcceptPort = freePort();
+            UdpRx busyAcceptRx = new UdpRx(store, busyAcceptPort);
+            busyAcceptRx.updateStatus(UserStatus.BUSY);
+            busyAcceptRx.setAsk((name, bytes) -> true);
+            busyAcceptRx.start();
+            Thread.sleep(120);
             UserDevice busy = new UserDevice("self-3", "本机C", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
-                    "#7a52d8", false, "127.0.0.1", port, UserStatus.BUSY);
-            TransferSummary blocked = tx.run(List.of(new TransferFile("hello.txt", "9 B", source)), List.of(busy), store.load());
-            require(blocked.successCount() == 0, "busy target should be blocked");
-            require(blocked.failedCount() == 1, "busy target should count as failed");
-            require(blocked.logs().stream().anyMatch(log -> log.contains("对方忙碌")), "busy block reason should be logged");
+                    "#7a52d8", false, "127.0.0.1", busyAcceptPort, UserStatus.BUSY);
+            TransferSummary acceptedBusy = tx.run(List.of(new TransferFile("busy.txt", "12 B", busySource)),
+                    List.of(busy), store.load());
+            require(acceptedBusy.successCount() == 1, "busy target should send after receiver approval");
+            require(acceptedBusy.logs().stream().anyMatch(log -> log.contains("等待接收确认")),
+                    "busy confirmation wait should be logged");
+            require("busy confirm".equals(Files.readString(receiveDir.resolve("busy.txt"))),
+                    "approved busy receive should land file");
+            int busyDenyPort = freePort();
+            UdpRx busyDenyRx = new UdpRx(store, busyDenyPort);
+            busyDenyRx.updateStatus(UserStatus.BUSY);
+            busyDenyRx.setAsk((name, bytes) -> false);
+            busyDenyRx.start();
+            Thread.sleep(120);
+            UserDevice busyDeny = new UserDevice("self-4", "本机D", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#7a52d8", false, "127.0.0.1", busyDenyPort, UserStatus.BUSY);
+            TransferSummary deniedBusy = tx.run(List.of(new TransferFile("deny.txt", "12 B", busySource)),
+                    List.of(busyDeny), store.load());
+            require(deniedBusy.failedCount() == 1, "busy target should fail after receiver rejection");
+            require(!Files.exists(receiveDir.resolve("deny.txt")), "rejected busy receive should not land file");
             List<TransferSummary> progressSnapshots = new ArrayList<>();
             TransferSummary etaSummary = new UdpTx(512).run(List.of(new TransferFile("eta.txt", "1.00 KB", etaSource)),
                     List.of(first), store.load(), progressSnapshots::add);

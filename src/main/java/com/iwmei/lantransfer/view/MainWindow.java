@@ -17,7 +17,9 @@ import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -66,6 +68,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 // 主窗口壳，负责窗口、导航和共享控件构建
 public class MainWindow extends Application {
@@ -113,6 +117,7 @@ public class MainWindow extends Application {
         stage = primaryStage;
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setTitle(APP_TITLE);
+        controller.setRxAsk(this::confirmReceive);
         controller.loadSettings().thenAccept(settings -> Platform.runLater(() -> {
             currentSettings = settings;
             accentColor = settings.accentColor();
@@ -161,6 +166,30 @@ public class MainWindow extends Application {
     // 显示系统设置页面
     void showSettingsPage() {
         settings.showSettingsPage();
+    }
+
+    // 在忙碌状态下询问用户是否接收文件
+    private boolean confirmReceive(String fileName, long bytes) {
+        if (Platform.isFxApplicationThread()) {
+            return showReceiveConfirm(fileName, bytes);
+        }
+        CompletableFuture<Boolean> answer = new CompletableFuture<>();
+        Platform.runLater(() -> answer.complete(showReceiveConfirm(fileName, bytes)));
+        try {
+            return answer.get(30, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    // 显示接收确认对话框
+    private boolean showReceiveConfirm(String fileName, long bytes) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
+        alert.setTitle("接收确认");
+        alert.setHeaderText("收到文件：" + fileName);
+        alert.setContentText("当前状态为忙碌，是否接收 " + bytes + " B？");
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
 
     // 把登录注册内容放入认证窗口壳

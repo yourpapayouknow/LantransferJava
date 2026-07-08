@@ -36,6 +36,7 @@ public final class LocalBackend implements BackendFacade {
             AuthResult result = auth.login(request);
             if (result.success() && result.profile() != null) {
                 lan.updateSelf(result.profile());
+                rx.updateStatus(result.profile().status());
             }
             return result;
         });
@@ -102,11 +103,20 @@ public final class LocalBackend implements BackendFacade {
         }, transferQueue);
     }
 
+    // 设置接收前确认回调
+    @Override
+    public void setRxAsk(RxAsk ask) {
+        rx.setAsk(ask);
+    }
+
     // 更新用户资料信息
     @Override
     public void updateProfile(Profile profile) {
         auth.updateProfile(profile);
         lan.updateSelf(profile);
+        if (profile != null) {
+            rx.updateStatus(profile.status());
+        }
     }
 
     // 更新用户在线状态
@@ -114,6 +124,7 @@ public final class LocalBackend implements BackendFacade {
     public void updateStatus(UserStatus status, String customText) {
         auth.updateStatus(status, customText);
         lan.updateStatus(status);
+        rx.updateStatus(status);
     }
 
     // 更新系统设置参数
