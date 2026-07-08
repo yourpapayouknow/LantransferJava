@@ -164,6 +164,8 @@ final class UdpTx {
         }
         try (InputStream input = Files.newInputStream(source.path())) {
             byte[] buffer = new byte[chunkBytes];
+            long sentBytes = 0;
+            int nextProgressLog = 25;
             for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
                 int read = readChunk(input, buffer);
                 AckResult data = sendData(socket, buffer, read, jobId, fileIndex, chunkIndex, maxRetries);
@@ -171,6 +173,12 @@ final class UdpTx {
                 if (!data.success()) {
                     logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 第 " + chunkIndex + " 个分片未确认"));
                     return new FileSend(false, retries, failedTask(source, target, retries), logs);
+                }
+                sentBytes += read;
+                while (chunkCount > 1 && nextProgressLog < 100 && progress(sentBytes, source.bytes()) >= nextProgressLog) {
+                    logs.add(stamp("… [" + targetLabel(target) + "] " + source.name() + " 进度 "
+                            + nextProgressLog + "%，预计剩余 " + eta(started, sentBytes, source.bytes())));
+                    nextProgressLog += 25;
                 }
                 rate.pause(read);
             }
@@ -397,6 +405,26 @@ final class UdpTx {
     private String elapsed(long started) {
         long millis = Math.max(1, (System.nanoTime() - started) / 1_000_000);
         long seconds = Math.max(1, (long) Math.ceil(millis / 1000.0));
+        return formatSeconds(seconds);
+    }
+
+    // 按已发送字节估算剩余时间
+    private String eta(long started, long sent, long total) {
+        if (sent <= 0 || total <= sent) {
+            return "00:00:00";
+        }
+        long elapsedMillis = Math.max(1, (System.nanoTime() - started) / 1_000_000);
+        long remainingMillis = Math.max(0, (total - sent) * elapsedMillis / sent);
+        return formatSeconds((long) Math.ceil(remainingMillis / 1000.0));
+    }
+
+    // 计算发送进度百分比
+    private int progress(long sent, long total) {
+        return total <= 0 ? 100 : (int) Math.min(100, sent * 100 / total);
+    }
+
+    // 格式化秒数为时间文本
+    private String formatSeconds(long seconds) {
         return String.format(Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
     }
 

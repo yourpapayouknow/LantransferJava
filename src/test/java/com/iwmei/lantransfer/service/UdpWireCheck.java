@@ -31,8 +31,10 @@ public final class UdpWireCheck {
         Path receiveDir = root.resolve("rx");
         Path settingsFile = root.resolve("settings.properties");
         Path source = root.resolve("hello.txt");
+        Path etaSource = root.resolve("eta.txt");
         try {
             Files.writeString(source, "hello udp");
+            Files.writeString(etaSource, "a".repeat(1024));
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -61,6 +63,9 @@ public final class UdpWireCheck {
             require(blocked.successCount() == 0, "busy target should be blocked");
             require(blocked.failedCount() == 1, "busy target should count as failed");
             require(blocked.logs().stream().anyMatch(log -> log.contains("对方忙碌")), "busy block reason should be logged");
+            TransferSummary etaSummary = new UdpTx(512).run(List.of(new TransferFile("eta.txt", "1.00 KB", etaSource)), List.of(first), store.load());
+            require(etaSummary.logs().stream().anyMatch(log -> log.contains("预计剩余")),
+                    "ETA should be logged during chunk send: " + etaSummary.logs());
             require(sendPartial(port).endsWith("\tOK"), "partial chunk should be accepted");
             require(Files.readString(receiveDir.resolve("partial.bin.part.meta")).contains("received=0"),
                     "partial metadata should persist received chunk index");
