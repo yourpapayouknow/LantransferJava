@@ -16,7 +16,6 @@
 ## 功能跳过记录
 
 - 真实 UDP 多线程传输调度与实时进度：目标级并发 UDP 发送、ACK 等待、后台接收和接收目录落盘已由 `UdpTx/UdpRx` 实现；未实现的是传输中实时进度推送、接收端进度展示、队列调度和分片级并发。推荐替代方案：在现有 `UdpTx/UdpRx` 协议上增加任务状态仓库，把已确认分片数暴露给 UI；只有在大文件性能不足时再把单文件分片分派到并发 worker。
-- 文件临时分片缓存与断点重传：`UdpRx` 已使用 `.part` 临时文件和 `.part.meta` 元数据保存接收分片索引，重启后具备恢复接收端分片状态的基础；仍未实现的是发送端查询接收端缺失分片列表并定向补发。推荐替代方案：在现有 ACK 协议外增加缺失分片查询和补发协议。
 - 忙碌状态下的接收前确认：当前已能通过 `UserStatus.BUSY` 拦截直接发送，但真正“确认后再收”需要接收端弹窗、发送端等待确认、确认超时和取消协议。推荐替代方案：在 `UdpRx` 收到 BEGIN 前增加请求阶段，接收端 UI 确认后返回允许 ACK，再进入文件分片接收。
 
 ## `src/main/java/com/iwmei/lantransfer/App.java`
@@ -111,17 +110,17 @@
 
 所属功能：UDP 文件接收后端。
 
-详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件并删除元数据。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
+详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量；如果接收端重启后再次收到同一文件的开始包，会从 `.part.meta` 恢复已接收分片并在 BEGIN ACK 中带回缺失分片列表，供发送端定向补发。收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件并删除元数据。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
 
-实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小和发送端 SHA-256；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，每写入一个新分片就保存 `.part.meta`，全部收齐后 `finish()` 计算 `.part` 的 SHA-256 并与发送端值比对；校验失败时返回 ACK FAIL，校验成功才把 `.part` 移动成最终文件并删除 `.part.meta`。当前发送端还没有缺失分片查询和定向补发协议，完整断点续传缺口记录在未实现清单。
+实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小和发送端 SHA-256；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，如果同一任务文件已经在本轮接收中，就直接用已有 `RxFile.missing()` 生成缺失分片扩展字段并 ACK；如果是重启后的新接收状态，则先通过 `createFile(...)` 和 `restoreOrReset()` 读取 `.part.meta`，恢复成功后同样把缺失分片索引列表追加到 ACK 第 6 个字段。`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，每写入一个新分片就保存 `.part.meta`，全部收齐后 `finish()` 计算 `.part` 的 SHA-256 并与发送端值比对；校验失败时返回 ACK FAIL，校验成功才把 `.part` 移动成最终文件并删除 `.part.meta`。`missing()` 只在已经存在部分分片时返回缺失索引，例如只收到第 0 片且总共 2 片时返回 `1`；完全没有历史分片时返回空字符串，让发送端按普通新任务完整发送。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpTx.java`
 
 所属功能：UDP 文件发送后端。
 
-详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线、可达且用户状态允许接收的设备才会进入真实 UDP 发送，离线、缺少地址、隐身、离线状态或忙碌状态的设备会生成失败任务和拦截日志。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，再逐个发送分片包，每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发；多分片文件会在 25%/50%/75% 进度点记录预计剩余时间日志。
+详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹展开，按目标设备的 `host/port` 目标级并发发送，并按系统设置中的上传限速把总带宽平均分给可发送目标；在线、可达且用户状态允许接收的设备才会进入真实 UDP 发送，离线、缺少地址、隐身、离线状态或忙碌状态的设备会生成失败任务和拦截日志。每个目标内部仍按文件顺序发送：每个文件先计算 SHA-256 并发送开始包，如果接收端 BEGIN ACK 返回缺失分片列表，就只补发这些缺失分片；没有缺失列表时按普通新任务逐个发送全部分片。每个包都等待 `UdpRx` ACK，超时后按系统设置中的最大重试次数重发；多分片文件会在 25%/50%/75% 进度点记录预计剩余时间日志。
 
-实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 先调用 `sendable(...)` 检查 `DeviceStatus.ONLINE`、真实地址和 `UserStatus.DEFAULT/ONLINE`；BUSY 会被拦截并提示等待接收确认功能未完成，INVISIBLE/OFFLINE 会被拦截为不允许接收。通过检查后才创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，成功后用 `InputStream` 读取固定大小分片并调用 `sendData(...)`，每个分片 ACK 后累计已发送字节；`progress(...)` 达到下一个 25% 进度点时调用 `eta(...)`，按已耗时、已发送字节和总字节估算剩余时间并写入日志，然后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；断点续传和实时 UI 进度后续在这个类上继续扩展。
+实现方法：`run(...)` 先把 `TransferFile` 展开为 `SourceFile` 列表，文件夹用 `Files.walk(...)` 展开为多个普通文件，`sha256(...)` 用 JDK `MessageDigest` 计算每个源文件校验值，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率，再调用 `sendTargets(...)` 用标准库固定线程池并发处理多个目标，结果仍按原目标顺序汇总。`sendTarget(...)` 先调用 `sendable(...)` 检查 `DeviceStatus.ONLINE`、真实地址和 `UserStatus.DEFAULT/ONLINE`；BUSY 会被拦截并提示等待接收确认功能未完成，INVISIBLE/OFFLINE 会被拦截为不允许接收。通过检查后才创建 `DatagramSocket` 并连接目标地址，随后逐个文件调用 `sendFile(...)`。`sendFile(...)` 发送 `BEGIN` 元数据包，`sendWithAck(...)` 会解析 ACK 第 6 个字段并放入 `AckResult.detail()`；`chunksToSend(...)` 把该字段中的逗号分隔缺失分片索引转成待发送列表，字段为空或解析失败时回退发送全部分片。发送文件内容时使用 `FileChannel` 和 `readChunk(...)` 按 `chunkIndex * chunkBytes` 随机定位读取，所以续传时可以跳过已接收分片，只补缺失分片，并在日志中记录“断点续传：仅补发 N 个缺失分片”。每个分片 ACK 后累计已发送字节；`progress(...)` 达到下一个 25% 进度点时调用 `eta(...)`，按已耗时、已发送字节和总字节估算剩余时间并写入日志，然后交给 `RateLimit.pause(...)` 做短睡节流。`sendWithAck(...)` 是核心可靠性逻辑：每次发送后等待 ACK，失败则最多重试 `settings.maxRetries()` 次。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。当前实现是目标级并发、单目标内停止等待传输；实时 UI 进度和队列调度后续在这个类上继续扩展。
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
@@ -303,9 +302,9 @@
 
 所属功能：UDP 发送接收闭环无框架自检。
 
-详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验、ETA 日志、接收落盘和未完成接收元数据保存。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、两分片文件预计剩余时间日志、半文件 `.part.meta` 保存和错误校验拒收。
+详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、上传限速分配、ACK 确认、SHA-256 完整性校验、ETA 日志、接收落盘、未完成接收元数据保存和缺失分片定向补发。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、两分片文件预计剩余时间日志、半文件 `.part.meta` 保存、重启后从 `.part.meta` 返回缺失分片、发送端只补缺失分片和错误校验拒收。
 
-实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志；再用 `new UdpTx(4)` 发送两分片文件，确认日志包含“预计剩余”。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
+实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录和 10 MB/s 上传限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5 MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容。随后构造一个 `UserStatus.BUSY` 目标，确认发送器会拦截并记录“对方忙碌”日志；再用 `new UdpTx(4)` 发送两分片文件，确认日志包含“预计剩余”。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。续传检查先用 `sendResumePartial(...)` 在旧接收器上留下 `resume.bin.part` 和 `resume.bin.part.meta`，再启动新的 `UdpRx` 并用 `sendResumeBegin(...)` 确认 BEGIN ACK 带回缺失分片 `1`，最后让 `new UdpTx(512)` 真实发送同一文件，要求汇总成功、日志包含“断点续传”、最终 `resume.bin` 内容与源文件一致。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

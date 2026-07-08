@@ -32,9 +32,12 @@ public final class UdpWireCheck {
         Path settingsFile = root.resolve("settings.properties");
         Path source = root.resolve("hello.txt");
         Path etaSource = root.resolve("eta.txt");
+        Path resumeSource = root.resolve("resume.bin");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
+            String resumeContent = "b".repeat(1024);
+            Files.writeString(resumeSource, resumeContent);
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -69,6 +72,29 @@ public final class UdpWireCheck {
             require(sendPartial(port).endsWith("\tOK"), "partial chunk should be accepted");
             require(Files.readString(receiveDir.resolve("partial.bin.part.meta")).contains("received=0"),
                     "partial metadata should persist received chunk index");
+            int resumeSeedPort = freePort();
+            new UdpRx(store, resumeSeedPort).start();
+            Thread.sleep(120);
+            require(sendResumePartial(resumeSeedPort, resumeContent).endsWith("\tOK"), "resume seed chunk should be accepted");
+            require(Files.readString(receiveDir.resolve("resume.bin.part.meta")).contains("received=0"),
+                    "resume metadata should persist first chunk");
+            int resumeProbePort = freePort();
+            new UdpRx(store, resumeProbePort).start();
+            Thread.sleep(120);
+            require(sendResumeBegin(resumeProbePort, "resume-probe", resumeContent).endsWith("\tOK\t1"),
+                    "resumed begin should report missing chunk index");
+            int resumePort = freePort();
+            new UdpRx(store, resumePort).start();
+            Thread.sleep(120);
+            UserDevice resumeTarget = new UserDevice("self-4", "本机D", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#2f9f62", false, "127.0.0.1", resumePort);
+            TransferSummary resumed = new UdpTx(512).run(List.of(new TransferFile("resume.bin", "1.00 KB", resumeSource)),
+                    List.of(resumeTarget), store.load());
+            require(resumed.successCount() == 1, "missing chunk resend should succeed");
+            require(resumed.logs().stream().anyMatch(log -> log.contains("断点续传")),
+                    "missing chunk resend should be logged: " + resumed.logs());
+            require(resumeContent.equals(Files.readString(receiveDir.resolve("resume.bin"))),
+                    "resumed file content should match source");
             require(sendBadChecksumBegin(port).endsWith("\tFAIL"), "bad checksum should fail");
             require(!Files.exists(receiveDir.resolve("bad.txt")), "bad checksum file should not land");
         } finally {
@@ -90,6 +116,21 @@ public final class UdpWireCheck {
         require(sendAndReceive(port, begin.getBytes(StandardCharsets.UTF_8)).endsWith("\tOK"), "partial begin should ack");
         String data = UdpRx.DATA + "\tpartial-job\t0\t0\tabcd";
         return sendAndReceive(port, data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // 发送一个已完成首片的续传种子文件并返回分片确认
+    private static String sendResumePartial(int port, String content) throws Exception {
+        require(sendResumeBegin(port, "resume-seed", content).endsWith("\tOK"), "resume begin should ack");
+        String data = UdpRx.DATA + "\tresume-seed\t0\t0\t" + content.substring(0, 512);
+        return sendAndReceive(port, data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // 发送续传文件开始包并返回接收端确认
+    private static String sendResumeBegin(int port, String jobId, String content) throws Exception {
+        String name = Base64.getUrlEncoder().encodeToString("resume.bin".getBytes(StandardCharsets.UTF_8));
+        String begin = UdpRx.BEGIN + "\t" + jobId + "\t0\t" + name + "\t" + content.length() + "\t2\t512\t"
+                + sha256(content);
+        return sendAndReceive(port, begin.getBytes(StandardCharsets.UTF_8));
     }
 
     // 发送一个 UDP 包并返回接收端确认

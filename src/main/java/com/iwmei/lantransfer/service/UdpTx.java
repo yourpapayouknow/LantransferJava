@@ -14,10 +14,13 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
-import java.security.MessageDigest;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -162,12 +165,17 @@ final class UdpTx {
             logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " 发送请求未确认"));
             return new FileSend(false, retries, failedTask(source, target, retries), logs);
         }
-        try (InputStream input = Files.newInputStream(source.path())) {
+        List<Integer> chunks = chunksToSend(begin.detail(), chunkCount);
+        if (chunks.size() < chunkCount) {
+            logs.add(stamp("↻ [" + targetLabel(target) + "] " + source.name() + " 断点续传：仅补发 "
+                    + chunks.size() + " 个缺失分片"));
+        }
+        try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
             byte[] buffer = new byte[chunkBytes];
             long sentBytes = 0;
             int nextProgressLog = 25;
-            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
-                int read = readChunk(input, buffer);
+            for (int chunkIndex : chunks) {
+                int read = readChunk(input, chunkIndex, buffer);
                 AckResult data = sendData(socket, buffer, read, jobId, fileIndex, chunkIndex, maxRetries);
                 retries += data.retries();
                 if (!data.success()) {
@@ -213,30 +221,32 @@ final class UdpTx {
             }
             try {
                 socket.send(new DatagramPacket(data, data.length));
-                if (awaitAck(socket, jobId, fileIndex, chunkIndex)) {
-                    return new AckResult(true, retries);
+                AckResult ack = awaitAck(socket, jobId, fileIndex, chunkIndex);
+                if (ack.success()) {
+                    return new AckResult(true, retries, ack.detail());
                 }
             } catch (Exception ignored) {
             }
         }
-        return new AckResult(false, retries);
+        return new AckResult(false, retries, "");
     }
 
     // 等待并校验接收端 ACK
-    private boolean awaitAck(DatagramSocket socket, String jobId, int fileIndex, int chunkIndex) {
+    private AckResult awaitAck(DatagramSocket socket, String jobId, int fileIndex, int chunkIndex) {
         try {
             byte[] buffer = new byte[256];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
             String text = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-            String[] parts = text.split("\t", 5);
-            return parts.length == 5 && UdpRx.ACK.equals(parts[0]) && jobId.equals(parts[1])
+            String[] parts = text.split("\t", 6);
+            boolean ok = parts.length >= 5 && UdpRx.ACK.equals(parts[0]) && jobId.equals(parts[1])
                     && String.valueOf(fileIndex).equals(parts[2]) && String.valueOf(chunkIndex).equals(parts[3])
                     && "OK".equals(parts[4]);
+            return new AckResult(ok, 0, ok && parts.length == 6 ? parts[5] : "");
         } catch (SocketTimeoutException ignored) {
-            return false;
+            return new AckResult(false, 0, "");
         } catch (Exception ignored) {
-            return false;
+            return new AckResult(false, 0, "");
         }
     }
 
@@ -247,16 +257,46 @@ final class UdpTx {
     }
 
     // 读取一个固定大小文件分片
-    private int readChunk(InputStream input, byte[] buffer) throws Exception {
-        int offset = 0;
-        while (offset < buffer.length) {
-            int read = input.read(buffer, offset, buffer.length - offset);
+    private int readChunk(FileChannel input, int chunkIndex, byte[] buffer) throws Exception {
+        input.position((long) chunkIndex * chunkBytes);
+        ByteBuffer chunk = ByteBuffer.wrap(buffer);
+        while (chunk.hasRemaining()) {
+            int read = input.read(chunk);
             if (read < 0) {
                 break;
             }
-            offset += read;
+            if (read == 0) {
+                break;
+            }
         }
-        return offset;
+        return chunk.position();
+    }
+
+    // 解析接收端返回的缺失分片列表
+    private List<Integer> chunksToSend(String missing, int chunkCount) {
+        if (missing == null || missing.isBlank()) {
+            return range(chunkCount);
+        }
+        List<Integer> chunks = new ArrayList<>();
+        for (String item : missing.split(",")) {
+            try {
+                int index = Integer.parseInt(item.trim());
+                if (index >= 0 && index < chunkCount) {
+                    chunks.add(index);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return chunks.isEmpty() ? range(chunkCount) : chunks;
+    }
+
+    // 返回从零开始的分片索引列表
+    private List<Integer> range(int count) {
+        List<Integer> chunks = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            chunks.add(index);
+        }
+        return chunks;
     }
 
     // 收集待发送的真实文件
@@ -468,7 +508,7 @@ final class UdpTx {
     }
 
     // 单个数据包确认结果
-    private record AckResult(boolean success, int retries) {
+    private record AckResult(boolean success, int retries, String detail) {
     }
 
     // 简单目标级限速器，按已发送字节和目标速率短暂休眠

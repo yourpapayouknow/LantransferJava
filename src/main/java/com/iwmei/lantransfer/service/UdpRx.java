@@ -93,8 +93,9 @@ final class UdpRx {
         int fileIndex = intValue(parts[2], -1);
         String key = key(jobId, fileIndex);
         boolean ok = false;
+        String detail = "";
         if (active.containsKey(key)) {
-            ack(socket, packet, jobId, fileIndex, -1, true);
+            ack(socket, packet, jobId, fileIndex, -1, true, active.get(key).missing());
             return;
         }
         try {
@@ -105,13 +106,14 @@ final class UdpRx {
             String sha256 = parts.length >= 8 ? parts[7] : "";
             RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
             active.put(key, file);
+            detail = file.missing();
             if (chunkCount == 0) {
                 file.finish();
             }
             ok = true;
         } catch (Exception ignored) {
         }
-        ack(socket, packet, jobId, fileIndex, -1, ok);
+        ack(socket, packet, jobId, fileIndex, -1, ok, detail);
     }
 
     // 处理文件内容分片并在收齐后移动到最终文件
@@ -166,8 +168,14 @@ final class UdpRx {
 
     // 发送接收确认包
     private void ack(DatagramSocket socket, DatagramPacket packet, String jobId, int fileIndex, int chunkIndex, boolean ok) {
+        ack(socket, packet, jobId, fileIndex, chunkIndex, ok, "");
+    }
+
+    // 发送带扩展信息的接收确认包
+    private void ack(DatagramSocket socket, DatagramPacket packet, String jobId, int fileIndex, int chunkIndex, boolean ok, String detail) {
         try {
-            String message = ACK + "\t" + jobId + "\t" + fileIndex + "\t" + chunkIndex + "\t" + (ok ? "OK" : "FAIL");
+            String message = ACK + "\t" + jobId + "\t" + fileIndex + "\t" + chunkIndex + "\t" + (ok ? "OK" : "FAIL")
+                    + (detail == null || detail.isBlank() ? "" : "\t" + detail);
             byte[] data = message.getBytes(StandardCharsets.UTF_8);
             socket.send(new DatagramPacket(data, data.length, packet.getAddress(), packet.getPort()));
         } catch (Exception ignored) {
@@ -366,6 +374,21 @@ final class UdpRx {
             try (Writer writer = Files.newBufferedWriter(meta, StandardCharsets.UTF_8)) {
                 props.store(writer, "Lantransfer partial file state");
             }
+        }
+
+        // 返回当前缺失分片索引列表
+        private String missing() {
+            if (receivedCount == 0) {
+                return "";
+            }
+            StringBuilder builder = new StringBuilder();
+            for (int index = received.nextClearBit(0); index >= 0 && index < chunkCount; index = received.nextClearBit(index + 1)) {
+                if (!builder.isEmpty()) {
+                    builder.append(',');
+                }
+                builder.append(index);
+            }
+            return builder.toString();
         }
 
         // 计算接收临时文件 SHA-256
