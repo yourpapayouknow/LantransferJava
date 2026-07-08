@@ -4,6 +4,8 @@ import com.iwmei.lantransfer.model.*;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 // 本地业务后端，负责已落地功能并临时复用演示数据补齐未实现页面
 public final class LocalBackend implements BackendFacade {
@@ -14,6 +16,11 @@ public final class LocalBackend implements BackendFacade {
     private final UdpTx tx = new UdpTx();
     private final UdpRx rx = new UdpRx(settings);
     private final LanPeer lan = new LanPeer();
+    private final ExecutorService transferQueue = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "lantransfer-tx-queue");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     // 初始化本地后端并启动 UDP 接收服务
     public LocalBackend() {
@@ -83,7 +90,7 @@ public final class LocalBackend implements BackendFacade {
             TransferSummary summary = tx.run(files, safeTargets, settings.load());
             recent.remember(safeTargets);
             return summary;
-        });
+        }, transferQueue);
     }
 
     // 更新用户资料信息
