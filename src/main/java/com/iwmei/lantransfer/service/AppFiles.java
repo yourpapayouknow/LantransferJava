@@ -11,9 +11,22 @@ final class AppFiles {
     private AppFiles() {
     }
 
-    // 返回当前仓库命名空间下的数据目录
+    // 返回当前仓库命名空间下的数据目录，允许测试实例用参数覆盖
     static Path dataDir() {
+        String override = configuredDataDir();
+        if (!override.isBlank()) {
+            return Path.of(override);
+        }
         return Path.of(System.getProperty("user.home"), ".lantransfer", repoSlug());
+    }
+
+    // 读取多实例测试或虚拟机联调指定的数据目录
+    private static String configuredDataDir() {
+        String property = System.getProperty("lantransfer.dataDir", "").trim();
+        if (!property.isBlank()) {
+            return property;
+        }
+        return System.getenv().getOrDefault("LANTRANSFER_DATA_DIR", "").trim();
     }
 
     // 读取 GitHub 远程仓库名作为本地数据命名空间

@@ -12,6 +12,7 @@ public final class LanPeerCheck {
 
     // 运行协议编码、解析和本机设备兜底检查
     public static void main(String[] args) throws Exception {
+        System.setProperty("lantransfer.transferPort", "45432");
         LanPeer peer = new LanPeer(false, 1);
         UserDevice source = new UserDevice("D-1", "李四", "PC-1", DeviceStatus.ONLINE, "刚刚", "李", "#4f7bd8", false,
                 "127.0.0.1", 45332, UserStatus.BUSY);
@@ -28,6 +29,8 @@ public final class LanPeerCheck {
         peer.updateGroup("team-b");
         require(peer.parse(teamMessage) == null, "different group should be ignored");
         require(!peer.knownDevices().isEmpty(), "local device should exist");
+        require(peer.knownDevices().stream().anyMatch(item -> item.port() == 45432),
+                "local transfer port should follow JVM property");
         peer.remember(parsed);
         require(device(peer, "D-1").status() == DeviceStatus.ONLINE, "remembered peer should start online");
         Thread.sleep(5);

@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentMap;
 // 局域网设备发现服务，负责 UDP 广播扫描和本机发现响应
 final class LanPeer {
     private static final int PORT = 45331;
-    static final int TRANSFER_PORT = 45332;
+    static final int TRANSFER_PORT = configuredPort();
     private static final int WAIT_MILLIS = 900;
     private static final long OFFLINE_MILLIS = 30_000;
     private static final String DISCOVER = "LANTRANSFER_DISCOVER_V1";
@@ -305,6 +305,20 @@ final class LanPeer {
             return port > 0 ? port : TRANSFER_PORT;
         } catch (Exception ex) {
             return TRANSFER_PORT;
+        }
+    }
+
+    // 读取多实例测试或虚拟机联调指定的传输端口
+    private static int configuredPort() {
+        String value = System.getProperty("lantransfer.transferPort", "").trim();
+        if (value.isBlank()) {
+            value = System.getenv().getOrDefault("LANTRANSFER_TRANSFER_PORT", "").trim();
+        }
+        try {
+            int port = Integer.parseInt(value);
+            return port > 0 ? port : 45332;
+        } catch (Exception ignored) {
+            return 45332;
         }
     }
 

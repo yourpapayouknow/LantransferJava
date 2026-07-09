@@ -69,9 +69,9 @@
 
 所属功能：本地数据目录工具。
 
-详细功能：统一决定账号文件、设置文件等本地运行数据放在哪里。它把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行数据写进项目仓库或误提交到 Git。
+详细功能：统一决定账号文件、设置文件等本地运行数据放在哪里。默认把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行数据写进项目仓库或误提交到 Git；进行宿主机多实例、虚拟机联调或自动化 GUI 传输测试时，可以通过 `lantransfer.dataDir` JVM 参数或 `LANTRANSFER_DATA_DIR` 环境变量为每个运行端指定独立数据目录，隔离账号、设置、近期对象和接收目录。
 
-实现方法：`dataDir()` 使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore` 和 `SettingsStore` 都通过它定位文件。
+实现方法：`dataDir()` 先调用 `configuredDataDir()` 读取 `System.getProperty("lantransfer.dataDir")`，如果 JVM 参数为空再读取 `System.getenv("LANTRANSFER_DATA_DIR")`；只要覆盖值非空，就直接把它转成 `Path` 返回。没有覆盖值时，才使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合默认路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore`、`SettingsStore` 和 `RecentStore` 都通过它定位文件；多端测试时必须给不同端传入不同目录，避免两个 JavaFX 实例共享同一份账号和设置文件。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AutoStart.java`
 
@@ -117,15 +117,15 @@
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和传输口令分组摘要，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应会携带口令 SHA-256 摘要，只有同一口令的设备互相发现；发现响应还携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和传输口令分组摘要，启动后台 UDP 响应线程，扫描时向所有可用广播地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应会携带口令 SHA-256 摘要，只有同一口令的设备互相发现；发现响应还携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据。传输端口默认是 `45332`，但宿主机多实例或虚拟机联调时可以通过 `lantransfer.transferPort` JVM 参数或 `LANTRANSFER_TRANSFER_PORT` 环境变量覆盖，让不同运行端监听不同接收端口。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
 
-实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。`updateGroup(String)` 会把传输口令清洗后计算 SHA-256 十六进制摘要，空口令得到空摘要并表示公开组。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`；公开组发送 `LANTRANSFER_DISCOVER_V1`，非空口令发送 `LANTRANSFER_DISCOVER_V1\t口令摘要`，并在约 900ms 内接收响应、调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后先检查 `groupMatches(discoverGroup(message))` 和 `discoverable(self.userStatus())`，口令不同、隐身和离线都不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t口令摘要`；`parse(message, fallbackHost)` 仍兼容旧 4 到 7 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺口令摘要时只会被公开组接收。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。静态字段 `TRANSFER_PORT` 由 `configuredPort()` 初始化，`configuredPort()` 先读取 `System.getProperty("lantransfer.transferPort")`，为空时读取 `System.getenv("LANTRANSFER_TRANSFER_PORT")`，解析为正整数就作为传输端口，解析失败或未配置时回退 `45332`。`updateGroup(String)` 会把传输口令清洗后计算 SHA-256 十六进制摘要，空口令得到空摘要并表示公开组。`scan()` 创建临时 `DatagramSocket`，向 `255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`；公开组发送 `LANTRANSFER_DISCOVER_V1`，非空口令发送 `LANTRANSFER_DISCOVER_V1\t口令摘要`，并在约 900ms 内接收响应、调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定 `45331` 端口，收到发现消息后先检查 `groupMatches(discoverGroup(message))` 和 `discoverable(self.userStatus())`，口令不同、隐身和离线都不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t口令摘要`；`parse(message, fallbackHost)` 仍兼容旧 4 到 7 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺口令摘要时只会被公开组接收。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 从 `NetworkInterface` 读取可广播地址，`localDevice()` 用系统用户名、主机名、本机 IPv4 和当前传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
 
 所属功能：UDP 文件接收后端。
 
-详细功能：`UdpRx` 负责真实文件接收的后台服务。它监听固定传输端口，接收 `UdpTx` 发来的文件开始包和文件内容分片包，为每个文件创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，并按接收进度节点调用 `RxProgress` 供界面展示；如果接收端重启后再次收到同一文件的开始包，会从 `.part.meta` 恢复已接收分片并在 BEGIN ACK 中带回缺失分片列表，供发送端定向补发。本机状态为 BUSY 时，`UdpRx` 会在创建接收状态前调用 `RxAsk` 询问用户是否允许接收；本机状态为 INVISIBLE 或 OFFLINE 时直接拒收。收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件并删除元数据，同时推送 100% 接收进度。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
+详细功能：`UdpRx` 负责真实文件接收的后台服务。它默认监听 `LanPeer.TRANSFER_PORT`，接收 `UdpTx` 发来的文件开始包和文件内容分片包；该端口默认是 `45332`，可由 `lantransfer.transferPort` JVM 参数或 `LANTRANSFER_TRANSFER_PORT` 环境变量覆盖，方便宿主机多实例和虚拟机联调。每个接收文件会创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，并按接收进度节点调用 `RxProgress` 供界面展示；如果接收端重启后再次收到同一文件的开始包，会从 `.part.meta` 恢复已接收分片并在 BEGIN ACK 中带回缺失分片列表，供发送端定向补发。本机状态为 BUSY 时，`UdpRx` 会在创建接收状态前调用 `RxAsk` 询问用户是否允许接收；本机状态为 INVISIBLE 或 OFFLINE 时直接拒收。收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件并删除元数据，同时推送 100% 接收进度。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
 
 实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口并循环接收 UDP 数据包。`updateStatus(UserStatus)` 保存当前本机状态，`setAsk(RxAsk)` 保存接收前确认回调，空回调会回退为自动允许；`setProgress(RxProgress)` 保存接收进度回调，空回调会回退为空操作。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小和发送端 SHA-256；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handleBegin(...)` 创建 `RxFile` 接收状态，如果同一任务文件已经在本轮接收中，就直接用已有 `RxFile.missing()` 生成缺失分片扩展字段并 ACK；新文件会先解析文件名和大小并调用 `allowBegin(...)`，DEFAULT/ONLINE 直接允许，INVISIBLE/OFFLINE 直接拒绝，BUSY 调用 `ask.approve(fileName, size)`，同意后才通过 `createFile(...)` 和 `restoreOrReset()` 读取或创建 `.part`，拒绝时返回 `ACK FAIL` 和 `REJECTED` 扩展字段。`createFile(...)` 会把当前 `RxProgress` 传入 `RxFile`。`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`。`RxFile.write(...)` 使用 `FileChannel` 按 `chunkIndex * chunkSize` 定位写入，`BitSet` 记录哪些分片已经收到，每写入一个新分片就保存 `.part.meta`；未收齐时 `publishProgress()` 根据 `receivedCount * 100 / chunkCount` 按 25% 阈值调用 `progress.update(fileName, percent)`，重复分片不会重复推送；全部收齐后先 `finish()` 计算 SHA-256 并移动最终文件，成功后再 `publish(100)`，校验失败则不推送完成进度。`missing()` 只在已经存在部分分片时返回缺失索引，例如只收到第 0 片且总共 2 片时返回 `1`；完全没有历史分片时返回空字符串，让发送端按普通新任务完整发送。
 
@@ -277,9 +277,9 @@
 
 所属功能：局域网发现协议无框架自检。
 
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、同口令可解析、不同口令会被忽略、发现后在线状态和过期离线判定，不依赖真实网络环境。
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、传输端口 JVM 参数覆盖、同口令可解析、不同口令会被忽略、发现后在线状态和过期离线判定，不依赖真实网络环境。
 
-实现方法：`main(String[] args)` 使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY。随后调用 `updateGroup("team-a")` 编码消息，同组解析应成功；切到 `team-b` 后解析同一消息应返回 null，证明不同口令会被忽略。最后确认 `knownDevices()` 至少包含本机设备，调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
+实现方法：`main(String[] args)` 先设置 `System.setProperty("lantransfer.transferPort", "45432")`，再使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY。随后调用 `updateGroup("team-a")` 编码消息，同组解析应成功；切到 `team-b` 后解析同一消息应返回 null，证明不同口令会被忽略。最后确认 `knownDevices()` 至少包含本机设备，并且本机设备端口包含 45432，证明多实例传输端口覆盖已经进入发现协议；调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/SettingsStoreCheck.java`
 
