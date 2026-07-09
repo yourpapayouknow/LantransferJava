@@ -341,9 +341,9 @@
 
 所属功能：局域网扫描页面。
 
-详细功能：显示扫描中状态、雷达图、扫描到的设备标签、隐身用户提示和取消扫描按钮。当前扫描结果来自 `LocalBackend.scanLanDevices()`，后端会实际发 UDP 广播查找同样运行本程序的主机。
+详细功能：显示局域网扫描的进行中状态和完成结果。进入页面时立即展示“正在扫描局域网用户...”和取消按钮，后台扫描完成后展示“扫描完成”、发现用户数量、雷达图、隐身用户提示、“查看用户列表”和“重新扫描”按钮。当前扫描结果来自 `LocalBackend.scanLanDevices()`，后端会实际发 UDP 广播查找同样运行本程序的主机；扫描完成后用户可以跳回用户列表查看最新在线状态，也可以直接再次扫描。
 
-实现方法：`showScanPage()` 调用 `scanLanDevices()` 获取设备列表，然后用 `app.radar(devices)` 生成雷达布局。取消按钮回到用户列表。扫描页本身不关心 UDP 细节，只消费 `List<UserDevice>`；广播地址、端口、协议解析和本机响应都在 `LanPeer` 中实现。
+实现方法：`showScanPage()` 先递增 `scanRunId` 生成本次扫描轮次，然后调用 `renderScanningPage(runId)` 立即渲染等待状态，避免后端扫描期间界面无响应；随后调用 `app.controller.scanLanDevices()` 启动真实扫描。扫描异常时通过 `exceptionally(error -> List.of())` 回退为空列表，保证页面仍能进入完成态。扫描返回后切回 JavaFX 线程，如果回调中的 `runId` 已不是当前 `scanRunId`，说明用户已经取消或重新发起扫描，旧回调直接丢弃，避免页面被过期扫描结果覆盖。`renderScanningPage(int)` 创建统一扫描布局、雷达空状态、转圈提示和取消按钮；取消按钮会让当前轮次失效并回到用户列表。`renderCompletedPage(List<UserDevice>)` 用 `app.radar(devices)` 生成完成雷达图，展示发现数量，并提供“查看用户列表”和“重新扫描”两个出口。`scanPage()` 统一创建 `.scan-page` 样式的居中基础容器。扫描页本身不关心 UDP 细节，只消费 `List<UserDevice>`；广播地址、端口、协议解析和本机响应都在 `LanPeer` 中实现。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Mine.java`
 
