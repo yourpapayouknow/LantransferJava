@@ -90,7 +90,8 @@ final class UdpRx {
                 socket.receive(packet);
                 handle(socket, packet);
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 

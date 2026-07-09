@@ -129,7 +129,8 @@ final class LanPeer {
                 remember(device);
             }
         } catch (SocketTimeoutException ignored) {
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 
