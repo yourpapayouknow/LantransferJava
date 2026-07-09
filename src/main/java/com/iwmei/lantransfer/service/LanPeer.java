@@ -75,7 +75,7 @@ final class LanPeer {
             byte[] data = discoverMessage().getBytes(StandardCharsets.UTF_8);
             for (InetAddress address : broadcastAddresses()) {
                 for (int port : SCAN_PORTS) {
-                    socket.send(new DatagramPacket(data, data.length, address, port));
+                    sendDiscover(socket, data, address, port);
                 }
             }
             long deadline = System.currentTimeMillis() + WAIT_MILLIS;
@@ -86,6 +86,14 @@ final class LanPeer {
             return sorted();
         }
         return sorted();
+    }
+
+    // 向单个地址端口发送发现包，失败时不影响其他地址和接收阶段
+    private void sendDiscover(DatagramSocket socket, byte[] data, InetAddress address, int port) {
+        try {
+            socket.send(new DatagramPacket(data, data.length, address, port));
+        } catch (Exception ignored) {
+        }
     }
 
     // 把设备编码成 UDP 响应文本
