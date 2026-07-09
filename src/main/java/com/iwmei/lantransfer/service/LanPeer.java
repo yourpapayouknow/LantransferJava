@@ -27,8 +27,9 @@ import java.util.concurrent.ConcurrentMap;
 
 // 局域网设备发现服务，负责 UDP 广播扫描和本机发现响应
 final class LanPeer {
-    private static final int PORT = 45331;
-    static final int TRANSFER_PORT = configuredPort();
+    private static final int PORT = configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 45331);
+    static final int TRANSFER_PORT = configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 45332);
+    private static final List<Integer> SCAN_PORTS = configuredScanPorts();
     private static final int WAIT_MILLIS = 900;
     private static final long OFFLINE_MILLIS = 30_000;
     private static final String DISCOVER = "LANTRANSFER_DISCOVER_V1";
@@ -73,7 +74,9 @@ final class LanPeer {
             socket.setSoTimeout(200);
             byte[] data = discoverMessage().getBytes(StandardCharsets.UTF_8);
             for (InetAddress address : broadcastAddresses()) {
-                socket.send(new DatagramPacket(data, data.length, address, PORT));
+                for (int port : SCAN_PORTS) {
+                    socket.send(new DatagramPacket(data, data.length, address, port));
+                }
             }
             long deadline = System.currentTimeMillis() + WAIT_MILLIS;
             while (System.currentTimeMillis() < deadline) {
@@ -170,6 +173,7 @@ final class LanPeer {
     // 获取可用广播地址
     private List<InetAddress> broadcastAddresses() throws Exception {
         Set<InetAddress> addresses = new LinkedHashSet<>();
+        addresses.add(InetAddress.getByName("127.0.0.1"));
         addresses.add(InetAddress.getByName("255.255.255.255"));
         Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
         while (interfaces != null && interfaces.hasMoreElements()) {
@@ -308,17 +312,44 @@ final class LanPeer {
         }
     }
 
-    // 读取多实例测试或虚拟机联调指定的传输端口
-    private static int configuredPort() {
-        String value = System.getProperty("lantransfer.transferPort", "").trim();
+    // 读取多实例测试或虚拟机联调指定的单个端口
+    private static int configuredPort(String propertyName, String envName, int fallback) {
+        String value = System.getProperty(propertyName, "").trim();
         if (value.isBlank()) {
-            value = System.getenv().getOrDefault("LANTRANSFER_TRANSFER_PORT", "").trim();
+            value = System.getenv().getOrDefault(envName, "").trim();
         }
         try {
             int port = Integer.parseInt(value);
-            return port > 0 ? port : 45332;
+            return port > 0 ? port : fallback;
         } catch (Exception ignored) {
-            return 45332;
+            return fallback;
+        }
+    }
+
+    // 读取扫描时要探测的发现端口集合
+    private static List<Integer> configuredScanPorts() {
+        Set<Integer> ports = new LinkedHashSet<>();
+        ports.add(PORT);
+        String value = System.getProperty("lantransfer.discoveryPorts", "").trim();
+        if (value.isBlank()) {
+            value = System.getenv().getOrDefault("LANTRANSFER_DISCOVERY_PORTS", "").trim();
+        }
+        for (String item : value.split("[,;\\s]+")) {
+            int port = configuredPortValue(item, -1);
+            if (port > 0) {
+                ports.add(port);
+            }
+        }
+        return List.copyOf(ports);
+    }
+
+    // 解析端口字符串
+    private static int configuredPortValue(String value, int fallback) {
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port > 0 ? port : fallback;
+        } catch (Exception ignored) {
+            return fallback;
         }
     }
 
