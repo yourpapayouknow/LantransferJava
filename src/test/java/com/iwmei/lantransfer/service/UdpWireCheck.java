@@ -84,6 +84,27 @@ public final class UdpWireCheck {
                     "busy confirmation wait should be logged");
             require("busy confirm".equals(Files.readString(receiveDir.resolve("busy.txt"))),
                     "approved busy receive should land file");
+            int staleBusyPort = freePort();
+            UdpRx staleBusyRx = new UdpRx(store, staleBusyPort);
+            staleBusyRx.updateStatus(UserStatus.BUSY);
+            staleBusyRx.setAsk((name, bytes) -> {
+                try {
+                    Thread.sleep(2200);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+                return true;
+            });
+            staleBusyRx.start();
+            Thread.sleep(120);
+            UserDevice staleBusy = new UserDevice("self-stale", "本机缓存旧状态", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#7a52d8", false, "127.0.0.1", staleBusyPort);
+            TransferSummary staleBusyAccepted = tx.run(List.of(new TransferFile("stale-busy.txt", "12 B", busySource)),
+                    List.of(staleBusy), store.load());
+            require(staleBusyAccepted.successCount() == 1, "stale default target should wait for busy receiver approval");
+            require("busy confirm".equals(Files.readString(receiveDir.resolve("stale-busy.txt"))),
+                    "approved stale busy receive should land file");
             int busyDenyPort = freePort();
             UdpRx busyDenyRx = new UdpRx(store, busyDenyPort);
             busyDenyRx.updateStatus(UserStatus.BUSY);

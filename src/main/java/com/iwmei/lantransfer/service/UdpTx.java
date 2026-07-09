@@ -535,9 +535,9 @@ final class UdpTx {
         return value == UserStatus.DEFAULT || value == UserStatus.ONLINE || value == UserStatus.BUSY;
     }
 
-    // 根据目标状态选择开始包确认等待时间
+    // 返回文件开始包确认等待时间
     private int beginTimeout(UserDevice target) {
-        return target != null && target.userStatus() == UserStatus.BUSY ? BEGIN_ACK_TIMEOUT_MILLIS : ACK_TIMEOUT_MILLIS;
+        return BEGIN_ACK_TIMEOUT_MILLIS;
     }
 
     // 生成目标拦截原因
