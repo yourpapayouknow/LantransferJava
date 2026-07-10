@@ -31,7 +31,7 @@
 
 详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、保存传输分组、扫描设备、加载设置、启动传输、启动传输并接收进度快照、暂停/继续发送、设置接收前确认回调、设置接收进度回调、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，局域网扫描、设置保存、分组展开、暂停发送和传输报告走本地实现；`MockBackendFacade` 只保留给独立前端联调，不再参与主 App 流程。
 
-实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`saveGroup(name, members)` 把用户列表当前选中成员交给后端保存并返回组目标，`loadSettings()` 返回 `backend.loadSettings()`，`startTransfer(files, targets, progress)` 把页面传来的 `Consumer<TransferSummary>` 继续交给后端，`pauseTransfer(boolean)` 把暂停状态传给发送服务，`setRxAsk(RxAsk)` 把主窗口的接收确认逻辑交给 `UdpRx`，`setRxProgress(RxProgress)` 把主窗口的接收进度展示逻辑交给 `UdpRx`，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道账号文件、设置文件、UDP 传输或扫描实现。
+实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`saveGroup(name, members)` 把用户列表当前选中成员交给后端保存并返回组目标，`loadSettings()` 返回 `backend.loadSettings()`，`startTransfer(files, targets, progress)` 把页面传来的 `Consumer<TransferSummary>` 继续交给后端，`pauseTransfer(boolean)` 把暂停状态传给发送服务，`setRxAsk(RxAsk)` 把主窗口的接收确认逻辑交给 `UdpRx`，`setRxProgress(RxProgress)` 把主窗口的接收进度展示逻辑交给 `UdpRx`，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道 `acco` 账号表、设置文件、UDP 传输或扫描实现。
 
 ## `src/main/java/com/iwmei/lantransfer/service/BackendFacade.java`
 
@@ -69,9 +69,9 @@
 
 所属功能：本地数据目录工具。
 
-详细功能：统一决定账号文件、设置文件等本地运行数据放在哪里。默认把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行数据写进项目仓库或误提交到 Git；进行宿主机多实例、虚拟机联调或自动化 GUI 传输测试时，可以通过 `lantransfer.dataDir` JVM 参数或 `LANTRANSFER_DATA_DIR` 环境变量为每个运行端指定独立数据目录，隔离账号、设置、近期对象和接收目录。
+详细功能：统一决定设置、近期对象、本地登录状态等运行数据放在哪里。默认把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行状态误提交到 Git；进行宿主机多实例、虚拟机联调或自动化 GUI 传输测试时，可以通过 `lantransfer.dataDir` JVM 参数或 `LANTRANSFER_DATA_DIR` 环境变量为每个运行端指定独立数据目录，隔离设置、近期对象、接收目录和“记住我”状态。账号主凭据不放在这里，而是放在根目录 `acco` 并由 GitHub Actions 处理注册请求。
 
-实现方法：`dataDir()` 先调用 `configuredDataDir()` 读取 `System.getProperty("lantransfer.dataDir")`，如果 JVM 参数为空再读取 `System.getenv("LANTRANSFER_DATA_DIR")`；只要覆盖值非空，就直接把它转成 `Path` 返回。没有覆盖值时，才使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合默认路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore`、`SettingsStore` 和 `RecentStore` 都通过它定位文件；多端测试时必须给不同端传入不同目录，避免两个 JavaFX 实例共享同一份账号和设置文件。
+实现方法：`dataDir()` 先调用 `configuredDataDir()` 读取 `System.getProperty("lantransfer.dataDir")`，如果 JVM 参数为空再读取 `System.getenv("LANTRANSFER_DATA_DIR")`；只要覆盖值非空，就直接把它转成 `Path` 返回。没有覆盖值时，才使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合默认路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore` 只通过它定位本机 `la` 登录状态，`SettingsStore` 和 `RecentStore` 通过它定位设置与近期对象；多端测试时必须给不同端传入不同目录，避免两个 JavaFX 实例共享本地运行状态。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AutoStart.java`
 
@@ -85,9 +85,9 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持新账号注册、GitHub Actions 自动审核通过记录、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最近账号保存或清除、最后登录时间更新、资料更新、状态更新和 `Profile` 构造；空账号库不会再自动生成演示账号，并会在读取旧账号文件时清理缺少注册审核记录的旧版 `admin/admin` 演示账号及其“记住我”状态。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序只生成 `req/<账号>` 请求文件并推送到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。
 
-实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`，并按 `rememberMe` 调用 `remember(...)` 保存或清除 `login.account`，随后记录 `currentAccount` 并返回包含资料的 `AuthResult`。`rememberedAccount()` 读取 `login.rememberMe` 和 `login.account`，只返回账号，不返回密码。`load()` 读入 properties 后调用 `removeLegacyAdmin(...)`，如果发现 `account.admin.hash` 存在但没有 `account.admin.reviewStatus`，就移除整组旧演示账号字段，并清除指向 `admin` 的记住账号，随后保存回文件。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言，再调用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED`、请求时间、通过时间和 `reviewApprover=github-actions`，返回 `pendingReview=false`。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
+实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要和资料字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、提交短消息 `acco req` 并推送。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`updateProfile(Profile)` 和 `updateStatus(UserStatus, String)` 仍通过 `userId` 找到账号行，更新资料或状态后直接提交推送 `acco`；如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -95,7 +95,7 @@
 
 详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，把本地传输分组保存和分组目标展开交给 `GroupStore`，启动 `UdpRx` 后台接收服务，把接收前确认回调、接收进度回调和本机用户状态同步给 `UdpRx`，把传输任务创建、暂停/继续和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
 
-实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(...)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号表拉取、注册请求推送和本地 `la` 读取，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 通过 `AuthStore` 更新并推送 `acco` 后刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(...)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -271,7 +271,7 @@
 
 详细功能：验证第一屏后端最关键路径：旧版自动 `admin/admin` 账号不会继续登录或回填，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
 
-实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，先写入缺少 `reviewStatus` 的旧演示 admin 字段并确认不会被记住或登录，再依次调用注册、读取审核字段、登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
+实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `acco`、`la` 和 `req`，关闭 Git 同步后先确认空账号表不能登录 `admin/admin`，再调用注册并检查 `acco` 表头、账号行、`AUTO_APPROVED`、`actions` 审核标记以及不包含明文密码；随后覆盖重复注册失败、错误密码失败、正确密码登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AutoStartCheck.java`
 
@@ -373,7 +373,7 @@
 
 所属功能：我的资料页面。
 
-详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。昵称、设备名称和个性签名行点击“编辑”后可以修改，底部“保存”会把新的 `Profile` 写回本地账号文件。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新本地账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
+详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。昵称、设备名称和个性签名行点击“编辑”后可以修改，底部“保存”会把新的 `Profile` 写回 `acco` 账号表。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
 
 实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用头像和表格行展示资料，`editableRow(...)` 创建默认只读的 `TextField` 和“编辑”按钮，点击后允许输入。保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
 

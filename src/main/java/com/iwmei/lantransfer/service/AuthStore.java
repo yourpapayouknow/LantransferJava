@@ -19,75 +19,108 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
-// 本地账号仓库，负责无服务器环境下的注册、登录和密码校验
+// 仓库账号表，负责无服务器环境下的注册、登录和密码校验
 final class AuthStore {
     private static final String VERSION = "极速互传 v1.0.0";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final SecureRandom RANDOM = new SecureRandom();
-    private final Path store;
+    private static final String[] COLUMNS = {
+            "account", "salt", "hash", "userId", "nickname", "deviceName", "signature",
+            "registeredAt", "lastLoginAt", "language", "status", "reviewStatus",
+            "reviewRequestedAt", "reviewApprovedAt", "reviewApprover"
+    };
+    private final Path table;
+    private final Path local;
+    private final Path reqDir;
+    private final boolean gitSync;
     private String currentAccount;
 
-    // 使用默认用户目录账号文件初始化仓库
+    // 使用根目录账号表和本地记住账号文件初始化仓库
     AuthStore() {
-        this(defaultStore());
+        this(defaultTable(), defaultLocal(), defaultReqDir(), true);
     }
 
-    // 使用指定账号文件初始化仓库，供测试和后续迁移复用
-    AuthStore(Path store) {
-        this.store = store;
+    // 使用指定账号表初始化仓库，供测试复用且默认不触发 Git
+    AuthStore(Path table) {
+        this(table, table.resolveSibling("la"), table.resolveSibling("req"), false);
+    }
+
+    // 使用指定账号表、本地文件、请求目录和 Git 同步开关初始化仓库
+    AuthStore(Path table, Path local, Path reqDir, boolean gitSync) {
+        this.table = table;
+        this.local = local;
+        this.reqDir = reqDir;
+        this.gitSync = gitSync;
     }
 
     // 校验账号密码并返回登录结果
     synchronized AuthResult login(LoginRequest request) {
-        String account = normalize(request.account());
-        String password = request.password();
-        if (account.isBlank() || password == null || password.isBlank()) {
-            return fail("请输入账号和密码");
+        try {
+            String account = normalize(request.account());
+            String password = request.password();
+            if (account.isBlank() || password == null || password.isBlank()) {
+                return fail("请输入账号和密码");
+            }
+            Properties accounts = loadAccounts();
+            if (!accounts.containsKey(key(account, "hash"))) {
+                return fail("账号不存在，请先注册");
+            }
+            if (!verify(password, accounts.getProperty(key(account, "salt")), accounts.getProperty(key(account, "hash")))) {
+                return fail("账号或密码错误");
+            }
+            accounts.setProperty(key(account, "lastLoginAt"), TIME.format(LocalDateTime.now()));
+            Properties remembered = loadLocal();
+            remember(remembered, account, request.rememberMe());
+            saveLocal(remembered);
+            currentAccount = account;
+            return new AuthResult(true, false, "登录成功", profile(accounts, account));
+        } catch (IllegalStateException ex) {
+            return fail(ex.getMessage());
         }
-        Properties props = load();
-        if (!props.containsKey(key(account, "hash"))) {
-            return fail("账号不存在，请先注册");
-        }
-        if (!verify(password, props.getProperty(key(account, "salt")), props.getProperty(key(account, "hash")))) {
-            return fail("账号或密码错误");
-        }
-        LocalDateTime now = LocalDateTime.now();
-        props.setProperty(key(account, "lastLoginAt"), TIME.format(now));
-        remember(props, account, request.rememberMe());
-        save(props);
-        currentAccount = account;
-        return new AuthResult(true, false, "登录成功", profile(props, account));
     }
 
     // 读取已记住的最近登录账号
     synchronized String rememberedAccount() {
-        Properties props = load();
+        Properties props = loadLocal();
         return Boolean.parseBoolean(props.getProperty("login.rememberMe"))
                 ? props.getProperty("login.account", "")
                 : "";
     }
 
-    // 创建本地账号并返回注册结果
+    // 创建注册请求并交给 GitHub Actions 自动合入账号表
     synchronized AuthResult register(RegisterRequest request) {
-        String account = normalize(request.account());
-        String validation = validate(account, request.password());
-        if (validation != null) {
-            return fail(validation);
+        try {
+            String account = normalize(request.account());
+            String validation = validate(account, request.password());
+            if (validation != null) {
+                return fail(validation);
+            }
+            Properties accounts = loadAccounts();
+            if (accounts.containsKey(key(account, "hash"))) {
+                return fail("账号已存在，请直接登录");
+            }
+            LocalDateTime now = LocalDateTime.now();
+            putAccount(accounts, account, request.password(), cleanDeviceName(request.deviceName()), now, now);
+            approveRegistration(accounts, account, now);
+            if (gitSync) {
+                saveReq(accounts, account);
+                pushPath(reqPath(account), "acco req");
+                return waitForAction(account, accounts);
+            }
+            saveAccounts(accounts);
+            return new AuthResult(true, false, "注册已写入账号表，请登录", profile(accounts, account));
+        } catch (IllegalStateException ex) {
+            return fail(ex.getMessage());
         }
-        Properties props = load();
-        if (props.containsKey(key(account, "hash"))) {
-            return fail("账号已存在，请直接登录");
-        }
-        LocalDateTime now = LocalDateTime.now();
-        putAccount(props, account, request.password(), cleanDeviceName(request.deviceName()), now, now);
-        approveRegistration(props, account, now);
-        save(props);
-        return new AuthResult(true, false, "注册已自动审核通过，请登录", profile(props, account));
     }
 
     // 更新当前账号资料
@@ -95,17 +128,21 @@ final class AuthStore {
         if (profile == null) {
             return;
         }
-        Properties props = load();
-        String account = findByUserId(props, profile.userId());
-        if (account == null) {
-            return;
+        try {
+            Properties accounts = loadAccounts();
+            String account = findByUserId(accounts, profile.userId());
+            if (account == null) {
+                return;
+            }
+            accounts.setProperty(key(account, "nickname"), cleanText(profile.nickname(), account));
+            accounts.setProperty(key(account, "deviceName"), cleanText(profile.deviceName(), localDeviceName()));
+            accounts.setProperty(key(account, "signature"), cleanText(profile.signature(), "在线，已连接"));
+            accounts.setProperty(key(account, "language"), cleanText(profile.language(), "简体中文"));
+            accounts.setProperty(key(account, "status"), profile.status() == null ? UserStatus.DEFAULT.name() : profile.status().name());
+            saveAccounts(accounts);
+            pushPath(table, "acco");
+        } catch (IllegalStateException ignored) {
         }
-        props.setProperty(key(account, "nickname"), cleanText(profile.nickname(), account));
-        props.setProperty(key(account, "deviceName"), cleanText(profile.deviceName(), localDeviceName()));
-        props.setProperty(key(account, "signature"), cleanText(profile.signature(), "在线，已连接"));
-        props.setProperty(key(account, "language"), cleanText(profile.language(), "简体中文"));
-        props.setProperty(key(account, "status"), profile.status() == null ? UserStatus.DEFAULT.name() : profile.status().name());
-        save(props);
     }
 
     // 更新当前账号状态和自定义状态文本
@@ -114,60 +151,118 @@ final class AuthStore {
         if (account == null) {
             return;
         }
-        Properties props = load();
-        props.setProperty(key(account, "status"), status == null ? UserStatus.DEFAULT.name() : status.name());
-        props.setProperty(key(account, "signature"), cleanText(customText, statusText(status)));
-        save(props);
-    }
-
-    // 加载账号文件
-    private Properties load() {
-        Properties props = new Properties();
-        if (!Files.exists(store)) {
-            return props;
-        }
-        try (Reader reader = Files.newBufferedReader(store, StandardCharsets.UTF_8)) {
-            props.load(reader);
-            if (removeLegacyAdmin(props)) {
-                save(props);
-            }
-            return props;
-        } catch (IOException ex) {
-            throw new IllegalStateException("读取账号文件失败：" + store, ex);
-        }
-    }
-
-    // 保存账号文件
-    private void save(Properties props) {
         try {
-            Files.createDirectories(store.getParent());
-            props.setProperty("repo.origin", AppFiles.repoOrigin());
-            try (Writer writer = Files.newBufferedWriter(store, StandardCharsets.UTF_8)) {
-                props.store(writer, "Lantransfer local accounts");
-            }
-        } catch (IOException ex) {
-            throw new IllegalStateException("保存账号文件失败：" + store, ex);
+            Properties accounts = loadAccounts();
+            accounts.setProperty(key(account, "status"), status == null ? UserStatus.DEFAULT.name() : status.name());
+            accounts.setProperty(key(account, "signature"), cleanText(customText, statusText(status)));
+            saveAccounts(accounts);
+            pushPath(table, "acco");
+        } catch (IllegalStateException ignored) {
         }
     }
 
-    // 移除旧版本自动生成的 admin/admin 演示账号和记住状态
-    private boolean removeLegacyAdmin(Properties props) {
-        if (!props.containsKey(key("admin", "hash")) || props.containsKey(key("admin", "reviewStatus"))) {
-            return false;
-        }
-        boolean changed = false;
-        for (String name : props.stringPropertyNames().toArray(new String[0])) {
-            if (name.startsWith("account.admin.")) {
-                props.remove(name);
-                changed = true;
+    // 等待 GitHub Actions 自动合入注册请求
+    private AuthResult waitForAction(String account, Properties pending) {
+        for (int i = 0; i < 9; i++) {
+            sleep(5);
+            Properties accounts = loadAccounts();
+            if (accounts.containsKey(key(account, "hash"))) {
+                return new AuthResult(true, false, "注册已由 GitHub Actions 自动通过，请登录", profile(accounts, account));
             }
         }
-        if ("admin".equals(props.getProperty("login.account"))) {
-            props.remove("login.rememberMe");
-            props.remove("login.account");
-            changed = true;
+        return new AuthResult(true, true, "GitHub Actions 正在自动写入账号表，请稍后登录", profile(pending, account));
+    }
+
+    // 加载仓库账号表
+    private Properties loadAccounts() {
+        pullAccounts();
+        return readAccounts();
+    }
+
+    // 读取仓库账号表文件
+    private Properties readAccounts() {
+        Properties props = new Properties();
+        if (!Files.exists(table)) {
+            return props;
         }
-        return changed;
+        try {
+            List<String> lines = Files.readAllLines(table, StandardCharsets.UTF_8);
+            for (int i = 1; i < lines.size(); i++) {
+                String line = lines.get(i).trim();
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] cells = line.split(",", -1);
+                String account = normalize(cell(cells, 0));
+                if (account.isBlank()) {
+                    continue;
+                }
+                for (int col = 1; col < COLUMNS.length; col++) {
+                    props.setProperty(key(account, COLUMNS[col]), cell(cells, col));
+                }
+            }
+            return props;
+        } catch (IOException ex) {
+            throw new IllegalStateException("读取账号表失败：" + table, ex);
+        }
+    }
+
+    // 保存仓库账号表
+    private void saveAccounts(Properties props) {
+        try {
+            Path parent = table.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            List<String> lines = new ArrayList<>();
+            lines.add(String.join(",", COLUMNS));
+            for (String account : accounts(props)) {
+                lines.add(row(props, account));
+            }
+            Files.write(table, lines, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new IllegalStateException("保存账号表失败：" + table, ex);
+        }
+    }
+
+    // 保存单个注册请求供 GitHub Actions 处理
+    private void saveReq(Properties props, String account) {
+        try {
+            Files.createDirectories(reqDir);
+            Files.writeString(reqPath(account), row(props, account) + System.lineSeparator(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new IllegalStateException("保存注册请求失败：" + reqPath(account), ex);
+        }
+    }
+
+    // 加载本机记住账号状态
+    private Properties loadLocal() {
+        Properties props = new Properties();
+        if (!Files.exists(local)) {
+            return props;
+        }
+        try (Reader reader = Files.newBufferedReader(local, StandardCharsets.UTF_8)) {
+            props.load(reader);
+            return props;
+        } catch (IOException ex) {
+            throw new IllegalStateException("读取本地登录状态失败：" + local, ex);
+        }
+    }
+
+    // 保存本机记住账号状态
+    private void saveLocal(Properties props) {
+        try {
+            Path parent = local.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            props.setProperty("repo.origin", AppFiles.repoOrigin());
+            try (Writer writer = Files.newBufferedWriter(local, StandardCharsets.UTF_8)) {
+                props.store(writer, "Lantransfer local auth state");
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("保存本地登录状态失败：" + local, ex);
+        }
     }
 
     // 写入单个账号资料和密码摘要
@@ -183,6 +278,7 @@ final class AuthStore {
         props.setProperty(key(account, "registeredAt"), TIME.format(registeredAt));
         props.setProperty(key(account, "lastLoginAt"), TIME.format(lastLoginAt));
         props.setProperty(key(account, "language"), "简体中文");
+        props.setProperty(key(account, "status"), UserStatus.DEFAULT.name());
     }
 
     // 记录注册审核自动通过信息
@@ -190,7 +286,7 @@ final class AuthStore {
         props.setProperty(key(account, "reviewStatus"), "AUTO_APPROVED");
         props.setProperty(key(account, "reviewRequestedAt"), TIME.format(now));
         props.setProperty(key(account, "reviewApprovedAt"), TIME.format(now));
-        props.setProperty(key(account, "reviewApprover"), "github-actions");
+        props.setProperty(key(account, "reviewApprover"), "actions");
     }
 
     // 根据登录选择保存或清除最近登录账号
@@ -219,6 +315,38 @@ final class AuthStore {
         );
     }
 
+    // 返回账号表中的账号名集合
+    private TreeSet<String> accounts(Properties props) {
+        TreeSet<String> accounts = new TreeSet<>();
+        String suffix = ".hash";
+        for (String name : props.stringPropertyNames()) {
+            if (name.startsWith("account.") && name.endsWith(suffix)) {
+                accounts.add(name.substring("account.".length(), name.length() - suffix.length()));
+            }
+        }
+        return accounts;
+    }
+
+    // 把账号属性写成账号表行
+    private String row(Properties props, String account) {
+        List<String> cells = new ArrayList<>();
+        cells.add(csv(account));
+        for (int col = 1; col < COLUMNS.length; col++) {
+            cells.add(csv(props.getProperty(key(account, COLUMNS[col]), "")));
+        }
+        return String.join(",", cells);
+    }
+
+    // 清洗账号表单元格，避免换行和逗号破坏 CSV
+    private String csv(String value) {
+        return (value == null ? "" : value).replace('\r', ' ').replace('\n', ' ').replace(',', ' ');
+    }
+
+    // 读取账号表单元格
+    private String cell(String[] cells, int index) {
+        return index < cells.length ? cells[index].trim() : "";
+    }
+
     // 生成账号属性键名
     private String key(String account, String field) {
         return "account." + account + "." + field;
@@ -245,6 +373,9 @@ final class AuthStore {
 
     // 校验密码摘要
     private boolean verify(String password, String salt, String expectedHash) {
+        if (salt == null || salt.isBlank() || expectedHash == null || expectedHash.isBlank()) {
+            return false;
+        }
         return MessageDigest.isEqual(hash(password, salt).getBytes(StandardCharsets.UTF_8),
                 expectedHash.getBytes(StandardCharsets.UTF_8));
     }
@@ -284,12 +415,12 @@ final class AuthStore {
 
     // 清洗设备名称输入
     private String cleanDeviceName(String deviceName) {
-        return deviceName == null || deviceName.isBlank() ? localDeviceName() : deviceName.trim();
+        return deviceName == null || deviceName.isBlank() ? localDeviceName() : csv(deviceName.trim());
     }
 
     // 清洗普通资料文本
     private String cleanText(String value, String fallback) {
-        String cleaned = value == null ? "" : value.trim();
+        String cleaned = value == null ? "" : csv(value.trim());
         return cleaned.isBlank() ? fallback : cleaned;
     }
 
@@ -336,13 +467,133 @@ final class AuthStore {
         }
     }
 
-    // 生成默认账号文件路径
-    private static Path defaultStore() {
-        return AppFiles.dataDir().resolve("users.properties");
+    // 从远程仓库拉取最新账号表
+    private void pullAccounts() {
+        if (!gitSync || !inGitRepo()) {
+            return;
+        }
+        String branch = currentBranch();
+        if (branch.isBlank()) {
+            return;
+        }
+        GitResult result = git(30, "pull", "--rebase", "--autostash", "origin", branch);
+        if (!result.success()) {
+            throw new IllegalStateException("同步账号表失败：" + result.output());
+        }
+    }
+
+    // 提交并推送指定路径
+    private void pushPath(Path target, String message) {
+        if (!gitSync || !inGitRepo()) {
+            return;
+        }
+        String branch = currentBranch();
+        if (branch.isBlank()) {
+            throw new IllegalStateException("当前 Git 分支为空，无法推送账号文件");
+        }
+        String alreadyStaged = git(5, "diff", "--cached", "--name-only").output().trim();
+        if (!alreadyStaged.isBlank()) {
+            throw new IllegalStateException("Git 暂存区已有其它改动，请先提交或取消暂存后再注册账号");
+        }
+        String path = relative(target);
+        GitResult add = git(10, "add", "--", path);
+        if (!add.success()) {
+            throw new IllegalStateException("暂存账号文件失败：" + add.output());
+        }
+        String staged = git(5, "diff", "--cached", "--name-only", "--", path).output().trim();
+        if (staged.isBlank()) {
+            return;
+        }
+        GitResult commit = git(20, "commit", "-m", message);
+        if (!commit.success()) {
+            throw new IllegalStateException("提交账号文件失败：" + commit.output());
+        }
+        GitResult push = git(45, "push", "origin", branch);
+        if (!push.success()) {
+            throw new IllegalStateException("推送账号文件失败：" + push.output());
+        }
+    }
+
+    // 暂停当前线程
+    private void sleep(int seconds) {
+        try {
+            TimeUnit.SECONDS.sleep(seconds);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // 判断当前目录是否是 Git 仓库
+    private boolean inGitRepo() {
+        return Files.exists(repoRoot().resolve(".git"));
+    }
+
+    // 读取当前分支名
+    private String currentBranch() {
+        GitResult result = git(5, "branch", "--show-current");
+        return result.success() ? result.output().trim() : "";
+    }
+
+    // 执行 Git 命令并收集输出
+    private GitResult git(int timeoutSeconds, String... args) {
+        List<String> command = new ArrayList<>();
+        command.add("git");
+        command.addAll(List.of(args));
+        try {
+            Process process = new ProcessBuilder(command)
+                    .directory(repoRoot().toFile())
+                    .redirectErrorStream(true)
+                    .start();
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return new GitResult(false, String.join(" ", command) + " 执行超时");
+            }
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            return new GitResult(process.exitValue() == 0, output);
+        } catch (Exception ex) {
+            return new GitResult(false, ex.getMessage());
+        }
+    }
+
+    // 返回路径相对仓库根目录的写法
+    private String relative(Path target) {
+        Path root = repoRoot();
+        Path full = target.toAbsolutePath().normalize();
+        return full.startsWith(root) ? root.relativize(full).toString().replace('\\', '/') : target.toString();
+    }
+
+    // 返回当前仓库根目录
+    private Path repoRoot() {
+        return Path.of("").toAbsolutePath().normalize();
+    }
+
+    // 返回指定账号的注册请求路径
+    private Path reqPath(String account) {
+        return reqDir.resolve(account);
+    }
+
+    // 生成默认账号表路径
+    private static Path defaultTable() {
+        return Path.of("acco");
+    }
+
+    // 生成本地登录状态路径
+    private static Path defaultLocal() {
+        return AppFiles.dataDir().resolve("la");
+    }
+
+    // 生成默认注册请求目录
+    private static Path defaultReqDir() {
+        return Path.of("req");
     }
 
     // 构造失败认证结果
     private AuthResult fail(String message) {
         return new AuthResult(false, false, message, null);
+    }
+
+    // Git 命令执行结果
+    private record GitResult(boolean success, String output) {
     }
 }

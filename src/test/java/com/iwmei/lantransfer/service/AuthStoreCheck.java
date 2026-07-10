@@ -9,7 +9,6 @@ import com.iwmei.lantransfer.model.UserStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.Properties;
 
 // AuthStore 的无框架自检入口
 public final class AuthStoreCheck {
@@ -17,33 +16,24 @@ public final class AuthStoreCheck {
     private AuthStoreCheck() {
     }
 
-    // 运行注册、重复注册、错误密码和正确登录检查
+    // 运行账号表注册、重复注册、错误密码和正确登录检查
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-auth-check");
         try {
-            Path file = dir.resolve("users.properties");
-            Properties legacy = new Properties();
-            legacy.setProperty("account.admin.hash", "legacy");
-            legacy.setProperty("login.rememberMe", "true");
-            legacy.setProperty("login.account", "admin");
-            try (var writer = Files.newBufferedWriter(file)) {
-                legacy.store(writer, "legacy demo admin");
-            }
-
-            AuthStore store = new AuthStore(file);
-            require(store.rememberedAccount().isBlank(), "legacy admin should not be remembered");
+            Path acco = dir.resolve("acco");
+            AuthStore store = new AuthStore(acco, dir.resolve("la"), dir.resolve("req"), false);
             AuthResult admin = store.login(new LoginRequest("admin", "admin", false));
-            require(!admin.success(), "legacy admin should not login");
+            require(!admin.success(), "empty acco should not login admin");
 
             AuthResult registered = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(registered.success(), "registered account should succeed");
-            require(!registered.pendingReview(), "local registration should not wait for review");
-            Properties props = new Properties();
-            try (var reader = Files.newBufferedReader(file)) {
-                props.load(reader);
-            }
-            require("AUTO_APPROVED".equals(props.getProperty("account.alice.reviewStatus")), "registration should auto approve");
-            require("github-actions".equals(props.getProperty("account.alice.reviewApprover")), "review approver should be recorded");
+            require(!registered.pendingReview(), "disabled git sync should write acco directly");
+            String table = Files.readString(acco);
+            require(table.startsWith("account,salt,hash"), "acco should have table header");
+            require(table.contains("alice"), "acco should contain registered account");
+            require(table.contains("AUTO_APPROVED"), "registration should auto approve");
+            require(table.contains("actions"), "actions approver should be recorded");
+            require(!table.contains("secret"), "acco should not contain plaintext password");
 
             AuthResult duplicate = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(!duplicate.success(), "duplicate account should fail");
