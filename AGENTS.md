@@ -13,6 +13,10 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - 提交只包含本次改动相关文件；不要把无关文档、IDE 配置或其他线程留下的改动顺手带入提交。
 - 删除代码前先确认当前 JavaFX 前端核心文件已经提交备份。
 
+## Rule Capture
+
+- 用户提出新的长期项目规则、开发约束或流程要求时，默认同步写入根目录 `AGENTS.md`；只有明确说明仅本次临时适用时才不写入。
+
 ## Local Tooling
 
 - Java/Maven 等本机通用开发工具优先安装到 `D:\Programs\Java_UniversalLanguage\`，不要安装到 `C:\Users\...`，除非用户明确要求。
