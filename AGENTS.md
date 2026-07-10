@@ -16,6 +16,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 ## Rule Capture
 
 - 用户提出新的长期项目规则、开发约束或流程要求时，默认同步写入根目录 `AGENTS.md`；只有明确说明仅本次临时适用时才不写入。
+- 每次开始新任务或恢复任务前，先核对根目录 `AGENTS.md` 中的项目规则，再决定实施步骤；如果发现当前执行方式和规则冲突，按 `AGENTS.md` 修正。
 
 ## Local Tooling
 
@@ -42,9 +43,15 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 
 ## Java Manual Rule
 
-- 根目录必须维护 `JAVA功能说明书.md`，按照 Java 文件分类记录每个类在 App 中的所属功能、详细代码功能、实现方法和维护注意事项。
-- 每新增或修改一个 Java 类，都必须在同一轮改动中更新 `JAVA功能说明书.md` 的对应条目；同一个 Java 文件中的多个功能不能遗漏。
+- 根目录必须维护 `JAVA功能说明书.md`，按照 Java 文件分类记录每个类在 App 中的所属功能、详细代码功能、尽可能详细的实现方法和维护注意事项。
+- 每新增或修改一个 Java 类，都必须在同一轮改动中更新 `JAVA功能说明书.md` 的对应条目；同一个 Java 文件中的多个功能必须在该文件条目下逐项说明，不能遗漏。
 - 如果某个功能因复杂、不可实现或不合理而暂不实现，必须在 `JAVA功能说明书.md` 的“功能跳过记录”中写明功能、原因、当前占位方式和推荐替代方案。
+
+## Unimplemented Feature Ledger
+
+- 根目录必须维护 `未实现功能清单0.md`，单独记录当前尚未覆盖、仍是占位、仅保存配置但没有业务闭环、因复杂度或环境原因跳过的功能。
+- 每次发现漏实现功能、跳过功能、或用户要求列出未实现功能时，都必须同步更新 `未实现功能清单0.md`，写清功能名称、当前状态、未实现原因和推荐补法。
+- 某个未实现功能补齐并通过验证后，必须从 `未实现功能清单0.md` 移除或改写为已完成说明，避免清单误导后续开发。
 
 ## Backend Implementation Rules
 
