@@ -29,7 +29,7 @@
 
 所属功能：界面和业务服务之间的控制层。
 
-详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、保存传输分组、扫描设备、加载设置、启动传输、启动传输并接收进度快照、暂停/继续发送、设置接收前确认回调、设置接收进度回调、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，局域网扫描、设置保存、分组展开、暂停发送和传输报告走本地实现，其余暂未落地功能由本地后端临时复用演示数据。
+详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、保存传输分组、扫描设备、加载设置、启动传输、启动传输并接收进度快照、暂停/继续发送、设置接收前确认回调、设置接收进度回调、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，局域网扫描、设置保存、分组展开、暂停发送和传输报告走本地实现；`MockBackendFacade` 只保留给独立前端联调，不再参与主 App 流程。
 
 实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`saveGroup(name, members)` 把用户列表当前选中成员交给后端保存并返回组目标，`loadSettings()` 返回 `backend.loadSettings()`，`startTransfer(files, targets, progress)` 把页面传来的 `Consumer<TransferSummary>` 继续交给后端，`pauseTransfer(boolean)` 把暂停状态传给发送服务，`setRxAsk(RxAsk)` 把主窗口的接收确认逻辑交给 `UdpRx`，`setRxProgress(RxProgress)` 把主窗口的接收进度展示逻辑交给 `UdpRx`，`updateProfile(Profile)`、`updateStatus(UserStatus, String)` 和 `updateSettings(SystemSettings)` 直接转给后端。薄控制器保证页面层不直接知道账号文件、设置文件、UDP 传输或扫描实现。
 
@@ -61,9 +61,9 @@
 
 所属功能：前端联调用假数据后端。
 
-详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice` 和一份默认 `SystemSettings`，支持演示登录、注册、记住账号、近期设备、全部设备、保存临时分组目标、扫描设备、设置读取和传输结果。登录只接受 `admin/admin`，记住账号固定返回 `admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
+详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice` 和一份默认 `SystemSettings`，只供独立前端联调使用，不由 `AppController` 主流程实例化。它支持假登录、假注册、假记住账号、假近期设备、假全部设备、保存临时分组目标、假扫描设备、固定设置读取和固定传输结果。登录只接受 `admin/admin`，记住账号固定返回 `admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
 
-实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRememberedAccount()` 返回 `admin` 方便演示登录页回填；`loadRecentDevices()` 返回前 5 个设备，`saveGroup(...)` 只构造一个 `UserDevice.group(...)` 供前端联调分组卡片，`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置，`startTransfer(...)` 会在未选择目标时使用前 5 个设备作为兜底目标，并根据目标数量构造 `TransferSummary`。后续真实后端完成后，该类只保留给演示或测试，不再作为主实现。
+实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRememberedAccount()` 返回 `admin` 只服务 Mock 登录场景，真实登录页不会从这里取默认密码；`loadRecentDevices()` 返回前 5 个设备，`saveGroup(...)` 只构造一个 `UserDevice.group(...)` 供前端联调分组卡片，`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置，`startTransfer(...)` 会在未选择目标时使用前 5 个设备作为 Mock 目标，并根据目标数量构造 `TransferSummary`。该类只能用于独立联调或测试，不能重新接回主 App 流程。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AppFiles.java`
 
@@ -85,9 +85,9 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持默认 `admin/admin` 账号、新账号注册、GitHub Actions 自动审核通过记录、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最近账号保存或清除、最后登录时间更新、资料更新、状态更新和 `Profile` 构造。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。它通过 `AppFiles` 在用户目录下创建 `.lantransfer/<仓库名>/users.properties`，以当前 GitHub 远程仓库名作为本地账号命名空间，避免把账号数据提交进项目仓库。它支持新账号注册、GitHub Actions 自动审核通过记录、重复账号拦截、账号格式校验、密码 PBKDF2 摘要、登录密码校验、最近账号保存或清除、最后登录时间更新、资料更新、状态更新和 `Profile` 构造；空账号库不会再自动生成演示账号。
 
-实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件并确保默认管理员存在；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`，并按 `rememberMe` 调用 `remember(...)` 保存或清除 `login.account`，随后记录 `currentAccount` 并返回包含资料的 `AuthResult`。`rememberedAccount()` 读取 `login.rememberMe` 和 `login.account`，只返回账号，不返回密码。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言，再调用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED`、请求时间、通过时间和 `reviewApprover=github-actions`，返回 `pendingReview=false`。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
+实现方法：`login(LoginRequest)` 先清洗账号并校验空输入，再加载账号文件；账号不存在时返回失败，密码摘要不匹配时返回失败，匹配时更新 `lastLoginAt`，并按 `rememberMe` 调用 `remember(...)` 保存或清除 `login.account`，随后记录 `currentAccount` 并返回包含资料的 `AuthResult`。`rememberedAccount()` 读取 `login.rememberMe` 和 `login.account`，只返回账号，不返回密码。`register(RegisterRequest)` 校验账号、密码和重复账号，生成盐和密码摘要，写入用户 ID、昵称、设备名、签名、注册时间、最后登录时间和语言，再调用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED`、请求时间、通过时间和 `reviewApprover=github-actions`，返回 `pendingReview=false`。`updateProfile(Profile)` 通过 `userId` 找账号并保存昵称、设备名、签名、语言和状态。`updateStatus(UserStatus, String)` 使用当前登录账号保存状态枚举和自定义签名；没有登录账号时直接返回。`profile(...)` 会把账号状态解析到 `Profile.status()`，解析失败时回退默认状态。账号文件用 Java `Properties` 读写，密码用 `PBKDF2WithHmacSHA256` 和 120000 次迭代存摘要，不保存明文。该实现是本地替代方案，不依赖服务器和 GitHub token。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -95,7 +95,7 @@
 
 详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，把本地传输分组保存和分组目标展开交给 `GroupStore`，启动 `UdpRx` 后台接收服务，把接收前确认回调、接收进度回调和本机用户状态同步给 `UdpRx`，把传输任务创建、暂停/继续和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
 
-实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(...)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 先加载 `GroupStore.targets()`，再追加 `RecentStore.load()` 中未重复的近期对象，本地还没有传输历史和分组时才回退到演示设备列表。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 先读取 `LanPeer.knownDevices()`，若当前局域网只知道本机，则回退到演示设备列表，避免课堂展示时用户列表空白。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先用 `GroupStore.expand(...)` 把组目标展开成真实成员，再调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号文件 IO，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 同步写入本地账号文件并刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(...)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -149,7 +149,7 @@
 
 所属功能：文件传输结果报告的本地模拟后端。
 
-详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类主要保留给回归自检和必要时的演示兜底。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
+详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类只保留给回归自检。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
 
 实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免 UI 被坏路径中断。后续如果 `UdpTx` 已覆盖所有课堂展示路径，可以删除该类和对应自检。
 
@@ -255,7 +255,7 @@
 
 详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID 和目标主机地址。它不依赖 JavaFX，因此页面和无框架自检都能复用同一套匹配逻辑。
 
-实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID 和 host。`contains(...)` 对 null 字段返回 false，避免局域网演示数据缺少地址时触发异常。
+实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID 和 host。`contains(...)` 对 null 字段返回 false，避免局域网设备缺少地址时触发异常。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Auth.java`
 
@@ -263,13 +263,13 @@
 
 详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册提交后根据后端结果决定显示错误、审核等待页或返回登录页。
 
-实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`loginForm()` 创建账号、密码、记住我控件，默认保留课堂演示用的 `admin/admin`；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 构造 `RegisterRequest` 调用注册接口；失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
+实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`loginForm()` 创建账号、密码、记住我控件，不写入任何默认演示账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 构造 `RegisterRequest` 调用注册接口；失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AuthStoreCheck.java`
 
 所属功能：账号仓库无框架自检。
 
-详细功能：验证第一屏后端最关键路径：默认管理员能登录，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
+详细功能：验证第一屏后端最关键路径：新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `users.properties`，依次调用注册、读取审核字段、登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口，用 `require(...)` 抛出 `AssertionError` 表示失败，最后删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
@@ -351,15 +351,15 @@
 
 详细功能：加载近期传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示近期目标、传输列表、传输结果统计、传输日志和发送端传输中进度快照。近期对象可以是单个用户，也可以是本地分组；选择分组发送时后端会展开组内成员并对所有成员并发发送。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输开始后页面会先进入结果页显示空汇总，后续收到后端进度回调时刷新“传输中”行，最终 Future 完成后再刷新为完整结果。传输过程中会显示“暂停发送/继续发送”按钮。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
 
-实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮；发送中会禁用开始和清除按钮，并通过 `pauseButton()` 显示当前暂停状态。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项和目标列表，`hasUsableTarget(...)` 要求至少有一个真实可达用户或组目标，避免首轮演示兜底对象被误发；随后选择 `selectedTargets` 或近期目标作为目标列表，重置暂停状态，写入空 `TransferSummary` 并进入结果页，再调用 `app.controller.startTransfer(files, targets, progress)`；进度回调和最终完成回调都通过 `Platform.runLater(...)` 调用 `showTransferProgress(...)`，最终完成或异常时清理 `transferRunning/transferPaused`。`togglePause()` 翻转 `app.transferPaused` 并调用 `app.controller.pauseTransfer(...)`。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
+实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时填充 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮；发送中会禁用开始和清除按钮，并通过 `pauseButton()` 显示当前暂停状态。`pendingFileCard(...)` 使用 `FileIcons` 展示图标、大小和修改时间。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项和目标列表，`hasUsableTarget(...)` 要求至少有一个真实可达用户或组目标，未选择有效对象时直接提示用户选择；随后选择 `selectedTargets` 或近期目标作为目标列表，重置暂停状态，写入空 `TransferSummary` 并进入结果页，再调用 `app.controller.startTransfer(files, targets, progress)`；进度回调和最终完成回调都通过 `Platform.runLater(...)` 调用 `showTransferProgress(...)`，最终完成或异常时清理 `transferRunning/transferPaused`。`togglePause()` 翻转 `app.transferPaused` 并调用 `app.controller.pauseTransfer(...)`。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
 
 ## `src/main/java/com/iwmei/lantransfer/view/UserList.java`
 
 所属功能：用户列表页面。
 
-详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页、添加近期传输对象和本地传输分组创建能力。当前设备数据来自 `LocalBackend.loadAllDevices()`：如果局域网已发现其它同程序设备，就显示真实发现结果；如果只发现本机，则显示演示设备列表作为课堂展示兜底。搜索框会按昵称、设备名、设备 ID 和目标地址实时过滤当前已加载设备。用户可以先用卡片上的 `+` 把多个用户选中，再填写分组名并点击“选中建组”，生成的组目标会加入近期传输对象。
+详细功能：展示全部可传输用户，提供搜索框、扫描入口、列表/矩阵视图切换、分页、添加近期传输对象和本地传输分组创建能力。当前设备数据来自 `LocalBackend.loadAllDevices()`：只显示 `LanPeer` 已知的本机和真实发现设备，不再用演示设备填充空页面。搜索框会按昵称、设备名、设备 ID 和目标地址实时过滤当前已加载设备。用户可以先用卡片上的 `+` 把多个用户选中，再填写分组名并点击“选中建组”，生成的组目标会加入近期传输对象。
 
-实现方法：`showUserListPage()` 调用 `loadAllDevices()` 后在 UI 线程组装页面。搜索框文本保存在 `query` 字段中，`textProperty()` 变化时把页码重置为 0 并调用 `renderResults(...)`。分组名保存在 `groupName` 字段中，`saveSelectedGroup(String)` 会从 `app.selectedTargets` 中过滤掉已有组目标，并且只保存带真实 host/port 的可达用户，避免把演示兜底对象建成可发送分组；没有选中成员时 toast 提示，保存成功后调用 `app.addRecentTarget(group)` 把组放入近期传输对象并选中。`renderResults(...)` 使用 `DeviceSearch.matches(...)` 过滤设备，更新总数标签，再按当前视图模式渲染列表或矩阵。列表视图逐个调用 `app.userCard(device, true)`，矩阵视图由 `userGrid(...)` 按 15 个一页分页。点击用户卡中的添加按钮会通过 `MainWindow.addRecentTarget(...)` 维护近期和选中目标。
+实现方法：`showUserListPage()` 调用 `loadAllDevices()` 后在 UI 线程组装页面。搜索框文本保存在 `query` 字段中，`textProperty()` 变化时把页码重置为 0 并调用 `renderResults(...)`。分组名保存在 `groupName` 字段中，`saveSelectedGroup(String)` 会从 `app.selectedTargets` 中过滤掉已有组目标，并且只保存带真实 host/port 的可达用户，避免把不可达对象建成可发送分组；没有选中成员时 toast 提示，保存成功后调用 `app.addRecentTarget(group)` 把组放入近期传输对象并选中。`renderResults(...)` 使用 `DeviceSearch.matches(...)` 过滤设备，更新总数标签，再按当前视图模式渲染列表或矩阵。列表视图逐个调用 `app.userCard(device, true)`，矩阵视图由 `userGrid(...)` 按 15 个一页分页。点击用户卡中的添加按钮会通过 `MainWindow.addRecentTarget(...)` 维护近期和选中目标。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Scan.java`
 

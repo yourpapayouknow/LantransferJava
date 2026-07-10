@@ -75,8 +75,6 @@ final class Auth {
         form.getStyleClass().add("auth-form");
         TextField account = app.textField("请输入账号");
         PasswordField password = app.passwordField("请输入密码");
-        account.setText("admin");
-        password.setText("admin");
         CheckBox rememberMe = app.checkBox("记住我", false);
         app.controller.loadRememberedAccount().thenAccept(saved -> Platform.runLater(() -> {
             if (saved != null && !saved.isBlank()) {

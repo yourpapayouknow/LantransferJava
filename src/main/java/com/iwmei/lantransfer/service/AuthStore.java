@@ -50,7 +50,6 @@ final class AuthStore {
             return fail("请输入账号和密码");
         }
         Properties props = load();
-        ensureAdmin(props);
         if (!props.containsKey(key(account, "hash"))) {
             return fail("账号不存在，请先注册");
         }
@@ -81,7 +80,6 @@ final class AuthStore {
             return fail(validation);
         }
         Properties props = load();
-        ensureAdmin(props);
         if (props.containsKey(key(account, "hash"))) {
             return fail("账号已存在，请直接登录");
         }
@@ -98,7 +96,6 @@ final class AuthStore {
             return;
         }
         Properties props = load();
-        ensureAdmin(props);
         String account = findByUserId(props, profile.userId());
         if (account == null) {
             return;
@@ -118,7 +115,6 @@ final class AuthStore {
             return;
         }
         Properties props = load();
-        ensureAdmin(props);
         props.setProperty(key(account, "status"), status == null ? UserStatus.DEFAULT.name() : status.name());
         props.setProperty(key(account, "signature"), cleanText(customText, statusText(status)));
         save(props);
@@ -149,16 +145,6 @@ final class AuthStore {
         } catch (IOException ex) {
             throw new IllegalStateException("保存账号文件失败：" + store, ex);
         }
-    }
-
-    // 确保演示默认账号可登录
-    private void ensureAdmin(Properties props) {
-        if (props.containsKey(key("admin", "hash"))) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        putAccount(props, "admin", "admin", localDeviceName(), now, now);
-        save(props);
     }
 
     // 写入单个账号资料和密码摘要

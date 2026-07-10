@@ -8,10 +8,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-// 本地业务后端，负责已落地功能并临时复用演示数据补齐未实现页面
+// 本地业务后端，负责组合账号、扫描、分组、接收和发送等真实本地功能
 public final class LocalBackend implements BackendFacade {
     private final AuthStore auth = new AuthStore();
-    private final MockBackendFacade demo = new MockBackendFacade();
     private final SettingsStore settings = new SettingsStore();
     private final RecentStore recent = new RecentStore();
     private final GroupStore groups = new GroupStore();
@@ -65,17 +64,14 @@ public final class LocalBackend implements BackendFacade {
                     devices.add(device);
                 }
             }
-            return devices.isEmpty() ? demo.loadRecentDevices().join() : devices;
+            return devices;
         });
     }
 
     // 加载全部可传输用户设备
     @Override
     public CompletableFuture<List<UserDevice>> loadAllDevices() {
-        return CompletableFuture.supplyAsync(() -> {
-            List<UserDevice> devices = lan.knownDevices();
-            return devices.size() > 1 ? devices : demo.loadAllDevices().join();
-        });
+        return CompletableFuture.supplyAsync(lan::knownDevices);
     }
 
     // 保存本地传输分组并返回组目标
@@ -108,7 +104,7 @@ public final class LocalBackend implements BackendFacade {
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return CompletableFuture.supplyAsync(() -> {
-            List<UserDevice> requested = targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets;
+            List<UserDevice> requested = targets == null ? List.of() : targets;
             List<UserDevice> safeTargets = groups.expand(requested);
             TransferSummary summary = tx.run(files, safeTargets, settings.load(), progress);
             recent.remember(requested);

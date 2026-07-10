@@ -22,9 +22,6 @@ public final class AuthStoreCheck {
         Path dir = Files.createTempDirectory("lantransfer-auth-check");
         try {
             AuthStore store = new AuthStore(dir.resolve("users.properties"));
-            AuthResult admin = store.login(new LoginRequest("admin", "admin", false));
-            require(admin.success(), "default admin should login");
-
             AuthResult registered = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(registered.success(), "registered account should succeed");
             require(!registered.pendingReview(), "local registration should not wait for review");
