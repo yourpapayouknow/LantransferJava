@@ -95,6 +95,8 @@ public class MainWindow extends Application {
     TransferSummary currentSummary;
     SystemSettings currentSettings;
     String accentColor = ACCENT_ORANGE;
+    boolean transferRunning;
+    boolean transferPaused;
     boolean userListGridView;
     boolean recentTargetsLoaded;
     int userListPage;

@@ -78,13 +78,18 @@ final class FileTransfer {
         row.getChildren().addAll(upload, chooseFolder, app.mutedLabel(uploadHint(), 14), app.spacer());
         if (!app.pendingFiles.isEmpty()) {
             Button start = app.outlineButton("开始发送");
+            start.setDisable(app.transferRunning);
             start.setOnAction(event -> startTransfer());
             Button clear = app.ghostTextButton("全部清除");
+            clear.setDisable(app.transferRunning);
             clear.setOnAction(event -> {
                 app.pendingFiles.clear();
                 showFileTransferPage();
             });
             row.getChildren().addAll(start, clear);
+        }
+        if (app.transferRunning) {
+            row.getChildren().add(pauseButton());
         }
         strip.getChildren().add(row);
         strip.setOnDragOver(event -> {
@@ -237,6 +242,13 @@ final class FileTransfer {
         return section;
     }
 
+    // 构建暂停或继续发送按钮
+    private Button pauseButton() {
+        Button pause = app.secondaryButton(app.transferPaused ? "继续发送" : "暂停发送");
+        pause.setOnAction(event -> togglePause());
+        return pause;
+    }
+
     // 清除当前汇总中的已完成任务
     private void clearCompletedTasks() {
         if (app.currentSummary == null) {
@@ -261,12 +273,48 @@ final class FileTransfer {
             app.toast("请先选择要上传的文件或文件夹");
             return;
         }
+        if (app.transferRunning) {
+            app.toast("当前已有发送任务");
+            return;
+        }
         List<UserDevice> targets = app.selectedTargets.isEmpty() ? new ArrayList<>(app.recentTargets) : new ArrayList<>(app.selectedTargets);
+        if (!hasUsableTarget(targets)) {
+            app.toast("请先从用户列表添加真实在线用户或分组");
+            return;
+        }
+        app.controller.pauseTransfer(false);
+        app.transferRunning = true;
+        app.transferPaused = false;
         app.currentSummary = new TransferSummary(targets.size(), 0, 0, 0, "00:00:00", List.of(), List.of());
         showTransferResultPage();
         app.controller.startTransfer(new ArrayList<>(app.pendingFiles), targets,
                 summary -> Platform.runLater(() -> showTransferProgress(summary)))
-                .thenAccept(summary -> Platform.runLater(() -> showTransferProgress(summary)));
+                .thenAccept(summary -> Platform.runLater(() -> {
+                    app.transferRunning = false;
+                    app.transferPaused = false;
+                    showTransferProgress(summary);
+                })).exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        app.transferRunning = false;
+                        app.transferPaused = false;
+                        app.toast("发送任务异常结束");
+                        showTransferResultPage();
+                    });
+                    return null;
+        });
+    }
+
+    // 判断目标列表里是否有真实可达用户或分组
+    private boolean hasUsableTarget(List<UserDevice> targets) {
+        return targets.stream().anyMatch(target -> target != null && (target.groupTarget() || target.reachable()));
+    }
+
+    // 切换当前发送任务的暂停状态
+    private void togglePause() {
+        app.transferPaused = !app.transferPaused;
+        app.controller.pauseTransfer(app.transferPaused);
+        app.toast(app.transferPaused ? "已暂停发送" : "已继续发送");
+        showTransferResultPage();
     }
 
     // 显示最新传输进度或最终结果

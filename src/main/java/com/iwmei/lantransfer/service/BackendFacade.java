@@ -22,6 +22,9 @@ public interface BackendFacade {
     // 加载全部可传输用户设备
     CompletableFuture<List<UserDevice>> loadAllDevices();
 
+    // 保存本地传输分组并返回组目标
+    CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members);
+
     // 扫描局域网用户设备
     CompletableFuture<List<UserDevice>> scanLanDevices();
 
@@ -35,6 +38,10 @@ public interface BackendFacade {
     default CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return startTransfer(files, targets);
+    }
+
+    // 暂停或继续当前发送任务
+    default void pauseTransfer(boolean paused) {
     }
 
     // 设置接收前确认回调

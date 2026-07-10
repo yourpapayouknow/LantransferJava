@@ -67,6 +67,12 @@ public final class MockBackendFacade implements BackendFacade {
         return CompletableFuture.completedFuture(devices);
     }
 
+    // 保存本地传输分组并返回组目标
+    @Override
+    public CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members) {
+        return CompletableFuture.completedFuture(UserDevice.group(name, members == null ? 0 : members.size()));
+    }
+
     // 扫描局域网用户设备
     @Override
     public CompletableFuture<List<UserDevice>> scanLanDevices() {

@@ -14,6 +14,7 @@ public final class LocalBackend implements BackendFacade {
     private final MockBackendFacade demo = new MockBackendFacade();
     private final SettingsStore settings = new SettingsStore();
     private final RecentStore recent = new RecentStore();
+    private final GroupStore groups = new GroupStore();
     private final UdpTx tx = new UdpTx();
     private final UdpRx rx = new UdpRx(settings);
     private final LanPeer lan = new LanPeer();
@@ -58,7 +59,12 @@ public final class LocalBackend implements BackendFacade {
     @Override
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {
         return CompletableFuture.supplyAsync(() -> {
-            List<UserDevice> devices = recent.load();
+            List<UserDevice> devices = new java.util.ArrayList<>(groups.targets());
+            for (UserDevice device : recent.load()) {
+                if (devices.stream().noneMatch(old -> old.id().equals(device.id()))) {
+                    devices.add(device);
+                }
+            }
             return devices.isEmpty() ? demo.loadRecentDevices().join() : devices;
         });
     }
@@ -70,6 +76,12 @@ public final class LocalBackend implements BackendFacade {
             List<UserDevice> devices = lan.knownDevices();
             return devices.size() > 1 ? devices : demo.loadAllDevices().join();
         });
+    }
+
+    // 保存本地传输分组并返回组目标
+    @Override
+    public CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members) {
+        return CompletableFuture.supplyAsync(() -> groups.save(name, members));
     }
 
     // 扫描局域网用户设备
@@ -96,11 +108,18 @@ public final class LocalBackend implements BackendFacade {
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return CompletableFuture.supplyAsync(() -> {
-            List<UserDevice> safeTargets = targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets;
+            List<UserDevice> requested = targets == null || targets.isEmpty() ? demo.loadRecentDevices().join() : targets;
+            List<UserDevice> safeTargets = groups.expand(requested);
             TransferSummary summary = tx.run(files, safeTargets, settings.load(), progress);
-            recent.remember(safeTargets);
+            recent.remember(requested);
             return summary;
         }, transferQueue);
+    }
+
+    // 暂停或继续当前发送任务
+    @Override
+    public void pauseTransfer(boolean paused) {
+        tx.setPaused(paused);
     }
 
     // 设置接收前确认回调

@@ -39,6 +39,11 @@ public final class AppController {
         return backend.loadAllDevices();
     }
 
+    // 保存本地传输分组并返回组目标
+    public CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members) {
+        return backend.saveGroup(name, members);
+    }
+
     // 扫描局域网用户设备
     public CompletableFuture<List<UserDevice>> scanLanDevices() {
         return backend.scanLanDevices();
@@ -58,6 +63,11 @@ public final class AppController {
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return backend.startTransfer(files, targets, progress);
+    }
+
+    // 暂停或继续当前发送任务
+    public void pauseTransfer(boolean paused) {
+        backend.pauseTransfer(paused);
     }
 
     // 设置接收前确认回调

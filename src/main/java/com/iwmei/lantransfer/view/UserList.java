@@ -19,6 +19,7 @@ import java.util.List;
 final class UserList {
     private final MainWindow app;
     private String query = "";
+    private String groupName = "默认分组";
 
     // 初始化用户列表页面对象
     UserList(MainWindow app) {
@@ -43,6 +44,14 @@ final class UserList {
             scanHeader.setMinHeight(46);
             scanHeader.setMaxWidth(Double.MAX_VALUE);
 
+            TextField group = app.textField("分组名");
+            group.setText(groupName);
+            group.setPrefWidth(180);
+            Button saveGroup = app.secondaryButton("选中建组");
+            saveGroup.setOnAction(event -> saveSelectedGroup(group.getText()));
+            HBox groupLine = new HBox(12, group, saveGroup);
+            groupLine.setAlignment(Pos.CENTER_LEFT);
+
             Button listView = app.iconToggleButton("mdi2v-view-list", "列表形布局", !app.userListGridView);
             listView.setOnAction(event -> {
                 app.userListGridView = false;
@@ -66,10 +75,30 @@ final class UserList {
                 app.userListPage = 0;
                 renderResults(devices, results, total);
             });
-            page.getChildren().addAll(scanHeader, app.separator(), totalLine, results);
+            page.getChildren().addAll(scanHeader, groupLine, app.separator(), totalLine, results);
             renderResults(devices, results, total);
             app.setMainPage("用户列表", page, true, true);
         }));
+    }
+
+    // 把当前选中的真实用户保存为分组并加入近期目标
+    private void saveSelectedGroup(String name) {
+        groupName = UserDevice.cleanGroupName(name);
+        List<UserDevice> members = app.selectedTargets.stream()
+                .filter(target -> !target.groupTarget() && target.reachable())
+                .toList();
+        if (members.isEmpty()) {
+            app.toast("请先用 + 选择真实在线用户");
+            return;
+        }
+        app.controller.saveGroup(groupName, members).thenAccept(group -> Platform.runLater(() -> {
+            app.addRecentTarget(group);
+            app.toast("已创建分组：" + groupName);
+            showUserListPage();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> app.toast("创建分组失败"));
+            return null;
+        });
     }
 
     // 按当前搜索词渲染用户列表结果

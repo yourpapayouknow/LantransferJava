@@ -47,6 +47,8 @@ final class UdpTx {
     private static final DateTimeFormatter DONE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final int chunkBytes;
+    private final Object pauseLock = new Object();
+    private volatile boolean paused;
 
     // 使用默认分片大小初始化发送服务
     UdpTx() {
@@ -56,6 +58,16 @@ final class UdpTx {
     // 使用指定分片大小初始化发送服务，供测试复用
     UdpTx(int chunkBytes) {
         this.chunkBytes = Math.max(512, chunkBytes);
+    }
+
+    // 暂停或继续后续 UDP 包发送
+    void setPaused(boolean paused) {
+        synchronized (pauseLock) {
+            this.paused = paused;
+            if (!paused) {
+                pauseLock.notifyAll();
+            }
+        }
     }
 
     // 发送文件到目标设备并返回传输汇总
@@ -366,6 +378,9 @@ final class UdpTx {
                 if (attempt > 0) {
                     retries++;
                 }
+                if (!waitIfPaused()) {
+                    return new AckResult(false, retries, "");
+                }
                 try {
                     socket.send(new DatagramPacket(data, data.length));
                     AckResult ack = awaitAck(socket, jobId, fileIndex, chunkIndex);
@@ -400,6 +415,21 @@ final class UdpTx {
             return new AckResult(false, 0, "");
         } catch (Exception ignored) {
             return new AckResult(false, 0, "");
+        }
+    }
+
+    // 暂停状态下阻塞发送线程直到继续
+    private boolean waitIfPaused() {
+        synchronized (pauseLock) {
+            while (paused) {
+                try {
+                    pauseLock.wait();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
