@@ -128,6 +128,9 @@ final class AuthStore {
         }
         try (Reader reader = Files.newBufferedReader(store, StandardCharsets.UTF_8)) {
             props.load(reader);
+            if (removeLegacyAdmin(props)) {
+                save(props);
+            }
             return props;
         } catch (IOException ex) {
             throw new IllegalStateException("读取账号文件失败：" + store, ex);
@@ -145,6 +148,26 @@ final class AuthStore {
         } catch (IOException ex) {
             throw new IllegalStateException("保存账号文件失败：" + store, ex);
         }
+    }
+
+    // 移除旧版本自动生成的 admin/admin 演示账号和记住状态
+    private boolean removeLegacyAdmin(Properties props) {
+        if (!props.containsKey(key("admin", "hash")) || props.containsKey(key("admin", "reviewStatus"))) {
+            return false;
+        }
+        boolean changed = false;
+        for (String name : props.stringPropertyNames().toArray(new String[0])) {
+            if (name.startsWith("account.admin.")) {
+                props.remove(name);
+                changed = true;
+            }
+        }
+        if ("admin".equals(props.getProperty("login.account"))) {
+            props.remove("login.rememberMe");
+            props.remove("login.account");
+            changed = true;
+        }
+        return changed;
     }
 
     // 写入单个账号资料和密码摘要

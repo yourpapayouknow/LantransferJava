@@ -21,12 +21,25 @@ public final class AuthStoreCheck {
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-auth-check");
         try {
-            AuthStore store = new AuthStore(dir.resolve("users.properties"));
+            Path file = dir.resolve("users.properties");
+            Properties legacy = new Properties();
+            legacy.setProperty("account.admin.hash", "legacy");
+            legacy.setProperty("login.rememberMe", "true");
+            legacy.setProperty("login.account", "admin");
+            try (var writer = Files.newBufferedWriter(file)) {
+                legacy.store(writer, "legacy demo admin");
+            }
+
+            AuthStore store = new AuthStore(file);
+            require(store.rememberedAccount().isBlank(), "legacy admin should not be remembered");
+            AuthResult admin = store.login(new LoginRequest("admin", "admin", false));
+            require(!admin.success(), "legacy admin should not login");
+
             AuthResult registered = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(registered.success(), "registered account should succeed");
             require(!registered.pendingReview(), "local registration should not wait for review");
             Properties props = new Properties();
-            try (var reader = Files.newBufferedReader(dir.resolve("users.properties"))) {
+            try (var reader = Files.newBufferedReader(file)) {
                 props.load(reader);
             }
             require("AUTO_APPROVED".equals(props.getProperty("account.alice.reviewStatus")), "registration should auto approve");
