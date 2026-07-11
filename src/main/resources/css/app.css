@@ -317,6 +317,24 @@
     -fx-font-weight: 800;
 }
 
+.profile-avatar-wrap {
+    -fx-cursor: hand;
+}
+
+.profile-avatar-mask {
+    -fx-alignment: center;
+    -fx-background-color: rgba(80, 84, 90, 0.62);
+    -fx-background-radius: 50%;
+    -fx-text-fill: white;
+    -fx-font-size: 17;
+    -fx-font-weight: 800;
+    -fx-opacity: 0;
+}
+
+.profile-avatar-wrap:hover .profile-avatar-mask {
+    -fx-opacity: 1;
+}
+
 .online-dot,
 .online-text {
     -fx-text-fill: #2ecc40;

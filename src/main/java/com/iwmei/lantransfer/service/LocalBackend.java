@@ -144,7 +144,7 @@ public final class LocalBackend implements BackendFacade {
     @Override
     public void updateStatus(UserStatus status, String customText) {
         auth.updateStatus(status, customText);
-        lan.updateStatus(status);
+        lan.updateStatus(status, customText);
         rx.updateStatus(status);
     }
 

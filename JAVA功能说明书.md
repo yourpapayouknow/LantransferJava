@@ -85,17 +85,17 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并直接 push 到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。push 只能使用运行时注入的辅助账号 classic PAT：`tok.ps1` 首次把 `ghp_` 开头的 classic PAT 加密保存到当前 Windows 用户目录，`run.ps1` 启动时解密并只给当前 App 进程注入 `ACCO_T`；没有 token 或 token 不是 `ghp_` 开头时注册明确失败，不退回本机 Git 凭据，避免误用用户主 GitHub 账号。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。辅助账号邮箱密码不能作为 GitHub API 或 Git push 凭据写入代码，token 也不能提交到仓库。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并直接 push 到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。push 只能使用运行时注入的辅助账号 classic PAT：`tok.ps1` 首次把 `ghp_` 开头的 classic PAT 加密保存到当前 Windows 用户目录，`run.ps1` 启动时解密并只给当前 App 进程注入 `ACCO_T`；没有 token 或 token 不是 `ghp_` 开头时注册明确失败，不退回本机 Git 凭据，避免误用用户主 GitHub 账号。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态、审核字段和压缩后的头像 Base64；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。辅助账号邮箱密码不能作为 GitHub API 或 Git push 凭据写入代码，token 也不能提交到仓库。
 
-实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要和资料字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、调用 `ensureGitIdentity()` 补齐最小 Git 提交身份、提交短消息 `acco req` 并推送。`push(...)` 会先调用 `pushUrl()` 根据 `AppFiles.repoOrigin()` 提取 `owner/repo`，如果存在 `-Dacco.t` 或 `ACCO_T`，就构造一次性 HTTPS token 地址执行 `git push <临时地址> HEAD:<当前分支>`；如果没有 token，就返回“未配置 ACCO_T 或 -Dacco.t”，不调用普通 `origin` 推送。`clean(...)` 会在错误输出中遮盖 token 或 URL 编码后的 token，避免失败信息把密钥显示给界面。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`updateProfile(Profile)` 和 `updateStatus(UserStatus, String)` 仍通过 `userId` 找到账号行，更新资料或状态后直接提交推送 `acco`；如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
+实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要、默认资料字段和空头像字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、调用 `ensureGitIdentity()` 补齐最小 Git 提交身份、提交短消息 `acco req` 并推送。`push(...)` 会先调用 `pushUrl()` 根据 `AppFiles.repoOrigin()` 提取 `owner/repo`，如果存在 `-Dacco.t` 或 `ACCO_T`，就构造一次性 HTTPS token 地址执行 `git push <临时地址> HEAD:<当前分支>`；如果没有 token，就返回“未配置 ACCO_T 或 -Dacco.t”，不调用普通 `origin` 推送。`clean(...)` 会在错误输出中遮盖 token 或 URL 编码后的 token，避免失败信息把密钥显示给界面。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`profile(...)` 从账号行构造 `Profile` 时读取 `avatar` 字段，没有头像时为空字符串；`updateProfile(Profile)` 通过 `userId` 找到账号行，同时保存昵称、设备名、签名、语言、状态和头像，再直接提交推送 `acco`；`updateStatus(UserStatus, String)` 只更新状态与签名。如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
 所属功能：当前主后端组合实现。
 
-详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，把本地传输分组保存和分组目标展开交给 `GroupStore`，启动 `UdpRx` 后台接收服务，把接收前确认回调、接收进度回调和本机用户状态同步给 `UdpRx`，把传输任务创建、暂停/继续和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
+详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，把本地传输分组保存和分组目标展开交给 `GroupStore`，启动 `UdpRx` 后台接收服务，把接收前确认回调、接收进度回调和本机用户状态同步给 `UdpRx`，把传输任务创建、暂停/继续和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。资料刷新会把用户ID、昵称、设备名、签名和头像交给局域网发现模块静默广播。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
 
-实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号表拉取、注册请求推送和本地 `la` 读取，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 通过 `AuthStore` 更新并推送 `acco` 后刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(...)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)`，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号表拉取、注册请求推送和本地 `la` 读取，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 通过 `AuthStore` 更新并推送 `acco` 后刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(status, customText)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 与自定义签名同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，让传输口令立即影响后续扫描和响应。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`saveGroup(...)` 保存选中成员快照并返回组目标，前端会把它加入近期传输对象。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；两参数 `startTransfer(...)` 传入空进度回调以兼容旧调用，三参数 `startTransfer(...)` 通过 `CompletableFuture.supplyAsync(..., transferQueue)` 排队执行，先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -109,25 +109,25 @@
 
 所属功能：近期传输对象本地仓库。
 
-详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖内存或演示数据。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、用户状态、最近传输时间、头像字段、目标地址和传输端口，最多保留 12 个。
+详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖内存或演示数据。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、用户状态、最近传输时间、头像首字、头像颜色、图片头像标记、头像 Base64、个性签名、目标地址和传输端口，最多保留 12 个。
 
-实现方法：默认构造器使用 `AppFiles.dataDir().resolve("recent.properties")` 定位文件。`load()` 用 `Properties` 读取 `count` 和每个序号下的设备字段，字段缺失时使用安全默认值，设备在线状态解析失败时回退 `DeviceStatus.OFFLINE`，用户状态解析失败时回退 `UserStatus.DEFAULT`。`remember(List<UserDevice>)` 把本次目标更新时间后放到 `LinkedHashMap` 前面，再追加旧记录并按 ID 去重，最后截取前 12 个写回。`save(...)` 创建父目录并写入 properties，同时记录 `repo.origin`；`put(...)` 会保存 `userStatus`，`touched(...)` 只更新时间文本并保留用户状态。该实现用本地文件替代数据库，足够满足无服务器课堂项目的近期对象恢复。
+实现方法：默认构造器使用 `AppFiles.dataDir().resolve("recent.properties")` 定位文件。`load()` 用 `Properties` 读取 `count` 和每个序号下的设备字段，字段缺失时使用安全默认值，设备在线状态解析失败时回退 `DeviceStatus.OFFLINE`，用户状态解析失败时回退 `UserStatus.DEFAULT`。`remember(List<UserDevice>)` 把本次目标更新时间后放到 `LinkedHashMap` 前面，再追加旧记录并按 ID 去重，最后截取前 12 个写回。`save(...)` 创建父目录并写入 properties，同时记录 `repo.origin`；`put(...)` 保存 `userStatus`、`signature` 和 `avatar`，让近期对象重启后仍保留对方通过 UDP 发来的资料。`touched(...)` 只更新时间文本，保留用户状态、签名和头像。该实现用本地文件替代数据库，足够满足无服务器课堂项目的近期对象恢复。
 
 ## `src/main/java/com/iwmei/lantransfer/service/GroupStore.java`
 
 所属功能：本地传输分组仓库。
 
-详细功能：`GroupStore` 负责用户列表中的“选中建组”和文件传输页中的组目标展开。它把分组名和组内用户快照保存到 `groups.properties`，读取时生成 `UserDevice.group(...)` 形式的组目标；当文件传输页选择组作为近期传输对象时，后端会把该组展开成组内所有真实成员，再交给 `UdpTx` 非阻塞并发发送。分组保存的是用户当时的网络地址、端口、状态和头像信息，不依赖服务器，也不修改局域网发现协议。
+详细功能：`GroupStore` 负责用户列表中的“选中建组”和文件传输页中的组目标展开。它把分组名和组内用户快照保存到 `groups.properties`，读取时生成 `UserDevice.group(...)` 形式的组目标；当文件传输页选择组作为近期传输对象时，后端会把该组展开成组内所有真实成员，再交给 `UdpTx` 非阻塞并发发送。分组保存的是用户当时的网络地址、端口、状态、签名和头像信息，不依赖服务器。
 
-实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；测试构造器允许指定临时文件。`save(name, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供前端加入近期对象。`targets()` 读取所有分组并返回组目标列表。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、成员数量和每个成员字段；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
+实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；测试构造器允许指定临时文件。`save(name, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供前端加入近期对象。`targets()` 读取所有分组并返回组目标列表。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、成员数量和每个成员字段；`put(...)` 和 `device(...)` 会写入并读取 `signature` 与 `avatar`，让分组成员在稍后发送时仍带有用户资料快照；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和传输口令分组摘要，启动后台 UDP 响应线程，扫描时向所有可用广播地址和本机回环地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应会携带口令 SHA-256 摘要，只有同一口令的设备互相发现；发现响应还携带真实传输 IP、传输端口和 `UserStatus`，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据。发现端口默认是 `45331`，传输端口默认是 `45332`；宿主机多实例或虚拟机联调时，发现端口可通过 `lantransfer.discoveryPort` / `LANTRANSFER_DISCOVERY_PORT` 覆盖，扫描端口集合可通过 `lantransfer.discoveryPorts` / `LANTRANSFER_DISCOVERY_PORTS` 配置，传输端口可通过 `lantransfer.transferPort` / `LANTRANSFER_TRANSFER_PORT` 覆盖，让不同运行端既能避开本机端口冲突，又能互相扫描到对方。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和传输口令分组摘要，启动后台 UDP 响应线程，扫描时向所有可用广播地址和本机回环地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应会携带口令 SHA-256 摘要，只有同一口令的设备互相发现；发现响应还携带真实传输 IP、传输端口、`UserStatus`、个性签名和压缩头像，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据，也让用户列表能静默收到对方资料。发现端口默认是 `45331`，传输端口默认是 `45332`；宿主机多实例或虚拟机联调时，发现端口可通过 `lantransfer.discoveryPort` / `LANTRANSFER_DISCOVERY_PORT` 覆盖，扫描端口集合可通过 `lantransfer.discoveryPorts` / `LANTRANSFER_DISCOVERY_PORTS` 配置，传输端口可通过 `lantransfer.transferPort` / `LANTRANSFER_TRANSFER_PORT` 覆盖，让不同运行端既能避开本机端口冲突，又能互相扫描到对方。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
 
-实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。静态字段 `PORT` 由 `configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 45331)` 初始化，静态字段 `TRANSFER_PORT` 由 `configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 45332)` 初始化；`configuredPort(...)` 先读 JVM 参数，再读环境变量，解析为正整数就使用配置值，解析失败或未配置时回退默认端口。`SCAN_PORTS` 由 `configuredScanPorts()` 初始化，始终包含当前发现端口，并额外解析 `lantransfer.discoveryPorts` 或 `LANTRANSFER_DISCOVERY_PORTS` 中用逗号、分号或空白分隔的端口列表。`updateGroup(String)` 会把传输口令清洗后计算 SHA-256 十六进制摘要，空口令得到空摘要并表示公开组。`scan()` 创建临时 `DatagramSocket`，向 `127.0.0.1`、`255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`，并且对 `SCAN_PORTS` 中每个端口都发一次；实际发送由 `sendDiscover(...)` 执行，单个地址或端口发送失败只跳过当前目标，不会阻断其他地址，也不会跳过后续接收阶段；公开组发送 `LANTRANSFER_DISCOVER_V1`，非空口令发送 `LANTRANSFER_DISCOVER_V1\t口令摘要`，并在约 900ms 内接收响应、调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定当前 `PORT`，收到发现消息后先检查 `groupMatches(discoverGroup(message))` 和 `discoverable(self.userStatus())`，口令不同、隐身和离线都不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应时也会解析并缓存；如果监听线程因端口占用、权限或网络栈异常退出，会把异常打印到进程错误日志，避免 GUI 扫描失败时没有线索。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t口令摘要`；`parse(message, fallbackHost)` 仍兼容旧 4 到 7 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺口令摘要时只会被公开组接收。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份，`updateStatus(UserStatus)` 在状态切换后刷新本机 `UserDevice`。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本。`broadcastAddresses()` 会加入回环地址和全局广播地址，再从 `NetworkInterface` 读取可广播地址；回环地址用于没有 VM 权限时的本机双实例测试，真实局域网仍依赖广播地址。`localDevice()` 用系统用户名、主机名、本机 IPv4 和当前传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。静态字段 `PORT` 由 `configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 45331)` 初始化，静态字段 `TRANSFER_PORT` 由 `configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 45332)` 初始化；`configuredPort(...)` 先读 JVM 参数，再读环境变量，解析为正整数就使用配置值，解析失败或未配置时回退默认端口。`SCAN_PORTS` 由 `configuredScanPorts()` 初始化，始终包含当前发现端口，并额外解析 `lantransfer.discoveryPorts` 或 `LANTRANSFER_DISCOVERY_PORTS` 中用逗号、分号或空白分隔的端口列表。`PACKET_BYTES` 提到 60000 字节，给 128px JPEG 头像 Base64 留出空间。`updateGroup(String)` 会把传输口令清洗后计算 SHA-256 十六进制摘要，空口令得到空摘要并表示公开组。`scan()` 创建临时 `DatagramSocket`，向 `127.0.0.1`、`255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`，并且对 `SCAN_PORTS` 中每个端口都发一次；实际发送由 `sendDiscover(...)` 执行，单个地址或端口发送失败只跳过当前目标，不会阻断其他地址，也不会跳过后续接收阶段；公开组发送 `LANTRANSFER_DISCOVER_V1`，非空口令发送 `LANTRANSFER_DISCOVER_V1\t口令摘要`，并在约 900ms 内接收响应、调用 `parse(...)` 与 `remember(...)` 更新时间。后台 `replyLoop()` 绑定当前 `PORT`，收到发现消息后先检查 `groupMatches(discoverGroup(message))` 和 `discoverable(self.userStatus())`，口令不同、隐身和离线都不回复；允许发现时用 `encode(self)` 回复发送方，收到设备响应或资料广播时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t口令摘要\t个性签名\t头像Base64`；`parse(message, fallbackHost)` 仍兼容旧 4 到 8 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺签名和头像时为空，缺口令摘要时只会被公开组接收。`avatar(String)` 会限制头像字段长度并只接受 Base64 字符，避免异常网络包污染 UI。`updateSelf(Profile)` 在登录或资料修改后用账号资料刷新本机发现身份并调用 `announce()`，`updateStatus(UserStatus, String)` 在状态切换后刷新本机状态和签名并再次静默广播；`announce()` 直接把 `encode(self)` 发到所有广播地址和扫描端口，对端后台线程会在没有手动扫描的情况下接收并更新缓存。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本，并保留对方签名和头像。`broadcastAddresses()` 会加入回环地址和全局广播地址，再从 `NetworkInterface` 读取可广播地址；回环地址用于没有 VM 权限时的本机双实例测试，真实局域网仍依赖广播地址。`localDevice()` 用系统用户名、主机名、本机 IPv4 和当前传输端口生成本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
 
@@ -181,9 +181,9 @@
 
 所属功能：当前登录用户资料。
 
-详细功能：保存昵称、用户 ID、设备名称、个性签名、注册时间、最后登录时间、版本信息、语言和当前用户状态。文件传输页顶部、我的页面和设置页面都会读取这些信息。
+详细功能：保存昵称、用户 ID、设备名称、个性签名、注册时间、最后登录时间、版本信息、语言、当前用户状态和头像 Base64。文件传输页顶部、我的页面、用户列表发现身份和设置页面都会读取这些信息。
 
-实现方法：使用不可变 `record`，因此修改资料或状态时需要构造新的 `Profile` 并替换 `MainWindow.profile`。保留旧 8 参数构造器，旧调用会自动使用 `UserStatus.DEFAULT`。时间字段使用 `LocalDateTime`，展示时由 `MainWindow.DATE_TIME` 格式化。
+实现方法：使用不可变 `record`，因此修改资料、状态或头像时需要构造新的 `Profile` 并替换 `MainWindow.profile`。组件末尾追加 `avatar` 字段，保留旧 8 参数和 9 参数构造器，旧调用会自动使用 `UserStatus.DEFAULT` 和空头像。时间字段使用 `LocalDateTime`，展示时由 `MainWindow.DATE_TIME` 格式化；头像字段由 `Mine` 压缩成 128px JPEG 后写入，登录时由 `AuthStore.profile(...)` 从 `acco` 读取。
 
 ## `src/main/java/com/iwmei/lantransfer/model/SystemSettings.java`
 
@@ -197,9 +197,9 @@
 
 所属功能：局域网用户设备数据对象。
 
-详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、设备在线状态、用户状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址和目标传输端口。它也可以表示本地传输分组目标：分组目标的 ID 使用 `GROUP:` 前缀，显示为“组：分组名”，实际发送前由 `GroupStore` 展开成组内真实用户。
+详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、设备在线状态、用户状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址、目标传输端口、个性签名和头像 Base64。它也可以表示本地传输分组目标：分组目标的 ID 使用 `GROUP:` 前缀，显示为“组：分组名”，实际发送前由 `GroupStore` 展开成组内真实用户。
 
-实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。保留旧 8 参数构造器和带地址的旧构造器，旧调用会自动使用 `UserStatus.DEFAULT`；`reachable()` 用于判断设备是否有真实传输地址。`groupTarget()` 通过 `GROUP:` 前缀判断当前对象是否为分组，`groupName()` 返回前缀后的分组名，`group(String, int)` 创建可显示在近期对象中的分组卡片，`cleanGroupName(String)` 统一清理空组名。`DeviceStatus` 决定在线/离线样式，`UserStatus` 决定对方是否允许被发现或直接接收文件，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
+实现方法：使用 `record` 让设备列表、近期对象、扫描雷达和传输任务共享同一数据结构。保留旧 8 参数构造器、带地址构造器和带用户状态构造器，旧调用会自动使用 `UserStatus.DEFAULT`、空签名和空头像；新增的 `signature` 与 `avatar` 放在末尾，降低对已有调用点的影响。`reachable()` 用于判断设备是否有真实传输地址。`groupTarget()` 通过 `GROUP:` 前缀判断当前对象是否为分组，`groupName()` 返回前缀后的分组名，`group(String, int)` 创建可显示在近期对象中的分组卡片，组目标自身不携带头像。`cleanGroupName(String)` 统一清理空组名。`DeviceStatus` 决定在线/离线样式，`UserStatus` 决定对方是否允许被发现或直接接收文件，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferFile.java`
 
@@ -253,9 +253,9 @@
 
 所属功能：用户列表搜索匹配工具。
 
-详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID 和目标主机地址。它不依赖 JavaFX，因此页面和无框架自检都能复用同一套匹配逻辑。
+详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID、目标主机地址和个性签名。它不依赖 JavaFX，因此页面和无框架自检都能复用同一套匹配逻辑。
 
-实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID 和 host。`contains(...)` 对 null 字段返回 false，避免局域网设备缺少地址时触发异常。
+实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID、host 和 `signature`。`contains(...)` 对 null 字段返回 false，避免局域网设备缺少地址或签名时触发异常。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Auth.java`
 
@@ -269,7 +269,7 @@
 
 所属功能：账号仓库无框架自检。
 
-详细功能：验证第一屏后端最关键路径：旧版自动 `admin/admin` 账号不会继续登录或回填，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
+详细功能：验证第一屏后端最关键路径：旧版自动 `admin/admin` 账号不会继续登录或回填，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、头像、状态签名和状态枚举会持久化。
 
 实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `acco`、`la` 和 `req`，关闭 Git 同步后先确认空账号表不能登录 `admin/admin`，再调用注册并检查 `acco` 表头、账号行、`AUTO_APPROVED`、`actions` 审核标记以及不包含明文密码；随后覆盖重复注册失败、错误密码失败、正确密码登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口。最后用反射调用 `repoPath(...)` 验证 HTTPS 与 SSH 远程地址都能解析成 `owner/repo`，并临时设置 `acco.t` 验证 `clean(...)` 会遮盖原始 token 和 URL 编码 token，避免 Git 失败输出泄漏密钥。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
@@ -285,7 +285,7 @@
 
 所属功能：局域网发现协议无框架自检。
 
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、传输端口 JVM 参数覆盖、同口令可解析、不同口令会被忽略、发现后在线状态和过期离线判定，不依赖真实网络环境。
+详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、个性签名携带、头像携带、传输端口 JVM 参数覆盖、同口令可解析、不同口令会被忽略、发现后在线状态和过期离线判定，不依赖真实网络环境。
 
 实现方法：`main(String[] args)` 先设置 `System.setProperty("lantransfer.transferPort", "45432")`，再使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY。随后调用 `updateGroup("team-a")` 编码消息，同组解析应成功；切到 `team-b` 后解析同一消息应返回 null，证明不同口令会被忽略。最后确认 `knownDevices()` 至少包含本机设备，并且本机设备端口包含 45432，证明多实例传输端口覆盖已经进入发现协议；调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
 
@@ -301,7 +301,7 @@
 
 所属功能：近期传输对象仓库无框架自检。
 
-详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址和用户状态，避免 App 重启后近期目标退回纯演示数据。
+详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址、用户状态、个性签名和头像，避免 App 重启后近期目标退回纯演示数据。
 
 实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线且用户状态为 BUSY 的 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达、用户状态仍为 BUSY。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
 
@@ -309,7 +309,7 @@
 
 所属功能：传输分组仓库无框架自检。
 
-详细功能：验证 `GroupStore` 可以保存分组、读取组目标、把组目标展开成真实成员，并在同一用户既被单独选择又属于组时去重。它覆盖用户列表“选中建组”和文件传输页“选择组作为传输对象”的最小后端闭环。
+详细功能：验证 `GroupStore` 可以保存分组、读取组目标、把组目标展开成真实成员，并在同一用户既被单独选择又属于组时去重，同时确认成员签名和头像不会在分组快照中丢失。它覆盖用户列表“选中建组”和文件传输页“选择组作为传输对象”的最小后端闭环。
 
 实现方法：`main(String[] args)` 创建临时目录和 `groups.properties`，构造两个可达 `UserDevice`，调用 `save("测试组", List.of(one, two, one))` 保存包含重复成员的分组。检查点包括返回对象是组目标、组名可以 roundtrip、`targets()` 能读出一个组、`expand(List.of(group, two))` 后只有两个真实成员，并且成员仍保留 host/port。最后递归删除临时目录。
 
@@ -317,7 +317,7 @@
 
 所属功能：设备搜索匹配无框架自检。
 
-详细功能：验证用户列表搜索可以命中昵称、设备名、设备 ID 和目标地址，并且不会错误命中无关搜索词。
+详细功能：验证用户列表搜索可以命中昵称、设备名、设备 ID、目标地址和个性签名，并且不会错误命中无关搜索词。
 
 实现方法：`main(String[] args)` 构造一个带昵称、设备名、ID 和 host 的 `UserDevice`，依次调用 `DeviceSearch.matches(...)` 检查中文昵称、英文设备名大小写、ID 片段、IP 片段和无关姓名。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.util.DeviceSearchCheck`。
 
@@ -373,9 +373,9 @@
 
 所属功能：我的资料页面。
 
-详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。我的资料卡片左侧展示头像，右侧展示昵称、用户ID、设备名称和个性签名四项资料；右侧资料表单固定为原先宽度的约80%，整体靠卡片右侧排列，资料标签在表单内右对齐。用户ID行是只读展示，右侧使用复制图标按钮写入系统剪贴板。昵称、设备名称和个性签名行默认只读，右侧使用编辑图标按钮进入编辑状态；进入编辑状态后按钮会变成强调色对勾图标，点击对勾会保存当前资料、退出编辑状态并提示保存成功。底部“保存”仍可一次性保存当前表单值，底部“重置”会按当前账号资料重新渲染页面。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
+详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。我的资料卡片左侧展示可修改头像，头像尺寸放大到 136px，编辑区内边距统一为 16px，让头像左侧边距与上下边距一致；鼠标悬停头像时叠加半透明灰色圆形遮罩和“修改”文字，点击后选择本地图片并保存为压缩头像。右侧展示昵称、用户ID、设备名称和个性签名四项资料；右侧资料表单固定为原先宽度的约80%，整体靠卡片右侧排列，资料标签在表单内右对齐。用户ID行是只读展示，右侧使用复制图标按钮写入系统剪贴板。昵称、设备名称和个性签名行默认只读，右侧使用编辑图标按钮进入编辑状态；进入编辑状态后按钮会变成强调色对勾图标，点击对勾会保存当前资料、退出编辑状态并提示保存成功。底部“保存”仍可一次性保存当前表单值，底部“重置”会按当前账号资料重新渲染页面。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
 
-实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用 `HBox` 放头像、弹性空白和资料表单，`root.setMaxWidth(Double.MAX_VALUE)` 让容器吃满资料卡片宽度，弹性空白把资料表单推到右侧，`PROFILE_FORM_WIDTH` 和三列约束把表单宽度收窄到约542px。`editableRow(...)` 创建默认只读的 `TextField` 和图标按钮，按钮初始为 `mdi2p-pencil` 编辑图标，点击后切换输入框可编辑状态、把按钮样式从 `compact-button` 改为 `primary-button` 并把图标改成 `mdi2c-check`；再次点击时调用 `readProfile()` 读取昵称、设备名称和个性签名，调用 `app.controller.updateProfile(...)` 写回账号表，然后恢复编辑图标。`profileRow(...)` 专门构建用户ID只读行，使用 `mdi2c-content-copy` 图标按钮调用 `app.copyToClipboard(...)`。`addProfileLabel(...)` 统一创建右对齐资料标签，`profileIconButton(...)` 和 `profileIcon(...)` 统一创建资料卡片的小图标按钮。底部保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
+实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用 `HBox` 放头像、弹性空白和资料表单，`root.setMaxWidth(Double.MAX_VALUE)` 让容器吃满资料卡片宽度，`root.setPadding(new Insets(16))` 统一头像所在区域边距，弹性空白把资料表单推到右侧，`PROFILE_FORM_WIDTH` 和三列约束把表单宽度收窄到约542px。`profilePhoto(Profile)` 调用 `app.avatar(..., profile.avatar())` 显示图片头像或首字头像，并叠加 `.profile-avatar-mask` 遮罩；点击头像触发 `chooseAvatar()`。`chooseAvatar()` 使用 JavaFX `FileChooser` 只选择常见图片扩展名，选中后调用 `jpegAvatar(File)`。`jpegAvatar(...)` 用 JDK `ImageIO` 读取图片，按中心正方形裁剪，下采样绘制到 128×128 的 `BufferedImage.TYPE_INT_RGB`，用 JPEG writer 按 0.72 压缩质量写入内存，再 Base64 编码成账号表和 UDP 协议可传输文本；处理失败时只提示“头像处理失败”。头像保存时用 `withAvatar(readProfile(), data)` 保留当前表单文字，调用 `app.controller.updateProfile(...)` 写回账号表并触发后端广播。`editableRow(...)` 创建默认只读的 `TextField` 和图标按钮，按钮初始为 `mdi2p-pencil` 编辑图标，点击后切换输入框可编辑状态、把按钮样式从 `compact-button` 改为 `primary-button` 并把图标改成 `mdi2c-check`；再次点击时调用 `readProfile()` 读取昵称、设备名称、个性签名和头像，调用 `app.controller.updateProfile(...)` 写回账号表，然后恢复编辑图标。`profileRow(...)` 专门构建用户ID只读行，使用 `mdi2c-content-copy` 图标按钮调用 `app.copyToClipboard(...)`。`addProfileLabel(...)` 统一创建右对齐资料标签，`profileIconButton(...)` 和 `profileIcon(...)` 统一创建资料卡片的小图标按钮。底部保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Settings.java`
 
@@ -389,6 +389,6 @@
 
 所属功能：JavaFX 主窗口、路由和共享 UI 组件库。
 
-详细功能：该类继承 `Application`，管理窗口尺寸、标题栏、认证窗口壳、主窗口壳、侧边栏、顶部栏、底部状态栏、页面路由、共享状态和大量复用控件。它持有 `AppController`、当前用户资料、当前系统设置、待传输文件、近期目标、选中目标、当前传输汇总、主题色、发送运行/暂停状态和用户列表分页状态，并负责在本机忙碌状态收到文件请求时弹出接收确认框，以及用 toast 展示接收端进度节点。
+详细功能：该类继承 `Application`，管理窗口尺寸、标题栏、认证窗口壳、主窗口壳、侧边栏、顶部栏、底部状态栏、页面路由、共享状态和大量复用控件。它持有 `AppController`、当前用户资料、当前系统设置、待传输文件、近期目标、选中目标、当前传输汇总、主题色、发送运行/暂停状态和用户列表分页状态，并负责在本机忙碌状态收到文件请求时弹出接收确认框，以及用 toast 展示接收端进度节点。共享头像控件支持首字头像和 Base64 图片头像，用户卡片会优先显示通过 UDP 接收的个性签名。
 
-实现方法：`start(Stage)` 初始化透明窗口后先调用 `controller.setRxAsk(this::confirmReceive)` 和 `controller.setRxProgress(this::showRxProgress)`，把接收前确认和接收进度展示回调交给后端，再异步读取系统设置，拿到 `accentColor` 和 `currentSettings` 后进入登录页；读取失败时仍进入登录页。`confirmReceive(...)` 是给 `UdpRx` 后台线程调用的同步确认方法，如果已经在 JavaFX 线程就直接显示确认框，否则用 `Platform.runLater(...)` 切回 UI 线程并用 `CompletableFuture` 等待最多 30 秒，超时或异常按拒收处理。`showReceiveConfirm(...)` 构造 JavaFX `Alert` 确认框，显示文件名和大小，用户点 OK 才返回允许。`showRxProgress(...)` 接收文件名和百分比，如果当前已经在 JavaFX 线程就直接 toast，否则用 `Platform.runLater(...)` 切回 UI 线程显示“接收 文件名 百分比%”。`showAuth(...)`、`showFileTransferPage()`、`showUserListPage()`、`showScanPage()`、`showProfilePage()`、`showSettingsPage()` 等方法只做页面路由转发。`setAuthPage(...)` 和 `setMainPage(...)` 把页面内容放入统一窗口壳，`setWindow(...)` 负责 Scene、CSS、尺寸和首次显示。`appRoot(...)` 调用 `rootStyle(...)` 把主题色、字体、字号和缩放倍率写入根节点 CSS；缩放用 `fontSize * zoomPercent / 100` 计算全局字号，避免直接缩放窗口导致裁剪。`windowShell(...)`、`mainWindowShell(...)`、`titleBar()`、`sidebar(...)`、`mainTopbar()` 和 `statusFooter()` 组成应用外框；`mainTopbar()` 用 `titleLabel(displayName(), 14)` 显示当前用户昵称，使右上角用户名保持白色高对比度；`statusFooter()` 不再显示静态样例，传输模式由 `transferMode()` 读取 `currentSettings.groupCode()` 判断“公开局域网/口令组”，当前网速由 `currentSpeed()` 遍历 `currentSummary.tasks()` 中状态为“传输中”的任务并通过 `speedBytes(...)`、`speedText(...)` 汇总格式化，存储位置直接读取 `currentSettings.receiveDir()`，更改按钮跳转设置页。`connectionInfo()` 负责左下角状态信息，本机名来自 `profile.deviceName()`，IP 来自 `currentSettings.ipv4()`，状态文字来自 `userStatusText()`，状态点由 `userDeviceStatus()` 把 `Profile.status()` 映射成在线或离线显示。`cardGrid(...)`、`addCard(...)`、`userCard(...)`、`addRecentTarget(...)`、`tableGrid(...)`、`addTransferRow(...)` 等提供业务页面共享布局；组目标也复用 `userCard(...)`，因此近期对象不需要单独 UI 类型。`transferRunning` 和 `transferPaused` 是文件传输页的共享运行状态，防止重复提交并控制暂停按钮文案。`titleLabel(...)`、`mutedLabel(...)` 和 `accentLabel(...)` 只设置字号和字重，字体族从 `rootStyle(...)` 继承，避免系统设置改字体后标签仍固定为微软雅黑；`statusLine(...)` 的状态文字同样只设置字号。`ipColumn(...)` 使用 `mdi2c-content-copy` 图标按钮复制 IP，toast 文案为“已复制”加字段名，不在中文和技术缩写之间加空格。`textField(...)`、`passwordField(...)`、`primaryButton(...)`、`secondaryButton(...)`、`outlineButton(...)`、`ghostTextButton(...)`、`compactButton(...)`、`iconToggleButton(...)` 和 `textButton(...)` 统一控件样式。`radar(...)`、`scanDeviceLabel(...)`、`avatar(...)`、`statCard(...)`、`statusCard(...)`、`progressCell(...)`、`operationCell(...)`、`statusBadge(...)` 和 `logLine(...)` 构造具体视觉组件。`copyToClipboard(...)` 和 `toast(...)` 处理用户反馈。
+实现方法：`start(Stage)` 初始化透明窗口后先调用 `controller.setRxAsk(this::confirmReceive)` 和 `controller.setRxProgress(this::showRxProgress)`，把接收前确认和接收进度展示回调交给后端，再异步读取系统设置，拿到 `accentColor` 和 `currentSettings` 后进入登录页；读取失败时仍进入登录页。`confirmReceive(...)` 是给 `UdpRx` 后台线程调用的同步确认方法，如果已经在 JavaFX 线程就直接显示确认框，否则用 `Platform.runLater(...)` 切回 UI 线程并用 `CompletableFuture` 等待最多 30 秒，超时或异常按拒收处理。`showReceiveConfirm(...)` 构造 JavaFX `Alert` 确认框，显示文件名和大小，用户点 OK 才返回允许。`showRxProgress(...)` 接收文件名和百分比，如果当前已经在 JavaFX 线程就直接 toast，否则用 `Platform.runLater(...)` 切回 UI 线程显示“接收 文件名 百分比%”。`showAuth(...)`、`showFileTransferPage()`、`showUserListPage()`、`showScanPage()`、`showProfilePage()`、`showSettingsPage()` 等方法只做页面路由转发。`setAuthPage(...)` 和 `setMainPage(...)` 把页面内容放入统一窗口壳，`setWindow(...)` 负责 Scene、CSS、尺寸和首次显示。`appRoot(...)` 调用 `rootStyle(...)` 把主题色、字体、字号和缩放倍率写入根节点 CSS；缩放用 `fontSize * zoomPercent / 100` 计算全局字号，避免直接缩放窗口导致裁剪。`windowShell(...)`、`mainWindowShell(...)`、`titleBar()`、`sidebar(...)`、`mainTopbar()` 和 `statusFooter()` 组成应用外框；`mainTopbar()` 用 `titleLabel(displayName(), 14)` 显示当前用户昵称，使右上角用户名保持白色高对比度；`statusFooter()` 不再显示静态样例，传输模式由 `transferMode()` 读取 `currentSettings.groupCode()` 判断“公开局域网/口令组”，当前网速由 `currentSpeed()` 遍历 `currentSummary.tasks()` 中状态为“传输中”的任务并通过 `speedBytes(...)`、`speedText(...)` 汇总格式化，存储位置直接读取 `currentSettings.receiveDir()`，更改按钮跳转设置页。`connectionInfo()` 负责左下角状态信息，本机名来自 `profile.deviceName()`，IP 来自 `currentSettings.ipv4()`，状态文字来自 `userStatusText()`，状态点由 `userDeviceStatus()` 把 `Profile.status()` 映射成在线或离线显示。`cardGrid(...)`、`addCard(...)`、`userCard(...)`、`addRecentTarget(...)`、`tableGrid(...)`、`addTransferRow(...)` 等提供业务页面共享布局；`userCard(...)` 头像调用 `avatar(device.avatarText(), device.color(), size, device.avatar())`，第二行优先显示 `device.signature()`，签名为空才显示设备名，组目标也复用这个卡片结构。`transferRunning` 和 `transferPaused` 是文件传输页的共享运行状态，防止重复提交并控制暂停按钮文案。`titleLabel(...)`、`mutedLabel(...)` 和 `accentLabel(...)` 只设置字号和字重，字体族从 `rootStyle(...)` 继承，避免系统设置改字体后标签仍固定为微软雅黑；`statusLine(...)` 的状态文字同样只设置字号。`ipColumn(...)` 使用 `mdi2c-content-copy` 图标按钮复制 IP，toast 文案为“已复制”加字段名，不在中文和技术缩写之间加空格。`avatar(String,String,double)` 保留首字头像入口；`avatar(String,String,double,String)` 在头像 Base64 非空时调用 `imageAvatar(...)` 解码成 JavaFX `ImageView` 并用圆形 clip 裁成圆头像，头像数据异常时回到首字头像，防止坏数据打断页面渲染；`scanDeviceLabel(...)` 也复用图片头像。`textField(...)`、`passwordField(...)`、`primaryButton(...)`、`secondaryButton(...)`、`outlineButton(...)`、`ghostTextButton(...)`、`compactButton(...)`、`iconToggleButton(...)` 和 `textButton(...)` 统一控件样式。`radar(...)`、`scanDeviceLabel(...)`、`avatar(...)`、`statCard(...)`、`statusCard(...)`、`progressCell(...)`、`operationCell(...)`、`statusBadge(...)` 和 `logLine(...)` 构造具体视觉组件。`copyToClipboard(...)` 和 `toast(...)` 处理用户反馈。

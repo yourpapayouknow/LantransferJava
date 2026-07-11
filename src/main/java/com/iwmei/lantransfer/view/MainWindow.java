@@ -32,6 +32,8 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
@@ -60,9 +62,11 @@ import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -497,11 +501,11 @@ public class MainWindow extends Application {
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
         VBox text = new VBox(large ? 6 : 4, titleLabel(device.nickname(), large ? 18 : 14),
-                mutedLabel(device.deviceName(), large ? 14 : 11),
+                mutedLabel(device.signature().isBlank() ? device.deviceName() : device.signature(), large ? 14 : 11),
                 statusLine(device.status(), large ? "上次在线： " + device.lastSeen() : device.lastSeen(), large ? 13 : 11));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
-        card.getChildren().addAll(avatar(device.avatarText(), device.color(), large ? 44 : 34), text);
+        card.getChildren().addAll(avatar(device.avatarText(), device.color(), large ? 44 : 34, device.avatar()), text);
         if (selectedTargets.contains(device)) {
             card.getStyleClass().add("selected-target");
         }
@@ -822,9 +826,35 @@ public class MainWindow extends Application {
 
     // 构建用户头像节点
     Node avatar(String text, String color, double size) {
+        return avatar(text, color, size, "");
+    }
+
+    // 构建用户图片或首字头像节点
+    Node avatar(String text, String color, double size, String imageData) {
+        if (imageData != null && !imageData.isBlank()) {
+            try {
+                return imageAvatar(imageData, size);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
         StackPane avatar = new StackPane(new Label(text));
         avatar.getStyleClass().add("avatar");
         avatar.setStyle("-avatar-color: " + color + ";");
+        avatar.setMinSize(size, size);
+        avatar.setMaxSize(size, size);
+        return avatar;
+    }
+
+    // 构建图片头像节点
+    private Node imageAvatar(String imageData, double size) {
+        byte[] bytes = Base64.getDecoder().decode(imageData);
+        ImageView view = new ImageView(new Image(new ByteArrayInputStream(bytes), size, size, true, true));
+        view.setFitWidth(size);
+        view.setFitHeight(size);
+        view.setClip(new Circle(size / 2, size / 2, size / 2));
+        StackPane avatar = new StackPane(view);
+        avatar.getStyleClass().add("avatar");
+        avatar.setStyle("-avatar-color: transparent;");
         avatar.setMinSize(size, size);
         avatar.setMaxSize(size, size);
         return avatar;
@@ -1012,7 +1042,7 @@ public class MainWindow extends Application {
 
     // 构建雷达上的设备标签
     Node scanDeviceLabel(UserDevice device, double x, double y) {
-        StackPane wrapper = new StackPane(avatar(device.avatarText(), device.status() == DeviceStatus.ONLINE ? accentColor : "#5f656b", 52),
+        StackPane wrapper = new StackPane(avatar(device.avatarText(), device.status() == DeviceStatus.ONLINE ? accentColor : "#5f656b", 52, device.avatar()),
                 mutedLabel(device.nickname(), 13));
         wrapper.setTranslateX(x);
         wrapper.setTranslateY(y);

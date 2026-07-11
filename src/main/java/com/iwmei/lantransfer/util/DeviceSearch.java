@@ -17,7 +17,7 @@ public final class DeviceSearch {
         }
         String needle = query.toLowerCase(Locale.ROOT).trim();
         return contains(device.nickname(), needle) || contains(device.deviceName(), needle)
-                || contains(device.id(), needle) || contains(device.host(), needle);
+                || contains(device.id(), needle) || contains(device.host(), needle) || contains(device.signature(), needle);
     }
 
     // 判断文本是否包含已规范化搜索词

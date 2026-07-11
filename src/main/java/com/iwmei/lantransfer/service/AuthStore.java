@@ -37,7 +37,7 @@ final class AuthStore {
     private static final String[] COLUMNS = {
             "account", "salt", "hash", "userId", "nickname", "deviceName", "signature",
             "registeredAt", "lastLoginAt", "language", "status", "reviewStatus",
-            "reviewRequestedAt", "reviewApprovedAt", "reviewApprover"
+            "reviewRequestedAt", "reviewApprovedAt", "reviewApprover", "avatar"
     };
     private final Path table;
     private final Path local;
@@ -140,6 +140,7 @@ final class AuthStore {
             accounts.setProperty(key(account, "signature"), cleanText(profile.signature(), "在线，已连接"));
             accounts.setProperty(key(account, "language"), cleanText(profile.language(), "简体中文"));
             accounts.setProperty(key(account, "status"), profile.status() == null ? UserStatus.DEFAULT.name() : profile.status().name());
+            accounts.setProperty(key(account, "avatar"), cleanText(profile.avatar(), ""));
             saveAccounts(accounts);
             pushPath(table, "acco");
         } catch (IllegalStateException ignored) {
@@ -280,6 +281,7 @@ final class AuthStore {
         props.setProperty(key(account, "lastLoginAt"), TIME.format(lastLoginAt));
         props.setProperty(key(account, "language"), "简体中文");
         props.setProperty(key(account, "status"), UserStatus.DEFAULT.name());
+        props.setProperty(key(account, "avatar"), "");
     }
 
     // 记录注册审核自动通过信息
@@ -312,7 +314,8 @@ final class AuthStore {
                 parseTime(props.getProperty(key(account, "lastLoginAt"))),
                 VERSION,
                 props.getProperty(key(account, "language"), "简体中文"),
-                status(props.getProperty(key(account, "status")))
+                status(props.getProperty(key(account, "status"))),
+                props.getProperty(key(account, "avatar"), "")
         );
     }
 

@@ -24,6 +24,8 @@ public final class GroupStoreCheck {
             List<UserDevice> expanded = store.expand(List.of(group, two));
             require(expanded.size() == 2, "group expansion should dedupe members");
             require(expanded.stream().allMatch(UserDevice::reachable), "members should keep network address");
+            require(expanded.stream().anyMatch(item -> "签名".equals(item.signature()) && "QUJD".equals(item.avatar())),
+                    "members should keep profile payload");
         } finally {
             deleteTree(dir);
         }
@@ -32,7 +34,7 @@ public final class GroupStoreCheck {
     // 构造测试设备
     private static UserDevice device(String id, String host, int port) {
         return new UserDevice(id, id, id + "-pc", DeviceStatus.ONLINE, "刚刚", id.substring(0, 1),
-                "#4f7bd8", false, host, port, UserStatus.DEFAULT);
+                "#4f7bd8", false, host, port, UserStatus.DEFAULT, "签名", "QUJD");
     }
 
     // 检查条件，失败时抛出 AssertionError

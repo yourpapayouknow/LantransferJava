@@ -106,6 +106,8 @@ final class RecentStore {
         props.setProperty(prefix + "host", device.host());
         props.setProperty(prefix + "port", String.valueOf(device.port()));
         props.setProperty(prefix + "userStatus", userStatus(device.userStatus()).name());
+        props.setProperty(prefix + "signature", device.signature());
+        props.setProperty(prefix + "avatar", device.avatar());
     }
 
     // 读取单个设备字段
@@ -125,14 +127,16 @@ final class RecentStore {
                 Boolean.parseBoolean(props.getProperty(prefix + "imageAvatar", "false")),
                 props.getProperty(prefix + "host", ""),
                 intValue(props.getProperty(prefix + "port"), 0),
-                userStatus(props.getProperty(prefix + "userStatus")));
+                userStatus(props.getProperty(prefix + "userStatus")),
+                props.getProperty(prefix + "signature", ""),
+                props.getProperty(prefix + "avatar", ""));
     }
 
     // 更新时间文本
     private UserDevice touched(UserDevice device) {
         return new UserDevice(device.id(), device.nickname(), device.deviceName(), device.status(),
                 TIME.format(LocalDateTime.now()), device.avatarText(), device.color(), device.imageAvatar(),
-                device.host(), device.port(), userStatus(device.userStatus()));
+                device.host(), device.port(), userStatus(device.userStatus()), device.signature(), device.avatar());
     }
 
     // 解析设备在线状态

@@ -32,6 +32,7 @@ final class LanPeer {
     private static final List<Integer> SCAN_PORTS = configuredScanPorts();
     private static final int WAIT_MILLIS = 900;
     private static final long OFFLINE_MILLIS = 30_000;
+    private static final int PACKET_BYTES = 60_000;
     private static final String DISCOVER = "LANTRANSFER_DISCOVER_V1";
     private static final String HERE = "LANTRANSFER_HERE_V1";
     private static final List<String> COLORS = List.of("#4f7bd8", "#35c6ca", "#7a52d8", "#5ebd3e", "#db3dbd");
@@ -100,7 +101,8 @@ final class LanPeer {
     String encode(UserDevice device) {
         return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户")
                 + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port()
-                + "\t" + userStatus(device.userStatus()).name() + "\t" + groupHash;
+                + "\t" + userStatus(device.userStatus()).name() + "\t" + groupHash
+                + "\t" + clean(device.signature(), "") + "\t" + avatar(device.avatar());
     }
 
     // 解析 UDP 响应文本
@@ -110,7 +112,7 @@ final class LanPeer {
 
     // 解析 UDP 响应文本并用来源地址兜底
     private UserDevice parse(String message, String fallbackHost) {
-        String[] parts = message == null ? new String[0] : message.split("\t", 8);
+        String[] parts = message == null ? new String[0] : message.split("\t", 10);
         if (parts.length < 4 || !HERE.equals(parts[0])) {
             return null;
         }
@@ -123,13 +125,16 @@ final class LanPeer {
         String host = parts.length >= 5 ? clean(parts[4], fallbackHost) : fallbackHost;
         int port = parts.length >= 6 ? port(parts[5]) : TRANSFER_PORT;
         UserStatus status = parts.length >= 7 ? userStatus(parts[6]) : UserStatus.DEFAULT;
-        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id), false, host, port, status);
+        String signature = parts.length >= 9 ? clean(parts[8], "") : "";
+        String avatar = parts.length >= 10 ? avatar(parts[9]) : "";
+        return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", initial(nickname), color(id),
+                !avatar.isBlank(), host, port, status, signature, avatar);
     }
 
     // 接收一次扫描响应
     private void receiveReply(DatagramSocket socket) {
         try {
-            byte[] buffer = new byte[512];
+            byte[] buffer = new byte[PACKET_BYTES];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             socket.receive(packet);
             UserDevice device = parse(new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8), packet.getAddress().getHostAddress());
@@ -155,7 +160,7 @@ final class LanPeer {
             socket.setReuseAddress(true);
             socket.bind(new InetSocketAddress(PORT));
             while (true) {
-                byte[] buffer = new byte[512];
+                byte[] buffer = new byte[PACKET_BYTES];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
@@ -230,16 +235,25 @@ final class LanPeer {
         String nickname = clean(profile.nickname(), current.nickname());
         String id = clean(profile.userId(), current.id());
         self = new UserDevice(id, nickname, clean(profile.deviceName(), current.deviceName()), DeviceStatus.ONLINE, "本机",
-                initial(nickname), color(id), false, current.host(), current.port(), userStatus(profile.status()));
+                initial(nickname), color(id), !avatar(profile.avatar()).isBlank(), current.host(), current.port(),
+                userStatus(profile.status()), clean(profile.signature(), ""), avatar(profile.avatar()));
         remember(self);
+        announce();
     }
 
     // 按当前状态刷新本机发现信息
     void updateStatus(UserStatus status) {
+        updateStatus(status, self.signature());
+    }
+
+    // 按当前状态和签名刷新本机发现信息
+    void updateStatus(UserStatus status, String signature) {
         UserDevice current = self;
         self = new UserDevice(current.id(), current.nickname(), current.deviceName(), DeviceStatus.ONLINE, "本机",
-                current.avatarText(), current.color(), current.imageAvatar(), current.host(), current.port(), userStatus(status));
+                current.avatarText(), current.color(), current.imageAvatar(), current.host(), current.port(),
+                userStatus(status), clean(signature, current.signature()), current.avatar());
         remember(self);
+        announce();
     }
 
     // 更新传输口令分组摘要
@@ -254,7 +268,8 @@ final class LanPeer {
         boolean online = (self.id().equals(device.id()) || age <= offlineMillis) && discoverable(userStatus);
         return new UserDevice(device.id(), device.nickname(), device.deviceName(),
                 online ? DeviceStatus.ONLINE : DeviceStatus.OFFLINE, online ? seenText(device, age) : statusText(userStatus),
-                device.avatarText(), device.color(), device.imageAvatar(), device.host(), device.port(), userStatus);
+                device.avatarText(), device.color(), device.imageAvatar(), device.host(), device.port(), userStatus,
+                device.signature(), device.avatar());
     }
 
     // 生成最后发现时间展示文本
@@ -277,6 +292,20 @@ final class LanPeer {
         String nickname = clean(System.getProperty("user.name"), "本机");
         String id = idFor(nickname + "@" + deviceName);
         return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "本机", initial(nickname), color(id), false, localIp(), TRANSFER_PORT);
+    }
+
+    // 静默广播本机资料给同组客户端
+    private void announce() {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setBroadcast(true);
+            byte[] data = encode(self).getBytes(StandardCharsets.UTF_8);
+            for (InetAddress address : broadcastAddresses()) {
+                for (int port : SCAN_PORTS) {
+                    sendDiscover(socket, data, address, port);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     // 获取本机主机名
@@ -442,6 +471,22 @@ final class LanPeer {
             return fallback;
         }
         return cleaned.length() > 40 ? cleaned.substring(0, 40) : cleaned;
+    }
+
+    // 清洗头像传输字段
+    private String avatar(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.length() > 24_000) {
+            return "";
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            boolean ok = ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '+' || ch == '/' || ch == '=';
+            if (!ok) {
+                return "";
+            }
+        }
+        return text;
     }
 
     // 取头像首字

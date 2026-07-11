@@ -152,6 +152,8 @@ final class GroupStore {
         props.setProperty(prefix + "host", device.host());
         props.setProperty(prefix + "port", String.valueOf(device.port()));
         props.setProperty(prefix + "userStatus", userStatus(device.userStatus()).name());
+        props.setProperty(prefix + "signature", device.signature());
+        props.setProperty(prefix + "avatar", device.avatar());
     }
 
     // 读取单个成员字段
@@ -170,7 +172,9 @@ final class GroupStore {
                 Boolean.parseBoolean(props.getProperty(prefix + "imageAvatar", "false")),
                 props.getProperty(prefix + "host", ""),
                 intValue(props.getProperty(prefix + "port"), 0),
-                userStatus(props.getProperty(prefix + "userStatus")));
+                userStatus(props.getProperty(prefix + "userStatus")),
+                props.getProperty(prefix + "signature", ""),
+                props.getProperty(prefix + "avatar", ""));
     }
 
     // 解析设备在线状态

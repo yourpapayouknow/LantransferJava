@@ -3,6 +3,7 @@ package com.iwmei.lantransfer.view;
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserStatus;
 import javafx.geometry.HPos;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -15,11 +16,25 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import org.kordamp.ikonli.javafx.FontIcon;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.util.Base64;
 
 // 我的资料页面逻辑
 final class Mine {
     private static final double PROFILE_FORM_WIDTH = 542;
+    private static final double PHOTO_SIZE = 136;
     private final MainWindow app;
     private TextField nicknameField;
     private TextField deviceNameField;
@@ -67,7 +82,8 @@ final class Mine {
         HBox root = new HBox(28);
         root.setAlignment(Pos.CENTER_LEFT);
         root.setMaxWidth(Double.MAX_VALUE);
-        StackPane photo = new StackPane(app.avatar(app.initialOf(profile.nickname()), "#d6dee8", 120));
+        root.setPadding(new Insets(16));
+        StackPane photo = profilePhoto(profile);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         GridPane fields = new GridPane();
@@ -81,6 +97,67 @@ final class Mine {
         signatureField = editableRow(fields, 3, "个性签名", profile.signature());
         root.getChildren().addAll(photo, spacer, fields);
         return root;
+    }
+
+    // 构建可修改头像节点
+    private StackPane profilePhoto(Profile profile) {
+        Label mask = new Label("修改");
+        mask.getStyleClass().add("profile-avatar-mask");
+        mask.setMinSize(PHOTO_SIZE, PHOTO_SIZE);
+        mask.setMaxSize(PHOTO_SIZE, PHOTO_SIZE);
+        StackPane photo = new StackPane(app.avatar(app.initialOf(profile.nickname()), "#d6dee8", PHOTO_SIZE, profile.avatar()), mask);
+        photo.getStyleClass().add("profile-avatar-wrap");
+        photo.setOnMouseClicked(event -> chooseAvatar());
+        return photo;
+    }
+
+    // 选择头像文件并保存到当前资料
+    private void chooseAvatar() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("选择头像");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("图片", "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif"));
+        File file = chooser.showOpenDialog(app.stage);
+        if (file == null) {
+            return;
+        }
+        try {
+            app.profile = withAvatar(readProfile(), jpegAvatar(file));
+            app.controller.updateProfile(app.profile);
+            app.toast("头像已保存");
+            showProfilePage();
+        } catch (Exception ex) {
+            app.toast("头像处理失败");
+        }
+    }
+
+    // 把头像压缩成 128px JPEG 的 Base64 文本
+    private String jpegAvatar(File file) throws Exception {
+        BufferedImage source = ImageIO.read(file);
+        if (source == null) {
+            throw new IllegalArgumentException("请选择图片文件");
+        }
+        int side = Math.min(source.getWidth(), source.getHeight());
+        int x = (source.getWidth() - side) / 2;
+        int y = (source.getHeight() - side) / 2;
+        BufferedImage out = new BufferedImage(128, 128, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = out.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        graphics.setColor(java.awt.Color.WHITE);
+        graphics.fillRect(0, 0, 128, 128);
+        graphics.drawImage(source, 0, 0, 128, 128, x, y, x + side, y + side, null);
+        graphics.dispose();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("jpg").next();
+        ImageWriteParam param = writer.getDefaultWriteParam();
+        param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        param.setCompressionQuality(0.72f);
+        try (ImageOutputStream output = ImageIO.createImageOutputStream(bytes)) {
+            writer.setOutput(output);
+            writer.write(null, new IIOImage(out, null, null), param);
+        } finally {
+            writer.dispose();
+        }
+        return Base64.getEncoder().encodeToString(bytes.toByteArray());
     }
 
     // 向资料表单加入可编辑字段行
@@ -198,20 +275,27 @@ final class Mine {
     // 复制资料并替换个性签名
     private Profile withSignature(Profile profile, String signature) {
         return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), signature,
-                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), profile.status());
+                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), profile.status(), profile.avatar());
     }
 
     // 复制资料并替换用户状态
     private Profile withStatus(Profile profile, UserStatus status) {
         return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), profile.signature(),
-                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), status);
+                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), status, profile.avatar());
+    }
+
+    // 复制资料并替换头像
+    private Profile withAvatar(Profile profile, String avatar) {
+        return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), profile.signature(),
+                profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), profile.status(), avatar);
     }
 
     // 从资料表单读取当前资料
     private Profile readProfile() {
         return new Profile(text(nicknameField, app.profile.nickname()), app.profile.userId(),
                 text(deviceNameField, app.profile.deviceName()), text(signatureField, app.profile.signature()),
-                app.profile.registeredAt(), app.profile.lastLoginAt(), app.profile.version(), app.profile.language(), selectedStatus);
+                app.profile.registeredAt(), app.profile.lastLoginAt(), app.profile.version(), app.profile.language(), selectedStatus,
+                app.profile.avatar());
     }
 
     // 读取文本输入值
