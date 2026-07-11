@@ -238,9 +238,9 @@ final class UserList {
         } else {
             nameInput = null;
             codeInput = null;
-            text = new VBox(6, app.titleLabel(group.name(), 18),
-                    app.mutedLabel("共" + group.size() + "名用户", 14),
-                    app.mutedLabel(group.code(), 13));
+            String subtitle = "共" + group.size() + "名用户"
+                    + (group.code().isBlank() ? "" : " | 口令：" + group.code());
+            text = new VBox(6, app.titleLabel(group.name(), 22), app.mutedLabel(subtitle, 14));
         }
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
