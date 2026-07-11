@@ -261,9 +261,9 @@
 
 所属功能：登录与注册页面。
 
-详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册提交后根据后端结果决定显示错误、审核等待页或返回登录页。
+详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录和注册密码栏都有小眼睛按钮，可以在隐藏密码和明文显示之间切换。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册提交后会禁用表单并显示加载动画，后端返回后再根据结果决定显示错误、审核等待页或返回登录页。
 
-实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`loginForm()` 创建账号、密码、记住我控件，不写入任何默认演示账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 构造 `RegisterRequest` 调用注册接口；失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
+实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`passwordBox(String)` 用一个 `PasswordField` 和一个绑定同一文本的 `TextField` 叠放在 `StackPane` 中，默认只显示 `PasswordField`；点击 `mdi2e-eye` 图标按钮时切换两个输入框的 `visible/managed` 状态，并把图标切到 `mdi2e-eye-off`，因此同一份密码值不会复制到多个业务变量。`labeledPassword(...)` 复用页面标签样式包装密码组合控件。`loginForm()` 创建账号、密码、记住我控件，不写入任何默认演示账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时从 `PasswordBox.getText()` 取密码构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 点击提交后立即显示 `ProgressIndicator`、禁用账号/密码/设备/提交按钮，然后构造 `RegisterRequest` 调用注册接口；返回后隐藏加载动画并恢复表单，失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AuthStoreCheck.java`
 

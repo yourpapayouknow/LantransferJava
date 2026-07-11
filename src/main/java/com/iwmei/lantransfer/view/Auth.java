@@ -10,10 +10,15 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 // 登录注册页面逻辑
 final class Auth {
@@ -74,7 +79,7 @@ final class Auth {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");
         TextField account = app.textField("请输入账号");
-        PasswordField password = app.passwordField("请输入密码");
+        PasswordBox password = passwordBox("请输入密码");
         CheckBox rememberMe = app.checkBox("记住我", false);
         app.controller.loadRememberedAccount().thenAccept(saved -> Platform.runLater(() -> {
             if (saved != null && !saved.isBlank()) {
@@ -101,7 +106,7 @@ final class Auth {
         registerButton.setOnAction(event -> app.showAuth(true));
         HBox divider = new HBox(18, app.line(), app.mutedLabel("或", 14), app.line());
         divider.setAlignment(Pos.CENTER);
-        form.getChildren().addAll(app.labeledField("账号", account), app.labeledField("密码", password), rememberMe, loginButton, divider, registerButton);
+        form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), rememberMe, loginButton, divider, registerButton);
         return form;
     }
 
@@ -110,12 +115,29 @@ final class Auth {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");
         TextField account = app.textField("请输入账号");
-        PasswordField password = app.passwordField("请输入密码");
+        PasswordBox password = passwordBox("请输入密码");
         TextField device = app.textField("当前设备名称");
         Button submit = app.primaryButton("提交注册申请");
         submit.setMaxWidth(Double.MAX_VALUE);
-        submit.setOnAction(event -> app.controller.register(new RegisterRequest(account.getText().trim(), password.getText(), device.getText().trim()))
+        ProgressIndicator loading = new ProgressIndicator();
+        loading.setMaxSize(24, 24);
+        loading.setVisible(false);
+        HBox submitRow = new HBox(10, submit, loading);
+        submitRow.setAlignment(Pos.CENTER);
+        HBox.setHgrow(submit, Priority.ALWAYS);
+        submit.setOnAction(event -> {
+            loading.setVisible(true);
+            submit.setDisable(true);
+            account.setDisable(true);
+            password.setDisable(true);
+            device.setDisable(true);
+            app.controller.register(new RegisterRequest(account.getText().trim(), password.getText(), device.getText().trim()))
                 .thenAccept(result -> Platform.runLater(() -> {
+                    loading.setVisible(false);
+                    submit.setDisable(false);
+                    account.setDisable(false);
+                    password.setDisable(false);
+                    device.setDisable(false);
                     if (!result.success()) {
                         app.toast(result.message());
                     } else if (result.pendingReview()) {
@@ -125,11 +147,64 @@ final class Auth {
                         app.toast(result.message());
                         app.showAuth(false);
                     }
-                })));
+                }));
+        });
         Button backLogin = app.outlineButton("已有账号，返回登录");
         backLogin.setMaxWidth(Double.MAX_VALUE);
         backLogin.setOnAction(event -> app.showAuth(false));
-        form.getChildren().addAll(app.labeledField("账号", account), app.labeledField("密码", password), app.labeledField("设备名称", device), submit, backLogin);
+        form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), app.labeledField("设备名称", device), submitRow, backLogin);
         return form;
+    }
+
+    // 构建可显示或隐藏内容的密码输入控件
+    private PasswordBox passwordBox(String prompt) {
+        PasswordField hidden = app.passwordField(prompt);
+        TextField shown = app.textField(prompt);
+        hidden.setPadding(new Insets(0, 14, 0, 14));
+        shown.setPadding(new Insets(0, 14, 0, 14));
+        shown.textProperty().bindBidirectional(hidden.textProperty());
+        shown.setVisible(false);
+        shown.setManaged(false);
+        StackPane fields = new StackPane(hidden, shown);
+        fields.setMaxWidth(Double.MAX_VALUE);
+        hidden.setMaxWidth(Double.MAX_VALUE);
+        shown.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(fields, Priority.ALWAYS);
+        Button eye = app.iconToggleButton("mdi2e-eye", "显示密码", false);
+        eye.setOnAction(event -> {
+            boolean show = !shown.isVisible();
+            shown.setVisible(show);
+            shown.setManaged(show);
+            hidden.setVisible(!show);
+            hidden.setManaged(!show);
+            ((FontIcon) eye.getGraphic()).setIconLiteral(show ? "mdi2e-eye-off" : "mdi2e-eye");
+            eye.setTooltip(new Tooltip(show ? "隐藏密码" : "显示密码"));
+        });
+        return new PasswordBox(new HBox(8, fields, eye), hidden, shown);
+    }
+
+    // 构建密码字段标签和控件
+    private Node labeledPassword(String label, PasswordBox box) {
+        return new VBox(8, app.mutedLabel(label, 16), box.node());
+    }
+
+    // 登录注册页密码输入组合
+    private record PasswordBox(Node node, PasswordField hidden, TextField shown) {
+        // 返回当前密码文本
+        private String getText() {
+            return hidden.getText();
+        }
+
+        // 清空密码文本
+        private void clear() {
+            hidden.clear();
+        }
+
+        // 切换密码控件禁用状态
+        private void setDisable(boolean value) {
+            hidden.setDisable(value);
+            shown.setDisable(value);
+            node.setDisable(value);
+        }
     }
 }
