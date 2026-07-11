@@ -479,8 +479,10 @@ public class MainWindow extends Application {
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
         VBox text = new VBox(large ? 6 : 4, titleLabel(userCardTitle(device), large ? 18 : 14),
-                mutedLabel(userCardSubTitle(device), large ? 14 : 11),
-                statusLine(device.status(), large ? "上次在线： " + device.lastSeen() : device.lastSeen(), large ? 13 : 11));
+                mutedLabel(userCardSubTitle(device), large ? 14 : 11));
+        if (!device.groupTarget()) {
+            text.getChildren().add(statusLine(device.status(), large ? "上次在线： " + device.lastSeen() : device.lastSeen(), large ? 13 : 11));
+        }
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
         card.getChildren().addAll(avatar(device.avatarText(), device.color(), large ? 44 : 34, device.avatar()), text);
@@ -546,9 +548,6 @@ public class MainWindow extends Application {
     void addRecentTarget(UserDevice device) {
         recentTargetsLoaded = true;
         recentTargets.remove(device);
-        if (recentTargets.size() >= 5) {
-            recentTargets.remove(0);
-        }
         recentTargets.add(device);
         selectedTargets.remove(device);
         selectedTargets.add(device);

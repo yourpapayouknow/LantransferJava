@@ -42,7 +42,7 @@ final class FileTransfer {
     void showFileTransferPage() {
         app.controller.loadRecentDevices().thenAccept(devices -> Platform.runLater(() -> {
             if (!app.recentTargetsLoaded) {
-                app.recentTargets.addAll(devices.subList(0, Math.min(5, devices.size())));
+                app.recentTargets.addAll(devices);
                 app.recentTargetsLoaded = true;
             }
             VBox page = new VBox(8);
@@ -130,7 +130,7 @@ final class FileTransfer {
 
     // 生成上传区域提示文字
     private String uploadHint() {
-        return app.pendingFiles.isEmpty() ? "支持拖拽文件或文件夹到此处上传" : "已选择 " + app.pendingFiles.size() + " 个待传输项";
+        return app.pendingFiles.isEmpty() ? "或拖拽到此处" : "已选择 " + app.pendingFiles.size() + " 个待传输项";
     }
 
     // 切换拖拽区域高亮状态
@@ -182,7 +182,7 @@ final class FileTransfer {
 
     // 构建近期传输对象区域
     private VBox recentTargetsSection(List<UserDevice> devices) {
-        VBox section = app.glassSection("近期传输对象");
+        VBox section = app.glassSection("传输对象");
         GridPane cards = app.cardGrid(5, 8, 8);
         for (int i = 0; i < devices.size(); i++) {
             app.addCard(cards, app.userCard(devices.get(i), false), i, 5);
