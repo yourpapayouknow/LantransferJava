@@ -3,6 +3,7 @@ package com.iwmei.lantransfer.view;
 import com.iwmei.lantransfer.model.SystemSettings;
 import javafx.application.Platform;
 import javafx.geometry.HPos;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.scene.Node;
@@ -225,7 +226,8 @@ final class Settings {
             render(settings);
         });
         HBox row = new HBox(app.fixedWidth(save, 160));
-        row.setAlignment(Pos.CENTER_RIGHT);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(20, 0, 0, 0));
         return row;
     }
 
@@ -296,14 +298,16 @@ final class Settings {
         row.setMaxWidth(Double.MAX_VALUE);
         ColumnConstraints titleColumn = new ColumnConstraints(210, 210, 210);
         ColumnConstraints dividerColumn = new ColumnConstraints(1, 1, 1);
-        ColumnConstraints controlsColumn = new ColumnConstraints(620, 620, 620);
-        row.getColumnConstraints().addAll(titleColumn, dividerColumn, controlsColumn);
+        ColumnConstraints spacerColumn = new ColumnConstraints();
+        spacerColumn.setHgrow(Priority.ALWAYS);
+        ColumnConstraints controlsColumn = new ColumnConstraints(740, 740, 740);
+        row.getColumnConstraints().addAll(titleColumn, dividerColumn, spacerColumn, controlsColumn);
         row.add(text, 0, 0);
         row.add(app.separatorVertical(), 1, 0);
-        row.add(controls, 2, 0);
+        row.add(controls, 3, 0);
         GridPane.setHalignment(text, HPos.LEFT);
         GridPane.setValignment(text, VPos.CENTER);
-        GridPane.setHalignment(controls, HPos.LEFT);
+        GridPane.setHalignment(controls, HPos.RIGHT);
         GridPane.setValignment(controls, VPos.CENTER);
         return row;
     }
