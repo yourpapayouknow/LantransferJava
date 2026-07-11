@@ -49,7 +49,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
-import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
@@ -110,7 +109,6 @@ public class MainWindow extends Application {
     final Auth auth = new Auth(this);
     final FileTransfer fileTransfer = new FileTransfer(this);
     final UserList userList = new UserList(this);
-    final Scan scan = new Scan(this);
     final Mine mine = new Mine(this);
     final Settings settings = new Settings(this);
 
@@ -156,11 +154,6 @@ public class MainWindow extends Application {
     // 显示用户列表页面
     void showUserListPage() {
         userList.showUserListPage();
-    }
-
-    // 显示局域网扫描页面
-    void showScanPage() {
-        scan.showScanPage();
     }
 
     // 显示我的资料页面
@@ -260,7 +253,7 @@ public class MainWindow extends Application {
 
         HBox main = new HBox();
         main.getStyleClass().add("main-area");
-        main.getChildren().add(sidebar(activeNav, "扫描局域网".equals(activeNav)));
+        main.getChildren().add(sidebar(activeNav));
 
         VBox center = new VBox();
         center.getStyleClass().add("main-center");
@@ -376,12 +369,9 @@ public class MainWindow extends Application {
     }
 
     // 构建左侧导航栏
-    VBox sidebar(String activeNav, boolean includeScan) {
+    VBox sidebar(String activeNav) {
         VBox sidebar = new VBox(20);
         sidebar.getStyleClass().add("sidebar");
-        if (includeScan) {
-            sidebar.getChildren().add(navItem("扫描局域网", activeNav, this::showScanPage));
-        }
         sidebar.getChildren().addAll(
                 navItem("文件传输", activeNav, this::showFileTransferPage),
                 navItem("用户列表", activeNav, this::showUserListPage),
@@ -475,24 +465,6 @@ public class MainWindow extends Application {
             return String.format(Locale.ROOT, "%.2f KB/s", bytes / 1024);
         }
         return String.format(Locale.ROOT, "%.0f B/s", bytes);
-    }
-
-    // 构建扫描页面雷达图
-    StackPane radar(List<UserDevice> devices) {
-        StackPane radar = new StackPane();
-        radar.setMinSize(360, 260);
-        radar.setMaxSize(360, 260);
-        radar.getChildren().addAll(radarCircle(112), radarCircle(76), radarCircle(38));
-        Line horizontal = new Line(-140, 0, 140, 0);
-        Line vertical = new Line(0, -110, 0, 110);
-        horizontal.getStyleClass().add("radar-axis");
-        vertical.getStyleClass().add("radar-axis");
-        radar.getChildren().addAll(horizontal, vertical);
-        double[][] positions = {{-76, -42}, {70, -34}, {-34, 70}, {88, 58}};
-        for (int i = 0; i < Math.min(devices.size(), positions.length); i++) {
-            radar.getChildren().add(scanDeviceLabel(devices.get(i), positions[i][0], positions[i][1]));
-        }
-        return radar;
     }
 
     // 构建用户或近期对象卡片
@@ -1057,23 +1029,6 @@ public class MainWindow extends Application {
         combo.getItems().add(value);
         combo.setValue(value);
         return combo;
-    }
-
-    // 构建雷达背景圆环
-    Circle radarCircle(double radius) {
-        Circle circle = new Circle(radius);
-        circle.getStyleClass().add("radar-circle");
-        circle.setFill(Color.TRANSPARENT);
-        return circle;
-    }
-
-    // 构建雷达上的设备标签
-    Node scanDeviceLabel(UserDevice device, double x, double y) {
-        StackPane wrapper = new StackPane(avatar(device.avatarText(), device.status() == DeviceStatus.ONLINE ? accentColor : "#5f656b", 52, device.avatar()),
-                mutedLabel(device.nickname(), 13));
-        wrapper.setTranslateX(x);
-        wrapper.setTranslateY(y);
-        return wrapper;
     }
 
     // 构建网格列约束

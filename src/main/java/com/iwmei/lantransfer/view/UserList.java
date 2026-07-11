@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
@@ -32,7 +33,9 @@ final class UserList {
     private String groupName = "";
     private String groupCode = "";
     private String editingGroup = "";
+    private int scanRunId;
     private boolean grouping;
+    private boolean scanning;
 
     // 初始化用户列表页面对象
     UserList(MainWindow app) {
@@ -68,7 +71,14 @@ final class UserList {
             renderResults(devices, groups, results, total);
         });
         Button scan = app.primaryButton("扫描用户");
-        scan.setOnAction(event -> app.showScanPage());
+        if (scanning) {
+            scan.setText("扫描中");
+            scan.setGraphic(app.smallSpinner());
+            scan.setContentDisplay(ContentDisplay.RIGHT);
+            scan.setGraphicTextGap(8);
+            scan.setDisable(true);
+        }
+        scan.setOnAction(event -> scanUsers());
         Button groupAction = grouping ? app.primaryButton("确认分组") : app.secondaryButton("新建分组");
         groupAction.setOnAction(event -> {
             if (grouping) {
@@ -138,6 +148,21 @@ final class UserList {
         app.userListGridView = true;
         app.userListPage = 0;
         showUserListPage();
+    }
+
+    // 在用户列表页内执行局域网扫描
+    private void scanUsers() {
+        int runId = ++scanRunId;
+        scanning = true;
+        showUserListPage();
+        app.controller.scanLanDevices().whenComplete((devices, error) -> Platform.runLater(() -> {
+            if (runId != scanRunId) {
+                return;
+            }
+            scanning = false;
+            app.toast(error == null ? "扫描完成" : "扫描失败");
+            showUserListPage();
+        }));
     }
 
     // 取消新建分组状态
