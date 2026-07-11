@@ -58,7 +58,7 @@ final class Settings {
         page.getStyleClass().add("page-content");
         page.setAlignment(Pos.TOP_CENTER);
         VBox section = new VBox(0);
-        section.setMaxWidth(980);
+        section.setMaxWidth(Double.MAX_VALUE);
         section.setFillWidth(true);
         section.getChildren().addAll(
                 settingsRow("本机局域网IP", "", ipInfo(settings)),
@@ -180,7 +180,7 @@ final class Settings {
         receiveDir = app.textField("接收目录");
         receiveDir.setText(settings.receiveDir());
         receiveDir.setMinWidth(360);
-        receiveDir.setPrefWidth(560);
+        receiveDir.setPrefWidth(500);
         Button choose = app.outlineButton("选择");
         choose.setOnAction(event -> {
             DirectoryChooser chooser = new DirectoryChooser();
@@ -296,11 +296,8 @@ final class Settings {
         row.setMaxWidth(Double.MAX_VALUE);
         ColumnConstraints titleColumn = new ColumnConstraints(210, 210, 210);
         ColumnConstraints dividerColumn = new ColumnConstraints(1, 1, 1);
-        ColumnConstraints controlsColumn = new ColumnConstraints();
-        controlsColumn.setHgrow(Priority.ALWAYS);
-        controlsColumn.setFillWidth(true);
+        ColumnConstraints controlsColumn = new ColumnConstraints(620, 620, 620);
         row.getColumnConstraints().addAll(titleColumn, dividerColumn, controlsColumn);
-        controls.setMaxWidth(Double.MAX_VALUE);
         row.add(text, 0, 0);
         row.add(app.separatorVertical(), 1, 0);
         row.add(controls, 2, 0);
@@ -308,7 +305,6 @@ final class Settings {
         GridPane.setValignment(text, VPos.CENTER);
         GridPane.setHalignment(controls, HPos.LEFT);
         GridPane.setValignment(controls, VPos.CENTER);
-        GridPane.setHgrow(controls, Priority.ALWAYS);
         return row;
     }
 }
