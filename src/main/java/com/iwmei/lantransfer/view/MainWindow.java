@@ -414,7 +414,8 @@ public class MainWindow extends Application {
         Button theme = ghostTextButton("主题");
         theme.setOnAction(event -> showSettingsPage());
         Label name = titleLabel(displayName(), 14);
-        topbar.getChildren().addAll(spacer(), theme, new Separator(Orientation.VERTICAL), avatar(displayInitial(), "#c8d1dc", 34), name);
+        topbar.getChildren().addAll(spacer(), theme, new Separator(Orientation.VERTICAL),
+                avatar(displayInitial(), "#c8d1dc", 34, profile == null ? "" : profile.avatar()), name);
         return topbar;
     }
 
