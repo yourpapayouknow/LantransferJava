@@ -54,13 +54,13 @@ final class Settings {
         page.getStyleClass().add("page-content");
         VBox section = app.glassSection("系统设置");
         section.getChildren().addAll(
-                settingsRow("本机局域网 IP", "用于局域网发现", ipInfo(settings)),
-                settingsRow("传输速度限制", "0 表示不限", speedLimitControls(settings)),
-                settingsRow("失败重试次数", "失败后重试", retryControls(settings)),
-                settingsRow("界面颜色自定义", "保存后生效", colorControls(settings)),
+                settingsRow("本机局域网IP", "", ipInfo(settings)),
+                settingsRow("传输速度限制", "不限速请设定为0", speedLimitControls(settings)),
+                settingsRow("失败重试次数", "", retryControls(settings)),
+                settingsRow("界面颜色自定义", "", colorControls(settings)),
                 settingsRow("字体设置", "保存后生效", fontControls(settings)),
                 settingsRow("缩放比例", "", zoomControls(settings)),
-                settingsRow("接收目录", "接收文件位置", receiveDirControls(settings)),
+                settingsRow("接收目录", "", receiveDirControls(settings)),
                 settingsRow("语言设置", "", languageControls(settings)),
                 settingsRow("启动设置", "", startupControls(settings)),
                 saveControls(settings)
@@ -71,7 +71,7 @@ final class Settings {
 
     // 构建本机局域网地址信息
     private HBox ipInfo(SystemSettings settings) {
-        return new HBox(12, app.ipColumn("IPv4 地址", settings.ipv4()), app.ipColumn("IPv6 地址", settings.ipv6()));
+        return new HBox(12, app.ipColumn("IPv4地址", settings.ipv4()), app.ipColumn("IPv6地址", settings.ipv6()));
     }
 
     // 构建传输速度限制输入区域

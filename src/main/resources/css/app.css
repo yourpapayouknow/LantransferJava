@@ -461,7 +461,29 @@
 
 .dark-spinner,
 .combo-box {
-    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+    -fx-border-width: 1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-min-height: 38;
+}
+
+.dark-spinner .text-field,
+.combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #eef2f5;
+}
+
+.dark-spinner .increment-arrow-button,
+.dark-spinner .decrement-arrow-button {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark-spinner .increment-arrow,
+.dark-spinner .decrement-arrow,
+.combo-box .arrow {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
 }
 
 .color-swatch,

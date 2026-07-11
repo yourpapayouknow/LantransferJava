@@ -50,8 +50,6 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.DirectoryChooser;
@@ -596,7 +594,7 @@ public class MainWindow extends Application {
     Label titleLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("title-label");
-        label.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, compactFontSize(size)));
+        label.setStyle("-fx-font-size: " + compactFontSize(size) + "px; -fx-font-weight: 700;");
         return label;
     }
 
@@ -604,7 +602,7 @@ public class MainWindow extends Application {
     Label mutedLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("muted-label");
-        label.setFont(Font.font("Microsoft YaHei", compactFontSize(size)));
+        label.setStyle("-fx-font-size: " + compactFontSize(size) + "px;");
         return label;
     }
 
@@ -612,7 +610,7 @@ public class MainWindow extends Application {
     Label accentLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("accent-label");
-        label.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, compactFontSize(size)));
+        label.setStyle("-fx-font-size: " + compactFontSize(size) + "px; -fx-font-weight: 700;");
         return label;
     }
 
@@ -817,7 +815,7 @@ public class MainWindow extends Application {
         dot.getStyleClass().add(status == DeviceStatus.ONLINE ? "online-dot" : "offline-dot");
         Label text = new Label(status == DeviceStatus.ONLINE ? "在线" : "离线");
         text.getStyleClass().add(status == DeviceStatus.ONLINE ? "online-text" : "muted-label");
-        text.setFont(Font.font("Microsoft YaHei", compactFontSize(size)));
+        text.setStyle("-fx-font-size: " + compactFontSize(size) + "px;");
         line.getChildren().addAll(dot, text, mutedLabel(suffix, size));
         return line;
     }
@@ -964,9 +962,14 @@ public class MainWindow extends Application {
 
     // 构建 IP 地址展示列
     HBox ipColumn(String title, String value) {
-        Button copyButton = compactButton("复制");
-        copyButton.setOnAction(event -> copyToClipboard(value, "已复制 " + title));
-        fixedWidth(copyButton, 48);
+        FontIcon copy = new FontIcon("mdi2c-content-copy");
+        copy.getStyleClass().add("button-font-icon");
+        copy.setIconSize(15);
+        Button copyButton = compactButton("");
+        copyButton.setGraphic(copy);
+        copyButton.setTooltip(new Tooltip("复制"));
+        copyButton.setOnAction(event -> copyToClipboard(value, "已复制" + title));
+        fixedWidth(copyButton, 32);
         HBox row = new HBox(10, new VBox(4, mutedLabel(title, 14), titleLabel(value, 17)), copyButton);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
@@ -1038,7 +1041,7 @@ public class MainWindow extends Application {
         grid.add(cell, 1, row);
         Button button = secondaryButton(action);
         if ("复制".equals(action)) {
-            button.setOnAction(event -> copyToClipboard(value, "已复制 " + label));
+            button.setOnAction(event -> copyToClipboard(value, "已复制" + label));
         }
         grid.add(button, 2, row);
     }

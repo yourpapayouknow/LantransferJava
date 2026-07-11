@@ -72,6 +72,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 ## Frontend Scope
 
 - 不恢复 Swing 旧前端；除非用户明确要求，`javax.swing` / `java.awt` 前端代码不应重新出现。
+- UI展示文案中，中文和英文、数字或技术缩写之间不要额外加空格，例如写`本机局域网IP`、`IPv4地址`。
 - 前端改动仍只修改这些路径；后端阶段不受此列表限制：
   - `src/main/java/com/iwmei/lantransfer/view/`
   - `src/main/java/com/iwmei/lantransfer/controller/`
