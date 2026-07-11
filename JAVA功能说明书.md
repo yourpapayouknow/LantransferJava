@@ -85,7 +85,7 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序只生成 `req/<账号>` 请求文件并推送到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并推送到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。该实现依赖当前机器具备仓库 push 凭据；普通用户无凭据、由 App 直接发 HTTP 包创建 GitHub issue 的替代方案尚未实现，原因记录在 `未实现功能清单0.md`。
 
 实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要和资料字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、提交短消息 `acco req` 并推送。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`updateProfile(Profile)` 和 `updateStatus(UserStatus, String)` 仍通过 `userId` 找到账号行，更新资料或状态后直接提交推送 `acco`；如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
 
