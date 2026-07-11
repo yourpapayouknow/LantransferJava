@@ -373,9 +373,9 @@
 
 所属功能：我的资料页面。
 
-详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。昵称、设备名称和个性签名行点击“编辑”后可以修改，底部“保存”会把新的 `Profile` 写回 `acco` 账号表。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
+详细功能：展示当前用户资料、状态设置、自定义状态输入和账号更多信息。未登录时会回到登录页。我的资料卡片左侧展示头像，右侧展示昵称、用户ID、设备名称和个性签名四项资料；右侧资料表单固定为原先宽度的约80%，整体靠卡片右侧排列，资料标签在表单内右对齐。用户ID行是只读展示，右侧使用复制图标按钮写入系统剪贴板。昵称、设备名称和个性签名行默认只读，右侧使用编辑图标按钮进入编辑状态；进入编辑状态后按钮会变成强调色对勾图标，点击对勾会保存当前资料、退出编辑状态并提示保存成功。底部“保存”仍可一次性保存当前表单值，底部“重置”会按当前账号资料重新渲染页面。状态卡可以直接点击切换，当前状态会高亮；自定义状态保存会更新账号状态，并把 `app.profile.signature()` 替换成输入文本后重绘页面。
 
-实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用头像和表格行展示资料，`editableRow(...)` 创建默认只读的 `TextField` 和“编辑”按钮，点击后允许输入。保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
+实现方法：`showProfilePage()` 检查 `app.profile`，把 `Profile.status()` 写入 `selectedStatus`，再组装资料、状态和更多信息三个分区，并给保存/重置按钮绑定动作。`profileEditor(Profile)` 用 `HBox` 放头像、弹性空白和资料表单，`root.setMaxWidth(Double.MAX_VALUE)` 让容器吃满资料卡片宽度，弹性空白把资料表单推到右侧，`PROFILE_FORM_WIDTH` 和三列约束把表单宽度收窄到约542px。`editableRow(...)` 创建默认只读的 `TextField` 和图标按钮，按钮初始为 `mdi2p-pencil` 编辑图标，点击后切换输入框可编辑状态、把按钮样式从 `compact-button` 改为 `primary-button` 并把图标改成 `mdi2c-check`；再次点击时调用 `readProfile()` 读取昵称、设备名称和个性签名，调用 `app.controller.updateProfile(...)` 写回账号表，然后恢复编辑图标。`profileRow(...)` 专门构建用户ID只读行，使用 `mdi2c-content-copy` 图标按钮调用 `app.copyToClipboard(...)`。`addProfileLabel(...)` 统一创建右对齐资料标签，`profileIconButton(...)` 和 `profileIcon(...)` 统一创建资料卡片的小图标按钮。底部保存按钮调用 `readProfile()` 从输入框构造新的 `Profile`，再调用 `app.controller.updateProfile(...)` 持久化。`statusCards()` 展示五种 `UserStatus` 对应状态文案，`statusCard(...)` 绑定点击事件并调用 `saveStatus(...)`；`saveStatus(...)` 同步调用 `updateStatus(...)`、更新 `app.profile` 并刷新页面。`customStatusField()` 会把当前签名预填到输入框，保存时复用当前 `selectedStatus`。
 
 ## `src/main/java/com/iwmei/lantransfer/view/Settings.java`
 

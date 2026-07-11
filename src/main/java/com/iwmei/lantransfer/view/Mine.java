@@ -2,19 +2,24 @@ package com.iwmei.lantransfer.view;
 
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserStatus;
+import javafx.geometry.HPos;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 // 我的资料页面逻辑
 final class Mine {
+    private static final double PROFILE_FORM_WIDTH = 542;
     private final MainWindow app;
     private TextField nicknameField;
     private TextField deviceNameField;
@@ -61,34 +66,88 @@ final class Mine {
     private HBox profileEditor(Profile profile) {
         HBox root = new HBox(28);
         root.setAlignment(Pos.CENTER_LEFT);
+        root.setMaxWidth(Double.MAX_VALUE);
         StackPane photo = new StackPane(app.avatar(app.initialOf(profile.nickname()), "#d6dee8", 120));
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
         GridPane fields = new GridPane();
         fields.setHgap(12);
         fields.setVgap(10);
-        fields.getColumnConstraints().addAll(app.column(96, false), app.column(470, true), app.column(88, false));
+        fields.getColumnConstraints().addAll(app.column(96, false), app.column(382, true), app.column(40, false));
+        app.fixedWidth(fields, PROFILE_FORM_WIDTH);
         nicknameField = editableRow(fields, 0, "昵称", profile.nickname());
-        app.addProfileRow(fields, 1, "用户ID", profile.userId(), null, "复制");
+        profileRow(fields, 1, "用户ID", profile.userId());
         deviceNameField = editableRow(fields, 2, "设备名称", profile.deviceName());
         signatureField = editableRow(fields, 3, "个性签名", profile.signature());
-        root.getChildren().addAll(photo, fields);
+        root.getChildren().addAll(photo, spacer, fields);
         return root;
     }
 
     // 向资料表单加入可编辑字段行
     private TextField editableRow(GridPane grid, int row, String label, String value) {
-        grid.add(app.mutedLabel(label, 14), 0, row);
+        addProfileLabel(grid, row, label);
         TextField field = app.textField(label);
         field.setText(value);
         field.setEditable(false);
+        field.setMaxWidth(Double.MAX_VALUE);
         grid.add(field, 1, row);
-        Button edit = app.secondaryButton("编辑");
+        Button edit = profileIconButton("mdi2p-pencil", "编辑", "compact-button");
         edit.setOnAction(event -> {
-            field.setEditable(true);
-            field.requestFocus();
-            field.positionCaret(field.getText().length());
+            boolean editing = !field.isEditable();
+            field.setEditable(editing);
+            profileIcon(edit, editing ? "mdi2c-check" : "mdi2p-pencil", editing ? "保存" : "编辑");
+            edit.getStyleClass().removeAll("compact-button", "primary-button");
+            edit.getStyleClass().add(editing ? "primary-button" : "compact-button");
+            if (editing) {
+                field.requestFocus();
+                field.positionCaret(field.getText().length());
+                return;
+            }
+            app.profile = readProfile();
+            app.controller.updateProfile(app.profile);
+            app.toast(label + "已保存");
         });
         grid.add(edit, 2, row);
         return field;
+    }
+
+    // 向资料表单加入只读字段行
+    private void profileRow(GridPane grid, int row, String label, String value) {
+        addProfileLabel(grid, row, label);
+        Label field = app.titleLabel(value, 16);
+        StackPane cell = new StackPane(field);
+        cell.setAlignment(Pos.CENTER_LEFT);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        grid.add(cell, 1, row);
+        Button copy = profileIconButton("mdi2c-content-copy", "复制", "compact-button");
+        copy.setOnAction(event -> app.copyToClipboard(value, "已复制" + label));
+        grid.add(copy, 2, row);
+    }
+
+    // 向资料表单加入右对齐标签
+    private void addProfileLabel(GridPane grid, int row, String text) {
+        Label label = app.mutedLabel(text, 14);
+        GridPane.setHalignment(label, HPos.RIGHT);
+        grid.add(label, 0, row);
+    }
+
+    // 构建资料表单图标按钮
+    private Button profileIconButton(String iconCode, String tooltip, String styleClass) {
+        Button button = app.compactButton("");
+        app.fixedWidth(button, 36);
+        profileIcon(button, iconCode, tooltip);
+        button.getStyleClass().remove("compact-button");
+        button.getStyleClass().add(styleClass);
+        return button;
+    }
+
+    // 设置资料表单图标按钮内容
+    private void profileIcon(Button button, String iconCode, String tooltip) {
+        FontIcon icon = new FontIcon(iconCode);
+        icon.getStyleClass().add("button-font-icon");
+        icon.setIconSize(15);
+        button.setGraphic(icon);
+        button.setTooltip(new Tooltip(tooltip));
     }
 
     // 构建状态选择卡片区域
