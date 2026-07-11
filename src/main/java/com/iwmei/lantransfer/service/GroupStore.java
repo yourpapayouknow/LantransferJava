@@ -1,6 +1,7 @@
 package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.DeviceStatus;
+import com.iwmei.lantransfer.model.Group;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
 
@@ -31,28 +32,33 @@ final class GroupStore {
     }
 
     // 保存一个分组并返回可加入近期对象的组目标
-    synchronized UserDevice save(String name, List<UserDevice> members) {
+    synchronized UserDevice save(String name, String code, List<UserDevice> members) {
         String groupName = UserDevice.cleanGroupName(name);
         List<UserDevice> cleanMembers = cleanMembers(members);
         if (cleanMembers.isEmpty()) {
             throw new IllegalArgumentException("分组至少需要一个用户");
         }
-        Map<String, List<UserDevice>> groups = loadGroups();
-        groups.put(groupName, cleanMembers);
+        Map<String, Group> groups = loadGroups();
+        groups.put(groupName, new Group(groupName, code, cleanMembers));
         writeGroups(groups);
         return UserDevice.group(groupName, cleanMembers.size());
     }
 
+    // 加载全部分组详情供用户列表展示
+    synchronized List<Group> all() {
+        return new ArrayList<>(loadGroups().values());
+    }
+
     // 加载所有可显示在近期对象中的分组目标
     synchronized List<UserDevice> targets() {
-        return loadGroups().entrySet().stream()
-                .map(entry -> UserDevice.group(entry.getKey(), entry.getValue().size()))
+        return loadGroups().values().stream()
+                .map(Group::target)
                 .toList();
     }
 
     // 把传输目标中的分组展开为真实成员
     synchronized List<UserDevice> expand(List<UserDevice> targets) {
-        Map<String, List<UserDevice>> groups = loadGroups();
+        Map<String, Group> groups = loadGroups();
         Map<String, UserDevice> expanded = new LinkedHashMap<>();
         for (UserDevice target : targets == null ? List.<UserDevice>of() : targets) {
             if (target == null) {
@@ -62,12 +68,12 @@ final class GroupStore {
                 expanded.putIfAbsent(target.id(), target);
                 continue;
             }
-            List<UserDevice> members = groups.get(target.groupName());
-            if (members == null || members.isEmpty()) {
+            Group group = groups.get(target.groupName());
+            if (group == null || group.members().isEmpty()) {
                 expanded.putIfAbsent(target.id(), target);
                 continue;
             }
-            for (UserDevice member : members) {
+            for (UserDevice member : group.members()) {
                 expanded.putIfAbsent(member.id(), member);
             }
         }
@@ -86,8 +92,8 @@ final class GroupStore {
     }
 
     // 读取分组文件中的全部分组
-    private Map<String, List<UserDevice>> loadGroups() {
-        Map<String, List<UserDevice>> groups = new LinkedHashMap<>();
+    private Map<String, Group> loadGroups() {
+        Map<String, Group> groups = new LinkedHashMap<>();
         if (!Files.exists(store)) {
             return groups;
         }
@@ -100,6 +106,7 @@ final class GroupStore {
         int count = intValue(props.getProperty("count"), 0);
         for (int group = 0; group < count; group++) {
             String name = UserDevice.cleanGroupName(props.getProperty(group + ".name", ""));
+            String code = props.getProperty(group + ".code", "");
             int members = intValue(props.getProperty(group + ".memberCount"), 0);
             List<UserDevice> devices = new ArrayList<>();
             for (int member = 0; member < members; member++) {
@@ -109,23 +116,24 @@ final class GroupStore {
                 }
             }
             if (!devices.isEmpty()) {
-                groups.put(name, devices);
+                groups.put(name, new Group(name, code, devices));
             }
         }
         return groups;
     }
 
     // 写回全部分组
-    private void writeGroups(Map<String, List<UserDevice>> groups) {
+    private void writeGroups(Map<String, Group> groups) {
         Properties props = new Properties();
         props.setProperty("repo.origin", AppFiles.repoOrigin());
         props.setProperty("count", String.valueOf(groups.size()));
         int group = 0;
-        for (Map.Entry<String, List<UserDevice>> entry : groups.entrySet()) {
-            props.setProperty(group + ".name", entry.getKey());
-            props.setProperty(group + ".memberCount", String.valueOf(entry.getValue().size()));
-            for (int member = 0; member < entry.getValue().size(); member++) {
-                put(props, group + ".member." + member + ".", entry.getValue().get(member));
+        for (Group entry : groups.values()) {
+            props.setProperty(group + ".name", entry.name());
+            props.setProperty(group + ".code", entry.code());
+            props.setProperty(group + ".memberCount", String.valueOf(entry.members().size()));
+            for (int member = 0; member < entry.members().size(); member++) {
+                put(props, group + ".member." + member + ".", entry.members().get(member));
             }
             group++;
         }

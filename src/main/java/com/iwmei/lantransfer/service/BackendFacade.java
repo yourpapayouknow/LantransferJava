@@ -22,8 +22,11 @@ public interface BackendFacade {
     // 加载全部可传输用户设备
     CompletableFuture<List<UserDevice>> loadAllDevices();
 
+    // 加载全部本地传输分组
+    CompletableFuture<List<Group>> loadGroups();
+
     // 保存本地传输分组并返回组目标
-    CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members);
+    CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members);
 
     // 扫描局域网用户设备
     CompletableFuture<List<UserDevice>> scanLanDevices();

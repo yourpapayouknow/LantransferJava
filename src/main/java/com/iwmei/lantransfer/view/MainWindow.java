@@ -497,12 +497,17 @@ public class MainWindow extends Application {
 
     // 构建用户或近期对象卡片
     Node userCard(UserDevice device, boolean large) {
+        return userCard(device, large, false);
+    }
+
+    // 构建用户或近期对象卡片，可在建组选择模式隐藏发送按钮
+    Node userCard(UserDevice device, boolean large, boolean pickMode) {
         HBox card = new HBox(large ? 14 : 8);
         card.getStyleClass().add(large ? "user-card-large" : "user-card");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
-        VBox text = new VBox(large ? 6 : 4, titleLabel(device.nickname(), large ? 18 : 14),
-                mutedLabel(device.signature().isBlank() ? device.deviceName() : device.signature(), large ? 14 : 11),
+        VBox text = new VBox(large ? 6 : 4, titleLabel(userCardTitle(device), large ? 18 : 14),
+                mutedLabel(userCardSubTitle(device), large ? 14 : 11),
                 statusLine(device.status(), large ? "上次在线： " + device.lastSeen() : device.lastSeen(), large ? 13 : 11));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
@@ -511,13 +516,12 @@ public class MainWindow extends Application {
             card.getStyleClass().add("selected-target");
         }
         card.setCursor(Cursor.HAND);
-        if (large) {
-            Button add = compactButton("+");
-            add.setTooltip(new Tooltip("添加到近期传输对象并选中"));
+        if (large && !pickMode) {
+            Button add = iconToggleButton("mdi2s-send", "发送", false);
             add.setOnAction(event -> {
                 addRecentTarget(device);
                 toast("已添加到近期传输对象并选中");
-                showUserListPage();
+                showFileTransferPage();
             });
             HBox actions = new HBox(8, add);
             actions.setAlignment(Pos.CENTER_RIGHT);
@@ -542,6 +546,28 @@ public class MainWindow extends Application {
             });
         }
         return card;
+    }
+
+    // 返回用户卡片第一行标题
+    private String userCardTitle(UserDevice device) {
+        if (device.groupTarget()) {
+            return device.nickname();
+        }
+        String local = isSelfDevice(device) ? "(本机)" : "";
+        return local + device.deviceName() + " | " + device.nickname();
+    }
+
+    // 返回用户卡片第二行说明
+    private String userCardSubTitle(UserDevice device) {
+        if (device.groupTarget()) {
+            return device.deviceName();
+        }
+        return device.signature();
+    }
+
+    // 判断卡片设备是否为当前登录本机
+    private boolean isSelfDevice(UserDevice device) {
+        return profile != null && profile.userId().equals(device.id());
     }
 
     // 把用户加入近期传输对象队列

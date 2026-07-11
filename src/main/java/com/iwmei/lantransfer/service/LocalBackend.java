@@ -74,10 +74,16 @@ public final class LocalBackend implements BackendFacade {
         return CompletableFuture.supplyAsync(lan::knownDevices);
     }
 
+    // 加载全部本地传输分组
+    @Override
+    public CompletableFuture<List<Group>> loadGroups() {
+        return CompletableFuture.supplyAsync(groups::all);
+    }
+
     // 保存本地传输分组并返回组目标
     @Override
-    public CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members) {
-        return CompletableFuture.supplyAsync(() -> groups.save(name, members));
+    public CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members) {
+        return CompletableFuture.supplyAsync(() -> groups.save(name, code, members));
     }
 
     // 扫描局域网用户设备

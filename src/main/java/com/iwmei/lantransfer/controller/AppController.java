@@ -39,9 +39,14 @@ public final class AppController {
         return backend.loadAllDevices();
     }
 
+    // 加载全部本地传输分组
+    public CompletableFuture<List<Group>> loadGroups() {
+        return backend.loadGroups();
+    }
+
     // 保存本地传输分组并返回组目标
-    public CompletableFuture<UserDevice> saveGroup(String name, List<UserDevice> members) {
-        return backend.saveGroup(name, members);
+    public CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members) {
+        return backend.saveGroup(name, code, members);
     }
 
     // 扫描局域网用户设备
