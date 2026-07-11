@@ -117,14 +117,15 @@ final class Auth {
         TextField account = app.textField("请输入账号");
         PasswordBox password = passwordBox("请输入密码");
         TextField device = app.textField("当前设备名称");
-        Button submit = app.primaryButton("提交注册申请");
+        Button submit = app.primaryButton("注册");
         submit.setMaxWidth(Double.MAX_VALUE);
         ProgressIndicator loading = new ProgressIndicator();
         loading.setMaxSize(24, 24);
         loading.setVisible(false);
-        HBox submitRow = new HBox(10, submit, loading);
-        submitRow.setAlignment(Pos.CENTER);
-        HBox.setHgrow(submit, Priority.ALWAYS);
+        StackPane submitBox = new StackPane(submit, loading);
+        submitBox.setMaxWidth(Double.MAX_VALUE);
+        StackPane.setAlignment(loading, Pos.CENTER_RIGHT);
+        StackPane.setMargin(loading, new Insets(0, 12, 0, 0));
         submit.setOnAction(event -> {
             loading.setVisible(true);
             submit.setDisable(true);
@@ -152,7 +153,7 @@ final class Auth {
         Button backLogin = app.outlineButton("已有账号，返回登录");
         backLogin.setMaxWidth(Double.MAX_VALUE);
         backLogin.setOnAction(event -> app.showAuth(false));
-        form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), app.labeledField("设备名称", device), submitRow, backLogin);
+        form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), app.labeledField("设备名称", device), submitBox, backLogin);
         return form;
     }
 
