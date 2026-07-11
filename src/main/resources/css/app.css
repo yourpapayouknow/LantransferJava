@@ -394,6 +394,7 @@
 .settings-row {
     -fx-padding: 10 0 10 0;
     -fx-border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
+    -fx-min-height: 64;
 }
 
 .soft-separator .line,

@@ -2,13 +2,17 @@ package com.iwmei.lantransfer.view;
 
 import com.iwmei.lantransfer.model.SystemSettings;
 import javafx.application.Platform;
+import javafx.geometry.HPos;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -52,8 +56,15 @@ final class Settings {
         app.accentColor = settings.accentColor();
         VBox page = new VBox(14);
         page.getStyleClass().add("page-content");
-        VBox section = app.glassSection("系统设置");
+        page.setAlignment(Pos.TOP_CENTER);
+        VBox section = app.glassSection("");
+        section.setMaxWidth(980);
+        section.setFillWidth(true);
+        HBox title = uiRow(0, app.titleLabel("系统设置", 17));
+        title.setAlignment(Pos.CENTER);
         section.getChildren().addAll(
+                title,
+                app.separator(),
                 settingsRow("本机局域网IP", "", ipInfo(settings)),
                 settingsRow("传输速度限制", "不限速请设定为0", speedLimitControls(settings)),
                 settingsRow("失败重试次数", "", retryControls(settings)),
@@ -71,7 +82,7 @@ final class Settings {
 
     // 构建本机局域网地址信息
     private HBox ipInfo(SystemSettings settings) {
-        return new HBox(12, app.ipColumn("IPv4地址", settings.ipv4()), app.ipColumn("IPv6地址", settings.ipv6()));
+        return uiRow(12, app.ipColumn("IPv4地址", settings.ipv4()), app.ipColumn("IPv6地址", settings.ipv6()));
     }
 
     // 构建传输速度限制输入区域
@@ -82,9 +93,9 @@ final class Settings {
         downloadLimit.setText(String.valueOf(settings.downloadLimit()));
         app.fixedWidth(uploadLimit, 90);
         app.fixedWidth(downloadLimit, 90);
-        return new HBox(16,
-                new HBox(8, app.mutedLabel("上传限制", 15), uploadLimit, app.mutedLabel("MB/s", 14)),
-                new HBox(8, app.mutedLabel("下载限制", 15), downloadLimit, app.mutedLabel("MB/s", 14)));
+        return uiRow(16,
+                uiRow(8, app.mutedLabel("上传限制", 15), uploadLimit, app.mutedLabel("MB/s", 14)),
+                uiRow(8, app.mutedLabel("下载限制", 15), downloadLimit, app.mutedLabel("MB/s", 14)));
     }
 
     // 构建失败重试次数输入区域
@@ -92,12 +103,12 @@ final class Settings {
         retryCount = new Spinner<>(0, 10, settings.maxRetries());
         retryCount.getStyleClass().add("dark-spinner");
         app.fixedWidth(retryCount, 72);
-        return new HBox(12, retryCount, app.mutedLabel("次", 15));
+        return uiRow(12, retryCount, app.mutedLabel("次", 15));
     }
 
     // 构建主题颜色设置区域
     private HBox colorControls(SystemSettings settings) {
-        HBox row = new HBox(8);
+        HBox row = uiRow(8);
         List<String> colors = List.of("#ff8500", "#2f80ed", "#2ecc40", "#ff5353", "#8a52d8");
         for (String color : colors) {
             StackPane swatch = app.colorSwatch(color, color.equalsIgnoreCase(settings.accentColor()));
@@ -120,7 +131,7 @@ final class Settings {
         fontSize = app.textField("字体大小");
         fontSize.setText(String.valueOf(settings.fontSize()));
         app.fixedWidth(fontSize, 76);
-        return new HBox(10, fontFamily, fontSize);
+        return uiRow(10, fontFamily, fontSize);
     }
 
     // 构建系统中文字体下拉框
@@ -159,7 +170,7 @@ final class Settings {
         zoomPercent = new Spinner<>(70, 200, zoomValue(settings), 10);
         zoomPercent.getStyleClass().add("dark-spinner");
         app.fixedWidth(zoomPercent, 96);
-        return new HBox(8, zoomPercent, app.mutedLabel("%", 15));
+        return uiRow(8, zoomPercent, app.mutedLabel("%", 15));
     }
 
     // 把已有缩放值限制到设置页范围和步进
@@ -187,7 +198,7 @@ final class Settings {
                 receiveDir.setText(selected.getAbsolutePath());
             }
         });
-        HBox row = new HBox(10, receiveDir, choose);
+        HBox row = uiRow(10, receiveDir, choose);
         HBox.setHgrow(receiveDir, Priority.ALWAYS);
         return row;
     }
@@ -196,7 +207,7 @@ final class Settings {
     private HBox languageControls(SystemSettings settings) {
         language = app.comboBox(settings.language());
         app.fixedWidth(language, 132);
-        return new HBox(language);
+        return uiRow(10, language);
     }
 
     // 构建启动行为设置区域
@@ -204,7 +215,7 @@ final class Settings {
         autoStart = app.checkBox("开机自启动", settings.autoStart());
         startMinimized = app.checkBox("启动后最小化到系统托盘", settings.startMinimized());
         soundOnComplete = app.checkBox("传输完成后播放提示音", settings.soundOnComplete());
-        return new HBox(16, autoStart, startMinimized, soundOnComplete);
+        return uiRow(16, autoStart, startMinimized, soundOnComplete);
     }
 
     // 构建保存设置按钮区域
@@ -268,17 +279,40 @@ final class Settings {
         return text.isBlank() ? fallback : text;
     }
 
+    // 构建对齐的控件行
+    private HBox uiRow(double gap, Node... nodes) {
+        HBox row = new HBox(gap, nodes);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
     // 构建系统设置单行配置项
-    private HBox settingsRow(String title, String description, Node controls) {
+    private GridPane settingsRow(String title, String description, HBox controls) {
         VBox text = new VBox(4, app.titleLabel(title, 20));
+        text.setAlignment(Pos.CENTER_LEFT);
         if (!description.isBlank()) {
             text.getChildren().add(app.mutedLabel(description, 14));
         }
-        HBox row = new HBox(18);
+        GridPane row = new GridPane();
         row.getStyleClass().add("settings-row");
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.getChildren().addAll(text, app.separatorVertical(), controls);
-        HBox.setHgrow(text, Priority.ALWAYS);
+        row.setAlignment(Pos.CENTER);
+        row.setHgap(18);
+        row.setMaxWidth(Double.MAX_VALUE);
+        ColumnConstraints titleColumn = new ColumnConstraints(210, 210, 210);
+        ColumnConstraints dividerColumn = new ColumnConstraints(1, 1, 1);
+        ColumnConstraints controlsColumn = new ColumnConstraints();
+        controlsColumn.setHgrow(Priority.ALWAYS);
+        controlsColumn.setFillWidth(true);
+        row.getColumnConstraints().addAll(titleColumn, dividerColumn, controlsColumn);
+        controls.setMaxWidth(Double.MAX_VALUE);
+        row.add(text, 0, 0);
+        row.add(app.separatorVertical(), 1, 0);
+        row.add(controls, 2, 0);
+        GridPane.setHalignment(text, HPos.LEFT);
+        GridPane.setValignment(text, VPos.CENTER);
+        GridPane.setHalignment(controls, HPos.LEFT);
+        GridPane.setValignment(controls, VPos.CENTER);
+        GridPane.setHgrow(controls, Priority.ALWAYS);
         return row;
     }
 }
