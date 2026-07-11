@@ -86,8 +86,8 @@ public final class AppController {
     }
 
     // 更新用户在线状态
-    public void updateStatus(UserStatus status, String customText) {
-        backend.updateStatus(status, customText);
+    public CompletableFuture<Void> updateStatus(UserStatus status, String customText) {
+        return CompletableFuture.runAsync(() -> backend.updateStatus(status, customText));
     }
 
     // 更新系统设置参数
