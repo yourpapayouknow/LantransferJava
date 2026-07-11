@@ -411,7 +411,8 @@ public class MainWindow extends Application {
         topbar.setAlignment(Pos.CENTER_RIGHT);
         Button theme = ghostTextButton("主题");
         theme.setOnAction(event -> showSettingsPage());
-        topbar.getChildren().addAll(spacer(), theme, new Separator(Orientation.VERTICAL), avatar(displayInitial(), "#c8d1dc", 34), new Label(displayName()));
+        Label name = titleLabel(displayName(), 14);
+        topbar.getChildren().addAll(spacer(), theme, new Separator(Orientation.VERTICAL), avatar(displayInitial(), "#c8d1dc", 34), name);
         return topbar;
     }
 
@@ -422,11 +423,55 @@ public class MainWindow extends Application {
         footer.setAlignment(Pos.CENTER_LEFT);
         Button changePath = ghostTextButton("更改");
         changePath.setOnAction(event -> showSettingsPage());
-        String receiveDir = currentSettings == null ? SystemSettings.defaultReceiveDir() : currentSettings.receiveDir();
-        footer.getChildren().addAll(mutedLabel("传输模式： 局域网直连", 14), separatorVertical(),
-                mutedLabel("当前网速：", 14), accentLabel("↑ 23.6 MB/s", 14), mutedLabel("↓ 4.8 MB/s", 14),
-                spacer(), mutedLabel("存储位置： " + receiveDir, 14), changePath);
+        footer.getChildren().addAll(mutedLabel("传输模式： " + transferMode(), 14), separatorVertical(),
+                mutedLabel("当前网速：", 14), accentLabel(currentSpeed(), 14),
+                spacer(), mutedLabel("存储位置： " + currentSettings.receiveDir(), 14), changePath);
         return footer;
+    }
+
+    // 返回当前传输模式文案
+    private String transferMode() {
+        return currentSettings.groupCode().isBlank() ? "公开局域网" : "口令组";
+    }
+
+    // 返回当前正在传输任务的总速度
+    private String currentSpeed() {
+        if (currentSummary == null || currentSummary.tasks().isEmpty()) {
+            return "0 B/s";
+        }
+        double total = currentSummary.tasks().stream()
+                .filter(task -> "传输中".equals(task.status()))
+                .mapToDouble(task -> speedBytes(task.speed()))
+                .sum();
+        return speedText(total);
+    }
+
+    // 把速度文案转成字节每秒
+    private double speedBytes(String value) {
+        String text = value.trim().replace("/s", "").trim();
+        String[] parts = text.split(" ");
+        double number = Double.parseDouble(parts[0]);
+        if ("GB".equals(parts[1])) {
+            return number * 1024 * 1024 * 1024;
+        }
+        if ("MB".equals(parts[1])) {
+            return number * 1024 * 1024;
+        }
+        if ("KB".equals(parts[1])) {
+            return number * 1024;
+        }
+        return number;
+    }
+
+    // 把字节每秒转成速度文案
+    private String speedText(double bytes) {
+        if (bytes >= 1024 * 1024) {
+            return String.format(Locale.ROOT, "%.2f MB/s", bytes / 1024 / 1024);
+        }
+        if (bytes >= 1024) {
+            return String.format(Locale.ROOT, "%.2f KB/s", bytes / 1024);
+        }
+        return String.format(Locale.ROOT, "%.0f B/s", bytes);
     }
 
     // 构建扫描页面雷达图
@@ -791,8 +836,26 @@ public class MainWindow extends Application {
     Node connectionInfo() {
         VBox box = new VBox(8);
         box.getStyleClass().add("connection-info");
-        box.getChildren().addAll(statusLine(DeviceStatus.ONLINE, "已连接"), mutedLabel("本机： DESKTOP-8F3K2M1", 13), mutedLabel("IP： 192.168.1.100", 13));
+        box.getChildren().addAll(statusLine(userDeviceStatus(), userStatusText()),
+                mutedLabel("本机： " + profile.deviceName(), 13),
+                mutedLabel("IP： " + currentSettings.ipv4(), 13));
         return box;
+    }
+
+    // 把当前用户状态转成底部状态点
+    private DeviceStatus userDeviceStatus() {
+        return profile.status() == UserStatus.OFFLINE || profile.status() == UserStatus.INVISIBLE ? DeviceStatus.OFFLINE : DeviceStatus.ONLINE;
+    }
+
+    // 返回当前用户状态文案
+    private String userStatusText() {
+        return switch (profile.status()) {
+            case ONLINE -> "允许接收";
+            case BUSY -> "忙碌确认";
+            case INVISIBLE -> "隐身";
+            case OFFLINE -> "暂停传输";
+            case DEFAULT -> "已连接";
+        };
     }
 
     // 构建提示胶囊信息
