@@ -14,6 +14,9 @@ try {
     if ([string]::IsNullOrWhiteSpace($env:ACCO_T)) {
         throw "token empty"
     }
+    if (!$env:ACCO_T.StartsWith("ghp_")) {
+        throw "run .\tok.ps1 with classic PAT"
+    }
     & mvn -q javafx:run
 } finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
