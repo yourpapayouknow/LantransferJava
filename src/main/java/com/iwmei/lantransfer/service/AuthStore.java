@@ -526,11 +526,11 @@ final class AuthStore {
         }
     }
 
-    // 使用辅助账号 token 或本机凭据推送当前分支
+    // 使用辅助账号 token 推送当前分支
     private GitResult push(String branch) {
         String url = pushUrl();
         return url.isBlank()
-                ? git(45, "push", "origin", branch)
+                ? new GitResult(false, "未配置 ACCO_T 或 -Dacco.t，无法使用辅助账号推送注册请求")
                 : git(45, "push", url, "HEAD:" + branch);
     }
 
