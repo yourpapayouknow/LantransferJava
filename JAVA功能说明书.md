@@ -9,7 +9,7 @@
 3. 用户列表：接入可发现设备、搜索、在线状态和近期对象维护。
 4. 局域网扫描：实现广播或组播发现本局域网运行本程序的主机。
 5. 我的资料：实现资料保存、状态切换、自定义状态和账号信息读取。
-6. 系统设置：实现本机 IP、限速、重试次数、主题、字体、缩放、语言和启动项的读写。
+6. 系统设置：实现本机 IP、限速、重试次数、主题、字体、缩放、接收目录、语言和启动项的读写。
 7. 传输结果：实现 UDP 多线程发送、确认、三次重试、失败报告、日志、完整性校验、分片缓存、断点重传和剩余时间统计。
 8. 特色扩展：按复杂度依次处理传输口令小群组、按用户状态条件传输、智能带宽分配等功能。
 
@@ -189,7 +189,7 @@
 
 所属功能：系统设置数据对象。
 
-详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、传输口令、语言、开机自启动、启动后最小化和传输完成提示音。当前由 `SettingsStore` 读写，并由系统设置页渲染为可编辑控件。
+详细功能：描述本机 IPv4/IPv6、上传限速、下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、传输口令、语言、开机自启动、启动后最小化和传输完成提示音。当前由 `SettingsStore` 读写；系统设置页只编辑 IP 展示、限速、重试、主题、字体、缩放、接收目录、语言和启动项，传输口令字段暂保留给旧配置兼容。
 
 实现方法：使用 `record` 汇总设置页需要保存的数据。保留一个基础字段构造器，旧调用会自动填充默认接收目录、空传输口令、语言和启动选项。`defaultReceiveDir()` 使用用户目录下的 `极速互传/接收文件`。`SettingsStore.load()` 构造或读取它，`Settings` 页面保存时把控件值重新组装成新的 `SystemSettings` 并调用 `AppController.updateSettings(...)`。
 
@@ -381,9 +381,9 @@
 
 所属功能：系统设置页面。
 
-详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、接收目录、传输口令、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件；传输口令用于局域网发现小群组过滤，字体、字号和缩放会更新 `MainWindow.currentSettings` 并在页面重绘时应用到全局根节点样式。
+详细功能：展示本机局域网 IP、上传/下载限速、失败重试次数、主题色、字体、缩放、接收目录、语言和启动设置。当前页面会从后端加载 `SystemSettings`，保存按钮会把可编辑设置写回本地设置文件；原先放在设置页的一刀切传输口令已去除，字体、字号和缩放会更新 `MainWindow.currentSettings` 并在页面重绘时应用到全局根节点样式。
 
-实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 先更新 `app.currentSettings` 和 `app.accentColor`，再根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号、缩放、接收目录、传输口令、语言和启动选项控件保存到字段，便于保存时读取。`receiveDirControls(...)` 使用 `DirectoryChooser` 选择目录，`groupControls(...)` 读写传输口令文本框。`colorControls(...)` 点击预设色会用新主题色重绘页面；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色、字体、缩放和传输口令立即生效。
+实现方法：`showSettingsPage()` 调用 `app.controller.loadSettings()`，异步返回后在 JavaFX 线程执行 `render(SystemSettings)`。`render(...)` 先更新 `app.currentSettings` 和 `app.accentColor`，再根据设置值创建各控件，并把上传限速、下载限速、重试次数、主题色、字体、字号、缩放、接收目录、语言和启动选项控件保存到字段，便于保存时读取。每个设置项副标题由 `settingsRow(...)` 控制，空副标题不会创建说明文字，当前副标题均保持短句且不带标点。`speedLimitControls(...)` 使用一行两列展示“上传限制”和“下载限制”；`colorControls(...)` 使用一行展示五个预设色块、自定义色块、自定义输入框，点击色块会用新主题色重绘页面；`fontControls(...)` 不再展示字体预览，只用 `fontBox(...)` 从 JavaFX 系统字体族中过滤常见中文字体并搭配字号输入框；`zoomControls(...)` 使用 70 到 200 的 `Spinner<Integer>`，步进为 10，`zoomValue(...)` 会把已有设置值限制并贴合到这个范围；`receiveDirControls(...)` 使用更宽且可收缩的接收目录输入框和 `DirectoryChooser` 选择目录。`readSettings(...)` 保存时把设置页已移除的全局传输口令写为空字符串，避免继续保存一刀切口令；`saveControls(...)` 读取控件生成新的 `SystemSettings`，调用 `app.controller.updateSettings(...)` 保存，并再次渲染让主题色、字体和缩放立即生效。
 
 ## `src/main/java/com/iwmei/lantransfer/view/MainWindow.java`
 

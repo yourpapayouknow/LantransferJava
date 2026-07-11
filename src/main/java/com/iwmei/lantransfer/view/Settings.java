@@ -13,10 +13,12 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
 import javafx.stage.DirectoryChooser;
 
 import java.io.File;
 import java.util.List;
+import java.util.Locale;
 
 // 系统设置页面逻辑
 final class Settings {
@@ -27,9 +29,8 @@ final class Settings {
     private TextField accentInput;
     private ComboBox<String> fontFamily;
     private TextField fontSize;
-    private TextField zoomPercent;
+    private Spinner<Integer> zoomPercent;
     private TextField receiveDir;
-    private TextField groupCode;
     private ComboBox<String> language;
     private CheckBox autoStart;
     private CheckBox startMinimized;
@@ -53,16 +54,15 @@ final class Settings {
         page.getStyleClass().add("page-content");
         VBox section = app.glassSection("系统设置");
         section.getChildren().addAll(
-                settingsRow("本机局域网 IP", "在局域网内，其他设备可通过以下地址发现并连接到本机。", ipInfo(settings)),
-                settingsRow("传输速度限制", "设置全局的上传和下载速度限制（0 表示不限制）。", speedLimitControls(settings)),
-                settingsRow("失败重试次数", "文件传输失败时的自动重试次数设置。", retryControls(settings)),
-                settingsRow("界面颜色自定义", "自定义应用的主题色（保存后生效）。", colorControls(settings)),
-                settingsRow("字体设置", "自定义界面字体及大小（保存后生效）。", fontControls(settings)),
-                settingsRow("缩放比例", "调整界面整体显示缩放。", zoomControls(settings)),
-                settingsRow("接收目录", "设置接收文件保存位置，真实 UDP 接收服务会写入这里。", receiveDirControls(settings)),
-                settingsRow("传输口令", "只发现并传输给相同口令的小群组设备（留空表示公开）。", groupControls(settings)),
-                settingsRow("语言设置", "设置界面显示语言。", languageControls(settings)),
-                settingsRow("启动设置", "控制软件启动后的默认行为。", startupControls(settings)),
+                settingsRow("本机局域网 IP", "用于局域网发现", ipInfo(settings)),
+                settingsRow("传输速度限制", "0 表示不限", speedLimitControls(settings)),
+                settingsRow("失败重试次数", "失败后重试", retryControls(settings)),
+                settingsRow("界面颜色自定义", "保存后生效", colorControls(settings)),
+                settingsRow("字体设置", "保存后生效", fontControls(settings)),
+                settingsRow("缩放比例", "", zoomControls(settings)),
+                settingsRow("接收目录", "接收文件位置", receiveDirControls(settings)),
+                settingsRow("语言设置", "", languageControls(settings)),
+                settingsRow("启动设置", "", startupControls(settings)),
                 saveControls(settings)
         );
         page.getChildren().add(section);
@@ -75,18 +75,16 @@ final class Settings {
     }
 
     // 构建传输速度限制输入区域
-    private VBox speedLimitControls(SystemSettings settings) {
-        uploadLimit = app.textField("上传速度限制");
+    private HBox speedLimitControls(SystemSettings settings) {
+        uploadLimit = app.textField("上传限制");
         uploadLimit.setText(String.valueOf(settings.uploadLimit()));
-        downloadLimit = app.textField("下载速度限制");
+        downloadLimit = app.textField("下载限制");
         downloadLimit.setText(String.valueOf(settings.downloadLimit()));
         app.fixedWidth(uploadLimit, 90);
         app.fixedWidth(downloadLimit, 90);
-        VBox root = new VBox(10,
-                new HBox(10, app.mutedLabel("上传速度限制", 15), uploadLimit, app.mutedLabel("MB/s", 14)),
-                new HBox(10, app.mutedLabel("下载速度限制", 15), downloadLimit, app.mutedLabel("MB/s", 14)));
-        root.setMaxWidth(360);
-        return root;
+        return new HBox(16,
+                new HBox(8, app.mutedLabel("上传限制", 15), uploadLimit, app.mutedLabel("MB/s", 14)),
+                new HBox(8, app.mutedLabel("下载限制", 15), downloadLimit, app.mutedLabel("MB/s", 14)));
     }
 
     // 构建失败重试次数输入区域
@@ -98,49 +96,84 @@ final class Settings {
     }
 
     // 构建主题颜色设置区域
-    private VBox colorControls(SystemSettings settings) {
-        VBox root = new VBox(10);
-        HBox swatches = new HBox(8);
-        for (String color : List.of("#ff8500", "#2f80ed", "#2ecc40", "#ff5353", "#8a52d8")) {
+    private HBox colorControls(SystemSettings settings) {
+        HBox row = new HBox(8);
+        List<String> colors = List.of("#ff8500", "#2f80ed", "#2ecc40", "#ff5353", "#8a52d8");
+        for (String color : colors) {
             StackPane swatch = app.colorSwatch(color, color.equalsIgnoreCase(settings.accentColor()));
             swatch.setOnMouseClicked(event -> render(withAccent(settings, color)));
-            swatches.getChildren().add(swatch);
+            row.getChildren().add(swatch);
         }
-        accentInput = app.textField("自定义颜色");
+        StackPane custom = app.colorSwatch(settings.accentColor(), colors.stream().noneMatch(color -> color.equalsIgnoreCase(settings.accentColor())));
+        custom.setOnMouseClicked(event -> render(withAccent(settings, colorValue(settings))));
+        accentInput = app.textField("自定义");
         accentInput.setText(settings.accentColor());
         app.fixedWidth(accentInput, 112);
-        root.getChildren().addAll(swatches, new HBox(10, app.mutedLabel("自定义颜色", 15), accentInput));
-        return root;
+        row.getChildren().addAll(custom, app.mutedLabel("自定义", 15), accentInput);
+        return row;
     }
 
     // 构建字体设置区域
-    private VBox fontControls(SystemSettings settings) {
-        VBox root = new VBox(10);
-        HBox displayRow = new HBox(8);
-        displayRow.setAlignment(Pos.CENTER_LEFT);
-        displayRow.getChildren().addAll(app.mutedLabel("字体展示", 15), app.tabPill("按钮", null, true),
-                app.tabPill("标签", null, false), app.fixedWidth(app.textField("输入框"), 90), app.checkBox("选项", true));
-        fontFamily = app.comboBox(settings.fontFamily());
+    private HBox fontControls(SystemSettings settings) {
+        fontFamily = fontBox(settings.fontFamily());
         app.fixedWidth(fontFamily, 156);
         fontSize = app.textField("字体大小");
         fontSize.setText(String.valueOf(settings.fontSize()));
         app.fixedWidth(fontSize, 76);
-        root.getChildren().addAll(displayRow, new HBox(10, app.mutedLabel("字体设置", 15), fontFamily, fontSize));
-        return root;
+        return new HBox(10, fontFamily, fontSize);
+    }
+
+    // 构建系统中文字体下拉框
+    private ComboBox<String> fontBox(String value) {
+        ComboBox<String> combo = new ComboBox<>();
+        for (String family : Font.getFamilies()) {
+            if (chineseFont(family)) {
+                combo.getItems().add(family);
+            }
+        }
+        if (!combo.getItems().contains(value)) {
+            combo.getItems().add(0, value);
+        }
+        combo.setValue(value);
+        return combo;
+    }
+
+    // 判断字体名称是否常见中文字体
+    private boolean chineseFont(String name) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        return name.matches(".*[宋黑楷仿隶圆等雅].*")
+                || lower.contains("yahei")
+                || lower.contains("jhenghei")
+                || lower.contains("simsun")
+                || lower.contains("simhei")
+                || lower.contains("fangsong")
+                || lower.contains("kaiti")
+                || lower.contains("dengxian")
+                || lower.contains("youyuan")
+                || lower.contains("lisu")
+                || lower.startsWith("st");
     }
 
     // 构建界面缩放设置区域
-    private VBox zoomControls(SystemSettings settings) {
-        zoomPercent = app.textField("缩放比例");
-        zoomPercent.setText(settings.zoomPercent() + "%");
-        app.fixedWidth(zoomPercent, 132);
-        return new VBox(8, zoomPercent);
+    private HBox zoomControls(SystemSettings settings) {
+        zoomPercent = new Spinner<>(70, 200, zoomValue(settings), 10);
+        zoomPercent.getStyleClass().add("dark-spinner");
+        app.fixedWidth(zoomPercent, 96);
+        return new HBox(8, zoomPercent, app.mutedLabel("%", 15));
+    }
+
+    // 把已有缩放值限制到设置页范围和步进
+    private int zoomValue(SystemSettings settings) {
+        int value = Math.max(70, Math.min(200, settings.zoomPercent()));
+        return 70 + Math.round((value - 70) / 10.0f) * 10;
     }
 
     // 构建接收目录设置区域
     private HBox receiveDirControls(SystemSettings settings) {
         receiveDir = app.textField("接收目录");
         receiveDir.setText(settings.receiveDir());
+        receiveDir.setMinWidth(360);
+        receiveDir.setPrefWidth(560);
         Button choose = app.outlineButton("选择");
         choose.setOnAction(event -> {
             DirectoryChooser chooser = new DirectoryChooser();
@@ -157,14 +190,6 @@ final class Settings {
         HBox row = new HBox(10, receiveDir, choose);
         HBox.setHgrow(receiveDir, Priority.ALWAYS);
         return row;
-    }
-
-    // 构建传输口令设置区域
-    private HBox groupControls(SystemSettings settings) {
-        groupCode = app.textField("传输口令");
-        groupCode.setText(settings.groupCode());
-        app.fixedWidth(groupCode, 220);
-        return new HBox(groupCode);
     }
 
     // 构建语言设置区域
@@ -206,9 +231,9 @@ final class Settings {
                 colorValue(base),
                 fontFamily.getValue(),
                 intValue(fontSize, base.fontSize()),
-                intValue(zoomPercent, base.zoomPercent()),
+                zoomPercent.getValue(),
                 textValue(receiveDir, base.receiveDir()),
-                groupCode.getText().trim(),
+                "",
                 language.getValue(),
                 autoStart.isSelected(),
                 startMinimized.isSelected(),
@@ -219,7 +244,7 @@ final class Settings {
     private SystemSettings withAccent(SystemSettings settings, String color) {
         return new SystemSettings(settings.ipv4(), settings.ipv6(), settings.uploadLimit(), settings.downloadLimit(),
                 settings.maxRetries(), color, settings.fontFamily(), settings.fontSize(), settings.zoomPercent(),
-                settings.receiveDir(), settings.groupCode(), settings.language(), settings.autoStart(), settings.startMinimized(), settings.soundOnComplete());
+                settings.receiveDir(), "", settings.language(), settings.autoStart(), settings.startMinimized(), settings.soundOnComplete());
     }
 
     // 读取整数输入框
@@ -245,7 +270,10 @@ final class Settings {
 
     // 构建系统设置单行配置项
     private HBox settingsRow(String title, String description, Node controls) {
-        VBox text = new VBox(4, app.titleLabel(title, 20), app.mutedLabel(description, 14));
+        VBox text = new VBox(4, app.titleLabel(title, 20));
+        if (!description.isBlank()) {
+            text.getChildren().add(app.mutedLabel(description, 14));
+        }
         HBox row = new HBox(18);
         row.getStyleClass().add("settings-row");
         row.setAlignment(Pos.CENTER_LEFT);
