@@ -1,1 +1,3 @@
 account,salt,hash,userId,nickname,deviceName,signature,registeredAt,lastLoginAt,language,status,reviewStatus,reviewRequestedAt,reviewApprovedAt,reviewApprover
+123test,/2khoboJ6wKefaubuBQpDw==,kz1F3EXq+GDWS90uM1llL/LIarGvXkGcsn1Fb64pqhM=,U-A8327D4A,123test,123test,在线，已连接,2026-07-11T13:29:36.528022,2026-07-11T13:29:36.528022,简体中文,DEFAULT,AUTO_APPROVED,2026-07-11T13:29:36.528022,2026-07-11T13:29:36.528022,actions
+test123,2Bim+mbE6ARyFq+Q1fwB5g==,ukBG6yr0n4ODMNDRnNTyNdbM8DWlSyOcQ7IanU/En5A=,U-ECD71870,test123,testmachine,在线，已连接,2026-07-11T13:14:49.0900922,2026-07-11T13:14:49.0900922,简体中文,DEFAULT,AUTO_APPROVED,2026-07-11T13:14:49.0900922,2026-07-11T13:14:49.0900922,actions
