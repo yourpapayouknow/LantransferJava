@@ -25,7 +25,11 @@ public final class GroupStoreCheck {
             Group loaded = store.all().get(0);
             require("1234".equals(loaded.code()), "group code should roundtrip");
             require(loaded.size() == 2, "group details should dedupe members");
-            List<UserDevice> expanded = store.expand(List.of(group, two));
+            UserDevice renamed = store.update("测试组", "新组", "abcd", loaded.members());
+            require("新组".equals(renamed.groupName()), "renamed target should use new group name");
+            require(store.all().size() == 1, "rename should not leave old group");
+            require("abcd".equals(store.all().get(0).code()), "updated code should roundtrip");
+            List<UserDevice> expanded = store.expand(List.of(renamed, two));
             require(expanded.size() == 2, "group expansion should dedupe members");
             require(expanded.stream().allMatch(UserDevice::reachable), "members should keep network address");
             require(expanded.stream().anyMatch(item -> "签名".equals(item.signature()) && "QUJD".equals(item.avatar())),

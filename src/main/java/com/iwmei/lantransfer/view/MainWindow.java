@@ -526,7 +526,7 @@ public class MainWindow extends Application {
             HBox actions = new HBox(8, add);
             actions.setAlignment(Pos.CENTER_RIGHT);
             card.getChildren().add(actions);
-        } else {
+        } else if (!large) {
             Button remove = compactButton("-");
             remove.setTooltip(new Tooltip("从近期传输对象移除"));
             remove.setOnAction(event -> {

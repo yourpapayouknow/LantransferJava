@@ -49,6 +49,11 @@ public final class AppController {
         return backend.saveGroup(name, code, members);
     }
 
+    // 更新本地传输分组并返回组目标
+    public CompletableFuture<UserDevice> updateGroup(String oldName, String name, String code, List<UserDevice> members) {
+        return backend.updateGroup(oldName, name, code, members);
+    }
+
     // 扫描局域网用户设备
     public CompletableFuture<List<UserDevice>> scanLanDevices() {
         return backend.scanLanDevices();

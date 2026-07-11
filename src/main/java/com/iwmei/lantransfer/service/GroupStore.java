@@ -44,6 +44,20 @@ final class GroupStore {
         return UserDevice.group(groupName, cleanMembers.size());
     }
 
+    // 更新已有分组并返回新的组目标
+    synchronized UserDevice update(String oldName, String name, String code, List<UserDevice> members) {
+        String groupName = UserDevice.cleanGroupName(name);
+        List<UserDevice> cleanMembers = cleanMembers(members);
+        if (cleanMembers.isEmpty()) {
+            throw new IllegalArgumentException("分组至少需要一个用户");
+        }
+        Map<String, Group> groups = loadGroups();
+        groups.remove(UserDevice.cleanGroupName(oldName));
+        groups.put(groupName, new Group(groupName, code, cleanMembers));
+        writeGroups(groups);
+        return UserDevice.group(groupName, cleanMembers.size());
+    }
+
     // 加载全部分组详情供用户列表展示
     synchronized List<Group> all() {
         return new ArrayList<>(loadGroups().values());

@@ -31,6 +31,7 @@ final class UserList {
     private String query = "";
     private String groupName = "";
     private String groupCode = "";
+    private String editingGroup = "";
     private boolean grouping;
 
     // 初始化用户列表页面对象
@@ -79,6 +80,9 @@ final class UserList {
         HBox scanLine = new HBox(12, search, searchButton, scan, groupAction);
         scanLine.setAlignment(Pos.CENTER_LEFT);
         if (grouping) {
+            Button cancel = app.secondaryButton("取消");
+            cancel.setOnAction(event -> cancelGrouping());
+            scanLine.getChildren().add(cancel);
             scanLine.getChildren().addAll(groupFields());
         }
         StackPane scanHeader = new StackPane(scanLine);
@@ -133,6 +137,15 @@ final class UserList {
         groupDraft.clear();
         app.userListGridView = true;
         app.userListPage = 0;
+        showUserListPage();
+    }
+
+    // 取消新建分组状态
+    private void cancelGrouping() {
+        grouping = false;
+        groupName = "";
+        groupCode = "";
+        groupDraft.clear();
         showUserListPage();
     }
 
@@ -212,15 +225,43 @@ final class UserList {
         card.setMaxWidth(Double.MAX_VALUE);
         HBox top = new HBox(14);
         top.setAlignment(Pos.CENTER_LEFT);
-        VBox text = new VBox(6, app.titleLabel(group.name(), 18),
-                app.mutedLabel("共" + group.size() + "名用户", 14),
-                app.mutedLabel(group.code(), 13));
+        boolean editing = group.name().equals(editingGroup);
+        TextField nameInput;
+        TextField codeInput;
+        VBox text;
+        if (editing) {
+            nameInput = app.textField("分组名");
+            nameInput.setText(group.name());
+            codeInput = app.textField("默认口令");
+            codeInput.setText(group.code());
+            text = new VBox(8, nameInput, codeInput);
+        } else {
+            nameInput = null;
+            codeInput = null;
+            text = new VBox(6, app.titleLabel(group.name(), 18),
+                    app.mutedLabel("共" + group.size() + "名用户", 14),
+                    app.mutedLabel(group.code(), 13));
+        }
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
         Button send = app.iconToggleButton("mdi2s-send", "发送", false);
         send.setOnAction(event -> {
             app.addRecentTarget(group.target());
             app.showFileTransferPage();
+        });
+        Button edit = app.iconToggleButton(editing ? "mdi2c-check" : "mdi2p-pencil",
+                editing ? "保存" : "编辑", false);
+        if (editing) {
+            edit.getStyleClass().removeAll("secondary-button", "outline-button");
+            edit.getStyleClass().add("primary-button");
+        }
+        edit.setOnAction(event -> {
+            if (editing) {
+                saveGroupEdit(group, nameInput.getText(), codeInput.getText());
+            } else {
+                editingGroup = group.name();
+                showUserListPage();
+            }
         });
         boolean expanded = expandedGroups.contains(group.name());
         Button fold = app.iconToggleButton(expanded ? "mdi2c-chevron-up" : "mdi2c-chevron-down",
@@ -233,7 +274,7 @@ final class UserList {
             }
             showUserListPage();
         });
-        HBox actions = new HBox(8, send, fold);
+        HBox actions = new HBox(8, send, edit, fold);
         actions.setAlignment(Pos.CENTER_RIGHT);
         top.getChildren().addAll(text, actions);
         card.getChildren().add(top);
@@ -241,6 +282,26 @@ final class UserList {
             card.getChildren().add(memberGrid(group.members()));
         }
         return card;
+    }
+
+    // 保存分组卡片编辑内容
+    private void saveGroupEdit(Group group, String name, String code) {
+        String cleanName = name == null ? "" : name.trim();
+        String cleanCode = code == null ? "" : code.trim();
+        if (cleanName.isBlank()) {
+            app.toast("请输入分组名");
+            return;
+        }
+        app.controller.updateGroup(group.name(), cleanName, cleanCode, group.members()).thenAccept(target -> Platform.runLater(() -> {
+            expandedGroups.remove(group.name());
+            expandedGroups.add(cleanName);
+            editingGroup = "";
+            app.toast("分组已保存");
+            showUserListPage();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> app.toast("分组保存失败"));
+            return null;
+        });
     }
 
     // 构建分组内成员矩阵

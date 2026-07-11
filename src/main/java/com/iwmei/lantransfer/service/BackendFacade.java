@@ -28,6 +28,9 @@ public interface BackendFacade {
     // 保存本地传输分组并返回组目标
     CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members);
 
+    // 更新本地传输分组并返回组目标
+    CompletableFuture<UserDevice> updateGroup(String oldName, String name, String code, List<UserDevice> members);
+
     // 扫描局域网用户设备
     CompletableFuture<List<UserDevice>> scanLanDevices();
 
