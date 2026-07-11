@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.net.InetAddress;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -504,14 +505,75 @@ final class AuthStore {
         if (staged.isBlank()) {
             return;
         }
+        ensureGitIdentity();
         GitResult commit = git(20, "commit", "-m", message);
         if (!commit.success()) {
             throw new IllegalStateException("提交账号文件失败：" + commit.output());
         }
-        GitResult push = git(45, "push", "origin", branch);
+        GitResult push = push(branch);
         if (!push.success()) {
             throw new IllegalStateException("推送账号文件失败：" + push.output());
         }
+    }
+
+    // 确保普通用户机器上也有最小 Git 提交身份
+    private void ensureGitIdentity() {
+        if (git(5, "config", "user.name").output().isBlank()) {
+            git(5, "config", "user.name", "lantransfer");
+        }
+        if (git(5, "config", "user.email").output().isBlank()) {
+            git(5, "config", "user.email", "lantransfer@example.invalid");
+        }
+    }
+
+    // 使用辅助账号 token 或本机凭据推送当前分支
+    private GitResult push(String branch) {
+        String url = pushUrl();
+        return url.isBlank()
+                ? git(45, "push", "origin", branch)
+                : git(45, "push", url, "HEAD:" + branch);
+    }
+
+    // 生成带辅助账号 token 的临时 HTTPS 推送地址
+    private String pushUrl() {
+        String token = token();
+        String repo = repoPath(AppFiles.repoOrigin());
+        if (token.isBlank() || repo.isBlank()) {
+            return "";
+        }
+        return "https://x-access-token:" + URLEncoder.encode(token, StandardCharsets.UTF_8)
+                + "@github.com/" + repo + ".git";
+    }
+
+    // 读取运行时注入的辅助账号 token
+    private String token() {
+        String property = System.getProperty("acco.t", "");
+        return property.isBlank() ? System.getenv().getOrDefault("ACCO_T", "") : property;
+    }
+
+    // 从远程地址中提取 owner/repo
+    private String repoPath(String origin) {
+        if (origin == null || origin.isBlank()) {
+            return "";
+        }
+        String value = origin.trim();
+        if (value.startsWith("git@github.com:")) {
+            value = value.substring("git@github.com:".length());
+        } else {
+            int marker = value.indexOf("github.com/");
+            if (marker < 0) {
+                return "";
+            }
+            value = value.substring(marker + "github.com/".length());
+        }
+        int query = value.indexOf('?');
+        if (query >= 0) {
+            value = value.substring(0, query);
+        }
+        if (value.endsWith(".git")) {
+            value = value.substring(0, value.length() - 4);
+        }
+        return value.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+") ? value : "";
     }
 
     // 暂停当前线程
@@ -547,13 +609,23 @@ final class AuthStore {
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return new GitResult(false, String.join(" ", command) + " 执行超时");
+                return new GitResult(false, "git 执行超时");
             }
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            String output = clean(new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim());
             return new GitResult(process.exitValue() == 0, output);
         } catch (Exception ex) {
-            return new GitResult(false, ex.getMessage());
+            return new GitResult(false, clean(ex.getMessage()));
         }
+    }
+
+    // 从错误输出里移除可能出现的 token
+    private String clean(String output) {
+        String token = token();
+        if (token.isBlank() || output == null) {
+            return output;
+        }
+        return output.replace(token, "***")
+                .replace(URLEncoder.encode(token, StandardCharsets.UTF_8), "***");
     }
 
     // 返回路径相对仓库根目录的写法

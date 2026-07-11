@@ -6,6 +6,7 @@ import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.RegisterRequest;
 import com.iwmei.lantransfer.model.UserStatus;
 
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -56,6 +57,18 @@ public final class AuthStoreCheck {
             require(updated.profile().status() == UserStatus.BUSY, "status update should persist status");
             store.login(new LoginRequest("alice", "secret", false));
             require(store.rememberedAccount().isBlank(), "remembered account should clear when unchecked");
+            Method repoPath = AuthStore.class.getDeclaredMethod("repoPath", String.class);
+            repoPath.setAccessible(true);
+            require("owner/repo".equals(repoPath.invoke(store, "https://github.com/owner/repo.git")),
+                    "https remote should parse owner and repo");
+            require("owner/repo".equals(repoPath.invoke(store, "git@github.com:owner/repo.git")),
+                    "ssh remote should parse owner and repo");
+            System.setProperty("acco.t", "tok/en");
+            Method clean = AuthStore.class.getDeclaredMethod("clean", String.class);
+            clean.setAccessible(true);
+            require(!((String) clean.invoke(store, "failed tok/en tok%2Fen")).contains("tok"),
+                    "git output should hide token");
+            System.clearProperty("acco.t");
         } finally {
             delete(dir);
         }

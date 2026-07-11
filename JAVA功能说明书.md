@@ -85,9 +85,9 @@
 
 所属功能：无服务器登录注册账号仓库。
 
-详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并推送到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。该实现依赖当前机器具备仓库 push 凭据；普通用户无凭据、由 App 直接发 HTTP 包创建 GitHub issue 的替代方案尚未实现，原因记录在 `未实现功能清单0.md`。
+详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并直接 push 到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。普通用户机器没有仓库拥有者凭据时，push 优先使用运行时注入的辅助账号 token：JVM 参数 `-Dacco.t=...` 或环境变量 `ACCO_T`；没有 token 时才退回本机 Git 凭据。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态和审核字段；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。辅助账号邮箱密码不能作为 GitHub API 或 Git push 凭据写入代码，token 也不能提交到仓库。
 
-实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要和资料字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、提交短消息 `acco req` 并推送。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`updateProfile(Profile)` 和 `updateStatus(UserStatus, String)` 仍通过 `userId` 找到账号行，更新资料或状态后直接提交推送 `acco`；如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
+实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git pull --rebase --autostash origin <当前分支>` 拉取远程最新 `acco`，再用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要和资料字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、调用 `ensureGitIdentity()` 补齐最小 Git 提交身份、提交短消息 `acco req` 并推送。`push(...)` 会先调用 `pushUrl()` 根据 `AppFiles.repoOrigin()` 提取 `owner/repo`，如果存在 `-Dacco.t` 或 `ACCO_T`，就构造一次性 HTTPS token 地址执行 `git push <临时地址> HEAD:<当前分支>`；如果没有 token，就执行普通 `git push origin <当前分支>`。`clean(...)` 会在错误输出中遮盖 token 或 URL 编码后的 token，避免失败信息把密钥显示给界面。推送后 `waitForAction(...)` 每 5 秒拉取一次远程，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`updateProfile(Profile)` 和 `updateStatus(UserStatus, String)` 仍通过 `userId` 找到账号行，更新资料或状态后直接提交推送 `acco`；如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -271,7 +271,7 @@
 
 详细功能：验证第一屏后端最关键路径：旧版自动 `admin/admin` 账号不会继续登录或回填，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、状态签名和状态枚举会持久化。
 
-实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `acco`、`la` 和 `req`，关闭 Git 同步后先确认空账号表不能登录 `admin/admin`，再调用注册并检查 `acco` 表头、账号行、`AUTO_APPROVED`、`actions` 审核标记以及不包含明文密码；随后覆盖重复注册失败、错误密码失败、正确密码登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
+实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `acco`、`la` 和 `req`，关闭 Git 同步后先确认空账号表不能登录 `admin/admin`，再调用注册并检查 `acco` 表头、账号行、`AUTO_APPROVED`、`actions` 审核标记以及不包含明文密码；随后覆盖重复注册失败、错误密码失败、正确密码登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口。最后用反射调用 `repoPath(...)` 验证 HTTPS 与 SSH 远程地址都能解析成 `owner/repo`，并临时设置 `acco.t` 验证 `clean(...)` 会遮盖原始 token 和 URL 编码 token，避免 Git 失败输出泄漏密钥。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AutoStartCheck.java`
 
