@@ -57,14 +57,10 @@ final class Settings {
         VBox page = new VBox(14);
         page.getStyleClass().add("page-content");
         page.setAlignment(Pos.TOP_CENTER);
-        VBox section = app.glassSection("");
+        VBox section = new VBox(0);
         section.setMaxWidth(980);
         section.setFillWidth(true);
-        HBox title = uiRow(0, app.titleLabel("系统设置", 17));
-        title.setAlignment(Pos.CENTER);
         section.getChildren().addAll(
-                title,
-                app.separator(),
                 settingsRow("本机局域网IP", "", ipInfo(settings)),
                 settingsRow("传输速度限制", "不限速请设定为0", speedLimitControls(settings)),
                 settingsRow("失败重试次数", "", retryControls(settings)),
