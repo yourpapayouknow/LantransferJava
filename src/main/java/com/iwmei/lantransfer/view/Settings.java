@@ -280,7 +280,7 @@ final class Settings {
     // 构建对齐的控件行
     private HBox uiRow(double gap, Node... nodes) {
         HBox row = new HBox(gap, nodes);
-        row.setAlignment(Pos.CENTER_LEFT);
+        row.setAlignment(Pos.CENTER_RIGHT);
         return row;
     }
 
