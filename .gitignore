@@ -8,6 +8,7 @@ received/
 reports/
 .javafx-cache/
 .codegraph/
+.multi/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .kotlin

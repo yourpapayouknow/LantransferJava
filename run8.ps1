@@ -10,6 +10,13 @@ $base = Join-Path $PSScriptRoot ".multi"
 $ports = 1..3 | ForEach-Object { 45329 + ($_ * 2) }
 $scanPorts = $ports -join ","
 
+Get-CimInstance Win32_Process |
+    Where-Object {
+        $_.CommandLine -like "*$PSScriptRoot*" -and
+        ($_.CommandLine -like "*javafx:run*" -or $_.CommandLine -like "*com.iwmei.lantransfer.App*")
+    } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
 function Q($text) {
     return $text.Replace("'", "''")
 }
@@ -23,12 +30,10 @@ for ($i = 1; $i -le 3; $i++) {
     $cmd = @"
 `$ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath '$(Q $PSScriptRoot)'
-`$env:LANTRANSFER_DATA_DIR = '$(Q $dir)'
-`$env:LANTRANSFER_DISCOVERY_PORT = '$findPort'
-`$env:LANTRANSFER_DISCOVERY_PORTS = '$scanPorts'
-`$env:LANTRANSFER_TRANSFER_PORT = '$sendPort'
+`$env:ACCO_T = (Get-Content -LiteralPath '$(Q $tokenFile)' -Raw).Trim()
+`$env:JAVA_TOOL_OPTIONS = '-Dlantransfer.dataDir=$(Q $dir) -Dlantransfer.discoveryPort=$findPort -Dlantransfer.discoveryPorts=$scanPorts -Dlantransfer.transferPort=$sendPort'
 `$Host.UI.RawUI.WindowTitle = 'LanTransfer-$i'
-& '.\run.ps1'
+& mvn -q javafx:run
 "@
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
     Start-Process powershell.exe -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded

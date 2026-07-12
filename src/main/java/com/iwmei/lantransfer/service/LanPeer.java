@@ -178,7 +178,8 @@ final class LanPeer {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 
