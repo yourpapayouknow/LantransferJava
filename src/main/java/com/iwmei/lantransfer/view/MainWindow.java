@@ -655,7 +655,7 @@ public class MainWindow extends Application {
 
     // 判断卡片设备是否为当前登录本机
     private boolean isSelfDevice(UserDevice device) {
-        return profile != null && profile.userId().equals(device.id());
+        return "本机".equals(device.lastSeen());
     }
 
     // 把用户加入近期传输对象队列

@@ -1,7 +1,9 @@
 package com.iwmei.lantransfer.service;
 import com.iwmei.lantransfer.model.DeviceStatus;
+import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
+import java.time.LocalDateTime;
 
 // LanPeer的无框架自检入口
 public final class LanPeerCheck {
@@ -24,6 +26,10 @@ public final class LanPeerCheck {
         require(parsed.status() == DeviceStatus.ONLINE, "parsed peer should be online");
         require(parsed.userStatus() == UserStatus.BUSY, "user status should round trip");
         require(parsed.reachable(), "parsed peer should include transfer address");
+        Profile profile = new Profile("张三", "U-1", "PC-SELF", "签名", LocalDateTime.now(), LocalDateTime.now(), "1", "zh");
+        peer.updateSelf(profile);
+        UserDevice self = peer.knownDevices().stream().filter(item -> "本机".equals(item.lastSeen())).findFirst().orElseThrow();
+        require(!"U-1".equals(self.id()), "self id should include transfer endpoint");
         peer.updateGroup("team-a");
         String teamMessage = peer.encode(source);
         require(peer.parse(teamMessage) != null, "same group should parse");

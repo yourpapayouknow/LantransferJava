@@ -231,7 +231,8 @@ final class LanPeer {
         seen.remove(current.id());
         seenAt.remove(current.id());
         String nickname = clean(profile.nickname(), current.nickname());
-        String id = clean(profile.userId(), current.id());
+        String account = clean(profile.userId(), current.id());
+        String id = idFor(account + "@" + current.host() + ":" + current.port());
         self = new UserDevice(id, nickname, clean(profile.deviceName(), current.deviceName()), DeviceStatus.ONLINE, "本机",
                 initial(nickname), color(id), !avatar(profile.avatar()).isBlank(), current.host(), current.port(),
                 userStatus(profile.status()), clean(profile.signature(), ""), avatar(profile.avatar()));
@@ -288,7 +289,7 @@ final class LanPeer {
     private UserDevice localDevice() {
         String deviceName = localHostName();
         String nickname = clean(System.getProperty("user.name"), "本机");
-        String id = idFor(nickname + "@" + deviceName);
+        String id = idFor(nickname + "@" + deviceName + ":" + TRANSFER_PORT);
         return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "本机", initial(nickname), color(id), false, localIp(), TRANSFER_PORT);
     }
 
