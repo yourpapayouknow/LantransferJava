@@ -48,7 +48,7 @@ final class AuthStore {
         this(defaultTable(), defaultLocal(), defaultReqDir(), true);
     }
 
-    // 使用指定账号表初始化仓库，供测试复用且默认不触发Git
+    // 使用指定账号表初始化仓库且默认不触发Git
     AuthStore(Path table) {
         this(table, table.resolveSibling("la"), table.resolveSibling("req"), false);
     }

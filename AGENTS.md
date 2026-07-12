@@ -41,7 +41,6 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - `src/main/resources/css/`：CSS 样式。
 - `src/main/resources/images/`：图片资源。
 - `src/main/resources/icons/`：图标资源。
-- `MockBackendFacade` 只给前端联调使用；真实后端写好后替换它。
 - 所有新增文件和目录命名都必须从简，避免冗长完整英文名；能用短名表达清楚时用短名，例如账号表使用 `acco`，注册请求目录使用 `req`。
 
 ## Java Manual Rule
@@ -81,4 +80,4 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
   - `src/main/resources/css/`
   - `src/main/java/com/iwmei/lantransfer/App.java`（仅启动入口）
   - `pom.xml`（仅构建/运行 JavaFX 需要时）
-- `src/main/java/com/iwmei/lantransfer/service/` 不是前端目录；前端线程只在接口联调需要时改 `BackendFacade` / `MockBackendFacade`。
+- `src/main/java/com/iwmei/lantransfer/service/` 不是前端目录；前端线程只在接口对接需要时改 `BackendFacade`。

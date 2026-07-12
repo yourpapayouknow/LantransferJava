@@ -350,7 +350,7 @@ final class LanPeer {
         }
     }
 
-    // 读取多实例测试或虚拟机联调指定的单个端口
+    // 读取多实例运行指定的单个端口
     private static int configuredPort(String propertyName, String envName, int fallback) {
         String value = System.getProperty(propertyName, "").trim();
         if (value.isBlank()) {

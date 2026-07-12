@@ -16,7 +16,7 @@ final class AutoStart {
         this(defaultStartupDir(), isWindows());
     }
 
-    // 使用指定启动目录初始化自启动管理器，供自检使用
+    // 使用指定启动目录初始化自启动管理器
     AutoStart(Path startupDir) {
         this(startupDir, true);
     }

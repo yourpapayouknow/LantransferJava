@@ -56,7 +56,7 @@ final class UdpTx {
         this(DEFAULT_CHUNK_BYTES);
     }
 
-    // 使用指定分片大小初始化发送服务，供测试复用
+    // 使用指定分片大小初始化发送服务
     UdpTx(int chunkBytes) {
         this.chunkBytes = Math.max(512, chunkBytes);
     }

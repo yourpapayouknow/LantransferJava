@@ -57,7 +57,7 @@ final class UdpRx {
         this(settings, LanPeer.TRANSFER_PORT);
     }
 
-    // 使用指定端口初始化接收服务，供测试复用
+    // 使用指定端口初始化接收服务
     UdpRx(SettingsStore settings, int port) {
         this.settings = settings;
         this.port = port;

@@ -23,12 +23,12 @@ final class SettingsStore {
         this(AppFiles.dataDir().resolve("settings.properties"), new AutoStart());
     }
 
-    // 使用指定设置文件初始化仓库，供测试复用
+    // 使用指定设置文件初始化仓库
     SettingsStore(Path store) {
         this(store, AutoStart.none());
     }
 
-    // 使用指定设置文件和自启动管理器初始化仓库，供测试复用
+    // 使用指定设置文件和自启动管理器初始化仓库
     SettingsStore(Path store, AutoStart autoStart) {
         this.store = store;
         this.autoStart = autoStart;

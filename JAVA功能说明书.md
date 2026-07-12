@@ -11,7 +11,6 @@
 5. 我的资料：当前主流程已接入资料保存、头像压缩上传、状态切换、自定义状态、复制用户ID和局域网资料广播。
 6. 系统设置：当前主流程已接入本机 IP 展示、上传/下载限速、重试次数、主题色、系统中文字体、缩放、接收目录、启动项和完成提示音；语言字段只保存，不切换界面文案。
 7. 传输结果：当前主流程已接入 UDP 多目标发送、BEGIN/DATA/ACK 确认、失败重试、分片并发、SHA-256 校验、分片缓存、断点续传、下载限速、剩余时间日志和结果报告。
-8. 保留项：`MockBackendFacade` 和 `TxSim` 只是隔离的联调/自检辅助类，不参与 `AppController` 当前主流程。
 
 ## 功能跳过记录
 
@@ -29,7 +28,7 @@
 
 所属功能：界面和业务服务之间的控制层。
 
-详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、全部本地分组、保存传输分组、更新传输分组、扫描设备、加载设置、启动传输、带本次口令启动传输、启动传输并接收进度快照、暂停/继续发送、设置接收前确认回调、设置接收进度回调、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，用户列表的分组展示、默认口令读取和组名口令编辑走 `GroupStore`，局域网扫描、设置保存、分组展开、暂停发送、传输口令和传输报告走本地实现；`MockBackendFacade` 只保留给独立前端联调，不再参与主 App 流程。状态更新会异步执行，避免“我的”页切换状态时被 `acco` 的 Git 拉取和推送阻塞 JavaFX 事件线程。
+详细功能：`AppController` 持有一个 `BackendFacade` 实例，给 JavaFX 页面提供登录、注册、加载已记住账号、近期设备、全部设备、全部本地分组、保存传输分组、更新传输分组、扫描设备、加载设置、启动传输、带本次口令启动传输、启动传输并接收进度快照、暂停/继续发送、设置接收前确认回调、设置接收进度回调、更新资料、更新状态和更新设置的统一入口。当前实现实例化 `LocalBackend`，登录注册和“记住我”走本地真实账号仓库，用户列表的分组展示、默认口令读取和组名口令编辑走 `GroupStore`，局域网扫描、设置保存、分组展开、暂停发送、传输口令和传输报告走本地实现。状态更新会异步执行，避免“我的”页切换状态时被 `acco` 的 Git 拉取和推送阻塞 JavaFX 事件线程。
 
 实现方法：每个公开方法都只做转发，例如 `login(LoginRequest)` 返回 `backend.login(request)` 的 `CompletableFuture<AuthResult>`，`loadRememberedAccount()` 返回本地最近登录账号，`loadGroups()` 返回 `backend.loadGroups()` 供用户列表页的列表视图展示组卡片，`saveGroup(name, code, members)` 把用户列表当前勾选成员和默认口令交给后端保存并返回组目标，`updateGroup(oldName, name, code, members)` 把组卡片编辑后的新组名和新口令交给后端更新，避免改名时旧组残留，`loadSettings()` 返回 `backend.loadSettings()`，`startTransfer(files, targets, code, progress)` 把页面输入的本次传输口令和进度回调一起交给后端，`pauseTransfer(boolean)` 把暂停状态传给发送服务，`setRxAsk(RxAsk)` 把主窗口的接收确认和口令校验逻辑交给 `UdpRx`，`setRxProgress(RxProgress)` 把主窗口的接收进度展示逻辑交给 `UdpRx`，`updateProfile(Profile)` 和 `updateSettings(SystemSettings)` 直接转给后端。`updateStatus(UserStatus, String)` 返回 `CompletableFuture<Void>`，内部用 `CompletableFuture.runAsync(...)` 调用 `backend.updateStatus(...)`，让状态卡点击后 UI 能马上更新，本地账号表和 Git 同步在后台完成。薄控制器保证页面层不直接知道 `acco` 账号表、设置文件、UDP 传输或扫描实现。
 
@@ -47,7 +46,7 @@
 
 详细功能：`RxAsk` 是 `UdpRx` 和 JavaFX 主窗口之间的最小确认边界。它表达“某个文件是否允许开始接收”，用于本机状态为 `UserStatus.BUSY` 时询问用户，也用于发送端携带本次传输口令时要求用户输入正确口令。
 
-实现方法：接口使用 `@FunctionalInterface`，只有 `approve(String fileName, long bytes, String codeHash)` 一个方法，返回 true 表示允许接收，返回 false 表示拒收。`codeHash` 为空时表示普通忙碌确认，非空时表示本次传输口令的 SHA-256 摘要。`MainWindow` 传入会弹确认框或口令框的实现，`UdpRx` 在后台线程中调用；测试可以传入直接 true、false 或摘要比对 lambda 来验证同意、拒绝和口令路径。
+实现方法：接口使用 `@FunctionalInterface`，只有 `approve(String fileName, long bytes, String codeHash)` 一个方法，返回 true 表示允许接收，返回 false 表示拒收。`codeHash` 为空时表示普通忙碌确认，非空时表示本次传输口令的 SHA-256 摘要。`MainWindow` 传入会弹确认框或口令框的实现，`UdpRx` 在后台线程中调用；调用方可以传入直接 true、false 或摘要比对 lambda 来验证同意、拒绝和口令路径。
 
 ## `src/main/java/com/iwmei/lantransfer/service/RxProgress.java`
 
@@ -55,31 +54,23 @@
 
 详细功能：`RxProgress` 是 `UdpRx` 向界面展示接收端进度的最小边界。它只表达文件名和接收百分比，不绑定 `TransferTask`，避免为了接收端提示硬凑发送目标对象。
 
-实现方法：接口使用 `@FunctionalInterface`，只有 `update(String fileName, int percent)` 一个方法。`UdpRx.RxFile` 在分片写入后按 25% 阈值和最终 100% 调用它，`MainWindow` 传入 toast 展示实现，测试传入收集字符串的 lambda 验证 100% 回调。
-
-## `src/main/java/com/iwmei/lantransfer/service/MockBackendFacade.java`
-
-所属功能：隔离的前端联调用假数据后端。
-
-详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice`、一个演示分组和一份默认 `SystemSettings`，只供独立前端联调或旧页面快照测试使用，不由 `AppController` 主流程实例化。它支持模拟登录、模拟注册、模拟记住账号、模拟近期设备、模拟全部设备、模拟分组详情、保存临时分组目标、更新临时分组目标、模拟扫描设备、固定设置读取、普通传输调用和带本次口令的传输调用。登录只接受 `admin/admin`，记住账号固定返回 `admin`，注册总是返回等待状态，传输总是返回固定的 4 条任务和 5 条日志；这些数据不能代表当前 App 的真实业务路径。
-
-实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRememberedAccount()` 返回 `admin` 只服务 Mock 登录场景，真实登录页在主流程中通过 `LocalBackend -> AuthStore` 读取本机 `la`；`loadRecentDevices()` 返回前 5 个设备，`loadGroups()` 返回一个 `Group("演示组", "demo", devices.subList(0, 3))`，用于联调分组列表视图、默认口令展示和展开成员矩阵；`saveGroup(name, code, members)` 和 `updateGroup(oldName, name, code, members)` 都构造带默认口令的 `UserDevice.group(...)` 供前端联调分组卡片；普通 `startTransfer(...)` 和带 `code` 的 `startTransfer(...)` 都调用 `mockTransfer(...)` 生成固定汇总，不做真实 UDP。`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置。该类只能用于独立联调或测试，不能重新接回主 App 流程。
+实现方法：接口使用 `@FunctionalInterface`，只有 `update(String fileName, int percent)` 一个方法。`UdpRx.RxFile` 在分片写入后按 25% 阈值和最终 100% 调用它，`MainWindow` 传入 toast 展示实现，调用方可传入收集字符串的 lambda 验证 100% 回调。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AppFiles.java`
 
 所属功能：本地数据目录工具。
 
-详细功能：统一决定设置、近期对象、本地登录状态等运行数据放在哪里。默认把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行状态误提交到 Git；进行宿主机多实例、虚拟机联调或自动化 GUI 传输测试时，可以通过 `lantransfer.dataDir` JVM 参数或 `LANTRANSFER_DATA_DIR` 环境变量为每个运行端指定独立数据目录，隔离设置、近期对象、接收目录和“记住我”状态。账号主凭据不放在这里，而是放在根目录 `acco` 并由 GitHub Actions 处理注册请求。
+详细功能：统一决定设置、近期对象、本地登录状态等运行数据放在哪里。默认把数据放在用户目录 `.lantransfer/<仓库名>/` 下，避免把运行状态误提交到 Git；多实例运行时，可以通过 `lantransfer.dataDir` JVM 参数或 `LANTRANSFER_DATA_DIR` 环境变量为每个运行端指定独立数据目录，隔离设置、近期对象、接收目录和“记住我”状态。账号主凭据不放在这里，而是放在根目录 `acco` 并由 GitHub Actions 处理注册请求。
 
-实现方法：`dataDir()` 先调用 `configuredDataDir()` 读取 `System.getProperty("lantransfer.dataDir")`，如果 JVM 参数为空再读取 `System.getenv("LANTRANSFER_DATA_DIR")`；只要覆盖值非空，就直接把它转成 `Path` 返回。没有覆盖值时，才使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合默认路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore` 只通过它定位本机 `la` 登录状态，`SettingsStore` 和 `RecentStore` 通过它定位设置与近期对象；多端测试时必须给不同端传入不同目录，避免两个 JavaFX 实例共享本地运行状态。
+实现方法：`dataDir()` 先调用 `configuredDataDir()` 读取 `System.getProperty("lantransfer.dataDir")`，如果 JVM 参数为空再读取 `System.getenv("LANTRANSFER_DATA_DIR")`；只要覆盖值非空，就直接把它转成 `Path` 返回。没有覆盖值时，才使用 `System.getProperty("user.home")`、`.lantransfer` 和 `repoSlug()` 组合默认路径。`repoOrigin()` 读取 `.git/config` 中的 origin 地址，失败时返回 `LantransferJava`。`repoSlug()` 从 origin URL 取最后一段仓库名，去掉 `.git` 并清理非法路径字符。`AuthStore` 只通过它定位本机 `la` 登录状态，`SettingsStore` 和 `RecentStore` 通过它定位设置与近期对象；多端运行时必须给不同端传入不同目录，避免两个 JavaFX 实例共享本地运行状态。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AutoStart.java`
 
 所属功能：Windows 开机自启动管理。
 
-详细功能：`AutoStart` 负责把系统设置里的“开机自启动”落到 Windows 当前用户启动目录。启用时创建 `极速互传.cmd`，关闭时删除该脚本；生产默认构造只在 Windows 系统上生效，非 Windows 系统不做副作用。它不修改注册表，不需要管理员权限，适合课程项目和本机演示。
+详细功能：`AutoStart` 负责把系统设置里的“开机自启动”落到 Windows 当前用户启动目录。启用时创建 `极速互传.cmd`，关闭时删除该脚本；生产默认构造只在 Windows 系统上生效，非 Windows 系统不做副作用。它不修改注册表，不需要管理员权限，适合课程项目和本机运行。
 
-实现方法：默认构造器通过 `%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup` 定位启动目录，`sync(boolean)` 根据开关创建目录、写入脚本或删除脚本。脚本先切到当前项目根目录，再优先运行 `mvnw.cmd -q javafx:run`，没有 Maven Wrapper 时运行 `mvn -q javafx:run`，并用 `start /min` 尽量最小化启动命令窗口。`AutoStart(Path)` 允许自检把启动脚本写到临时目录，`none()` 给设置仓库测试使用，避免测试污染真实系统启动项。
+实现方法：默认构造器通过 `%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup` 定位启动目录，`sync(boolean)` 根据开关创建目录、写入脚本或删除脚本。脚本先切到当前项目根目录，再优先运行 `mvnw.cmd -q javafx:run`，没有 Maven Wrapper 时运行 `mvn -q javafx:run`，并用 `start /min` 尽量最小化启动命令窗口。`AutoStart(Path)` 允许把启动脚本写到指定目录，`none()` 表示不执行系统启动项写入。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AuthStore.java`
 
@@ -87,7 +78,7 @@
 
 详细功能：`AuthStore` 负责第一屏登录与注册的真实后端逻辑，也负责“我的”页面资料、状态保存和“记住我”账号回填。账号主凭据来自仓库根目录短名账号表 `acco`，注册时本地程序生成 `req/<账号>` 请求文件并直接 push 到当前 GitHub 远程仓库，`.github/workflows/acco.yml` 的 GitHub Actions 会自动把请求合入 `acco` 并删除请求文件，相当于自动审核通过。push 只能使用运行时注入的辅助账号 classic PAT：`tok.ps1` 首次把 `ghp_` 开头的 classic PAT 加密保存到当前 Windows 用户目录，`run.ps1` 启动时解密并只给当前 App 进程注入 `ACCO_T`；没有 token 或 token 不是 `ghp_` 开头时注册明确失败，不退回本机 Git 凭据，避免误用用户主 GitHub 账号。账号表保存账号、盐、PBKDF2 密码摘要、用户 ID、昵称、设备名、签名、注册时间、最近登录时间、语言、状态、审核字段和压缩后的头像 Base64；不保存明文密码。`la` 只保存本机“记住我”状态，不再作为主凭据库。辅助账号邮箱密码不能作为 GitHub API 或 Git push 凭据写入代码，token 也不能提交到仓库。
 
-实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git fetch origin <当前分支>`，再从 `FETCH_HEAD` 检出仓库账号表 `acco`，避免登录同步进入 `rebase` 状态；随后用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要、默认资料字段和空头像字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、调用 `ensureGitIdentity()` 补齐最小 Git 提交身份、提交短消息 `acco req` 并推送。`push(...)` 会先调用 `pushUrl()` 根据 `AppFiles.repoOrigin()` 提取 `owner/repo`，如果存在 `-Dacco.t` 或 `ACCO_T`，就构造一次性 HTTPS token 地址执行 `git push <临时地址> HEAD:<当前分支>`；如果没有 token，就返回“未配置 ACCO_T 或 -Dacco.t”，不调用普通 `origin` 推送。`clean(...)` 会在错误输出中遮盖 token 或 URL 编码后的 token，避免失败信息把密钥显示给界面。推送后 `waitForAction(...)` 每 5 秒同步一次远程账号表，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。测试构造器会关闭 Git 同步，直接写临时 `acco`，避免自检访问远程。`profile(...)` 从账号行构造 `Profile` 时读取 `avatar` 字段，没有头像时为空字符串；`updateProfile(Profile)` 通过 `userId` 找到账号行，同时保存昵称、设备名、签名、语言、状态和头像，再直接提交推送 `acco`；`updateStatus(UserStatus, String)` 只更新状态与签名。如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
+实现方法：`login(LoginRequest)` 先用 `pullAccounts()` 执行 `git fetch origin <当前分支>`，再从 `FETCH_HEAD` 检出仓库账号表 `acco`，避免登录同步进入 `rebase` 状态；随后用 `readAccounts()` 读取 CSV 表头之后的账号行；账号不存在返回失败，密码摘要不匹配返回失败，匹配时只在内存中更新 `lastLoginAt` 用于本次 `Profile`，并把“记住我”写入本机 `la`。`register(RegisterRequest)` 校验账号、密码和重复账号后，用 `putAccount(...)` 生成盐、PBKDF2 摘要、默认资料字段和空头像字段，用 `approveRegistration(...)` 写入 `reviewStatus=AUTO_APPROVED` 与 `reviewApprover=actions`；启用 Git 同步时调用 `saveReq(...)` 写入 `req/<账号>`，再用 `pushPath(...)` 只暂存该请求文件、调用 `ensureGitIdentity()` 补齐最小 Git 提交身份、提交短消息 `acco req` 并推送。`push(...)` 会先调用 `pushUrl()` 根据 `AppFiles.repoOrigin()` 提取 `owner/repo`，如果存在 `-Dacco.t` 或 `ACCO_T`，就构造一次性 HTTPS token 地址执行 `git push <临时地址> HEAD:<当前分支>`；如果没有 token，就返回“未配置 ACCO_T 或 -Dacco.t”，不调用普通 `origin` 推送。`clean(...)` 会在错误输出中遮盖 token 或 URL 编码后的 token，避免失败信息把密钥显示给界面。推送后 `waitForAction(...)` 每 5 秒同步一次远程账号表，最多等待 45 秒；如果 Actions 已把账号合入 `acco`，返回注册成功并提示登录，否则返回 `pendingReview=true` 进入等待页。指定账号表构造器会关闭 Git 同步，只读写传入的 `acco`。`profile(...)` 从账号行构造 `Profile` 时读取 `avatar` 字段，没有头像时为空字符串；`updateProfile(Profile)` 通过 `userId` 找到账号行，同时保存昵称、设备名、签名、语言、状态和头像，再直接提交推送 `acco`；`updateStatus(UserStatus, String)` 只更新状态与签名。如果 Git 暂存区已有其它改动，`pushPath(...)` 会拒绝操作，避免把无关文件带入账号提交。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LocalBackend.java`
 
@@ -95,7 +86,7 @@
 
 详细功能：`LocalBackend` 是 `AppController` 当前使用的真实后端入口。它把登录、注册、记住账号、资料保存和状态保存交给 `AuthStore`，把系统设置读取和保存交给 `SettingsStore`，把近期传输对象读取和保存交给 `RecentStore`，把本地传输分组详情读取、分组保存、分组更新和分组目标展开交给 `GroupStore`，启动 `UdpRx` 后台接收服务，把接收前确认回调、接收进度回调和本机用户状态同步给 `UdpRx`，把传输任务创建、本次口令、暂停/继续和发送端进度快照交给 `UdpTx`，把局域网扫描和已发现设备列表交给 `LanPeer`，并在登录、资料修改和状态切换后刷新本机发现信息。资料刷新会把昵称、设备名、签名、头像和按账号加传输端口生成的设备ID交给局域网发现模块静默广播。传输请求通过单线程后台队列执行，避免用户连续点击或页面重复提交时多个传输任务同时竞争 UDP 发送和近期对象写入。
 
-实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)` 保留旧发现协议字段兼容，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号表拉取、注册请求推送和本地 `la` 读取，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认和口令校验回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 通过 `AuthStore` 更新并推送 `acco` 后刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(status, customText)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 与自定义签名同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，但当前发现层不再按旧全局口令隔离设备。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`loadGroups()` 异步返回 `GroupStore.all()`，给用户列表页列表视图使用；`saveGroup(name, code, members)` 保存组名、默认口令和勾选成员快照并返回带默认口令的组目标，`updateGroup(oldName, name, code, members)` 调用 `GroupStore.update(...)` 删除旧组名并写入新组名和新口令。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补演示用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；普通 `startTransfer(...)` 把口令设为空字符串，带 `code` 的 `startTransfer(...)` 排队执行时先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, code, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
+实现方法：构造器先读取设置中的 `groupCode` 并调用 `lan.updateGroup(...)` 保留旧发现协议字段兼容，再调用 `rx.start()`，让应用启动后立即监听 `LanPeer.TRANSFER_PORT`。`login(...)`、`register(...)` 和 `loadRememberedAccount()` 使用 `CompletableFuture.supplyAsync(...)` 执行账号表拉取、注册请求推送和本地 `la` 读取，避免阻塞 JavaFX 事件线程；登录成功后调用 `lan.updateSelf(profile)` 和 `rx.updateStatus(profile.status())`，让发现协议和接收门禁同时使用当前账号状态。`setRxAsk(RxAsk)` 调用 `rx.setAsk(...)` 保存主窗口确认和口令校验回调，`setRxProgress(RxProgress)` 调用 `rx.setProgress(...)` 保存主窗口接收进度回调。`updateProfile(...)` 通过 `AuthStore` 更新并推送 `acco` 后刷新 `LanPeer` 本机资料，如果资料不为空也把状态同步给 `UdpRx`；`updateStatus(...)` 保存状态后同时调用 `lan.updateStatus(status, customText)` 和 `rx.updateStatus(...)`，让 ONLINE/BUSY/INVISIBLE/OFFLINE 与自定义签名同时参与扫描、发送策略和接收门禁。`loadSettings()` 异步读取 `SettingsStore.load()`，`updateSettings(...)` 写入 `SettingsStore.save(...)` 后再次调用 `lan.updateGroup(...)`，但当前发现层不再按旧全局口令隔离设备。`loadRecentDevices()` 只返回 `GroupStore.targets()` 与 `RecentStore.load()` 中未重复的真实本地对象；为空时交给前端空态和发送前校验处理。`loadGroups()` 异步返回 `GroupStore.all()`，给用户列表页列表视图使用；`saveGroup(name, code, members)` 保存组名、默认口令和勾选成员快照并返回带默认口令的组目标，`updateGroup(oldName, name, code, members)` 调用 `GroupStore.update(...)` 删除旧组名并写入新组名和新口令。`loadAllDevices()` 直接读取 `LanPeer.knownDevices()`，没有发现其它设备时只返回本机或空结果，不再补默认用户。`scanLanDevices()` 异步调用 `LanPeer.scan()`，实际发 UDP 广播并等待同程序响应。`transferQueue` 使用 JDK `Executors.newSingleThreadExecutor(...)` 创建 daemon FIFO 队列；普通 `startTransfer(...)` 把口令设为空字符串，带 `code` 的 `startTransfer(...)` 排队执行时先把空目标转成空列表，再用 `GroupStore.expand(...)` 把组目标展开成真实成员，随后调用 `UdpTx.run(files, safeTargets, settings, code, progress)`，最后用用户原始请求目标调用 `RecentStore.remember(...)` 保存近期对象。`pauseTransfer(boolean)` 直接调用 `UdpTx.setPaused(...)`，影响当前发送器后续 UDP 包发送。
 
 ## `src/main/java/com/iwmei/lantransfer/service/SettingsStore.java`
 
@@ -103,7 +94,7 @@
 
 详细功能：负责读取和保存系统设置页中的 IP、上传/下载限速、最大重试次数、主题色、字体、字号、缩放比例、接收目录、传输口令、语言和启动选项。它使用 `AppFiles.dataDir()/settings.properties`，不需要数据库；保存时会把“开机自启动”同步给 `AutoStart`，让设置项具备系统级效果。
 
-实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析，传输口令读取 `groupCode`，缺失时回退空字符串表示公开组。`save(SystemSettings)` 把设置写回 properties 文件，记录 `repo.origin` 方便定位来源，然后调用 `autoStart.sync(value.autoStart())` 创建或删除启动目录脚本。默认构造器使用真实 `AutoStart`，测试构造器使用 `AutoStart.none()` 避免系统副作用。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`，启动后最小化默认关闭，避免首次登录成功后窗口被自动隐藏到托盘而像程序崩溃。
+实现方法：`load()` 先构造默认设置；如果设置文件不存在或读取失败，就直接返回默认值。存在文件时用 `Properties` 读取各字段，整数读取失败时使用默认值，布尔值用 `Boolean.parseBoolean(...)` 解析，传输口令读取 `groupCode`，缺失时回退空字符串表示公开组。`save(SystemSettings)` 把设置写回 properties 文件，记录 `repo.origin` 方便定位来源，然后调用 `autoStart.sync(value.autoStart())` 创建或删除启动目录脚本。默认构造器使用真实 `AutoStart`，指定构造器可使用 `AutoStart.none()` 避免系统启动项写入。默认 IP 由 `localIp(boolean ipv6)` 遍历启用的非回环网卡获取；找不到时 IPv4 回退 `127.0.0.1`，IPv6 回退 `::1`。默认接收目录来自 `SystemSettings.defaultReceiveDir()`，启动后最小化默认关闭，避免首次登录成功后窗口被自动隐藏到托盘而像程序崩溃。
 
 ## `src/main/java/com/iwmei/lantransfer/service/RecentStore.java`
 
@@ -119,23 +110,23 @@
 
 详细功能：`GroupStore` 负责用户列表中的新建分组、编辑分组、分组列表展示和文件传输页中的组目标展开。它把分组名、默认口令和组内用户快照保存到 `groups.properties`，读取时可以返回完整 `Group` 详情，也可以生成 `UserDevice.group(...)` 形式的组目标；编辑组名时会删除旧组名记录并写入新组名记录，避免列表里出现重复组。当文件传输页选择组作为近期传输对象时，后端会把该组展开成组内所有真实成员，再交给 `UdpTx` 非阻塞并发发送。分组保存的是用户当时的网络地址、端口、状态、签名和头像信息，不依赖服务器。
 
-实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；测试构造器允许指定临时文件。`save(name, code, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供调用方知道分组目标已经创建，实际带默认口令的传输对象由后续 `targets()` 或 `Group.target()` 重新从文件中读取生成。`update(oldName, name, code, members)` 使用同一套成员清洗逻辑，先从 `loadGroups()` 结果中移除 `oldName` 清洗后的旧 key，再写入新 `Group`，用于组卡片编辑组名和默认口令。`all()` 读取所有分组并返回 `Group` 详情，用户列表页用它显示组名、`共xx名用户`、默认口令和展开成员；`targets()` 从 `Group.target()` 得到所有组目标，目标的 `signature` 字段会携带默认口令。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、`code`、成员数量和每个成员字段；`put(...)` 和 `device(...)` 会写入并读取 `signature` 与 `avatar`，让分组成员在稍后发送时仍带有用户资料快照；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
+实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；指定文件构造器允许传入分组文件。`save(name, code, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供调用方知道分组目标已经创建，实际带默认口令的传输对象由后续 `targets()` 或 `Group.target()` 重新从文件中读取生成。`update(oldName, name, code, members)` 使用同一套成员清洗逻辑，先从 `loadGroups()` 结果中移除 `oldName` 清洗后的旧 key，再写入新 `Group`，用于组卡片编辑组名和默认口令。`all()` 读取所有分组并返回 `Group` 详情，用户列表页用它显示组名、`共xx名用户`、默认口令和展开成员；`targets()` 从 `Group.target()` 得到所有组目标，目标的 `signature` 字段会携带默认口令。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、`code`、成员数量和每个成员字段；`put(...)` 和 `device(...)` 会写入并读取 `signature` 与 `avatar`，让分组成员在稍后发送时仍带有用户资料快照；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
 所属功能：局域网设备发现后端。
 
-详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和旧协议分组摘要兼容字段，启动后台 UDP 响应线程，扫描时向所有可用广播地址和本机回环地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应仍可携带旧口令 SHA-256 摘要，但局域网发现不再按该字段隔离设备，避免设置页移除全局传输口令后旧本地配置残留导致两台同网段机器互相不可见；真正的传输口令只在发送文件时由 `UdpTx/UdpRx` 做接收前校验。发现响应还携带真实传输 IP、传输端口、`UserStatus`、个性签名和压缩头像，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据，也让用户列表能静默收到对方资料。设备ID按账号、主机地址和传输端口生成，同账号在本机多实例或多台机器登录时也不会在发现缓存中互相覆盖。发现端口默认是 `49131`，传输端口默认是 `49132`；宿主机多实例或虚拟机联调时，发现端口可通过 `lantransfer.discoveryPort` / `LANTRANSFER_DISCOVERY_PORT` 覆盖，扫描端口集合可通过 `lantransfer.discoveryPorts` / `LANTRANSFER_DISCOVERY_PORTS` 配置，传输端口可通过 `lantransfer.transferPort` / `LANTRANSFER_TRANSFER_PORT` 覆盖，让不同运行端既能避开本机端口冲突，又能互相扫描到对方。默认端口从旧的 `45331/45332` 调整到 `49131/49132`，原因是当前 Windows 环境会对旧端口段返回 `Address already in use`，导致发现线程和接收线程启动后立即退出。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
+详细功能：`LanPeer` 负责实验报告中的“利用广播或组播发现局域网内其他运行本程序的主机”。它维护本机设备信息、已发现设备表、最后发现时间和旧协议分组摘要兼容字段，启动后台 UDP 响应线程，扫描时向所有可用广播地址和本机回环地址发送发现消息，并把收到的同程序响应转换成 `UserDevice`。发现请求和响应仍可携带旧口令 SHA-256 摘要，但局域网发现不再按该字段隔离设备，避免设置页移除全局传输口令后旧本地配置残留导致两台同网段机器互相不可见；真正的传输口令只在发送文件时由 `UdpTx/UdpRx` 做接收前校验。发现响应还携带真实传输 IP、传输端口、`UserStatus`、个性签名和压缩头像，为 `UdpTx/UdpRx` 建立目标地址并提供状态条件传输依据，也让用户列表能静默收到对方资料。设备ID按账号、主机地址和传输端口生成，同账号在本机多实例或多台机器登录时也不会在发现缓存中互相覆盖。发现端口默认是 `49131`，传输端口默认是 `49132`；多实例运行时，发现端口可通过 `lantransfer.discoveryPort` / `LANTRANSFER_DISCOVERY_PORT` 覆盖，扫描端口集合可通过 `lantransfer.discoveryPorts` / `LANTRANSFER_DISCOVERY_PORTS` 配置，传输端口可通过 `lantransfer.transferPort` / `LANTRANSFER_TRANSFER_PORT` 覆盖，让不同运行端既能避开本机端口冲突，又能互相扫描到对方。默认端口从旧的 `45331/45332` 调整到 `49131/49132`，原因是当前 Windows 环境会对旧端口段返回 `Address already in use`，导致发现线程和接收线程启动后立即退出。已发现设备超过离线阈值未再次出现时，会在用户列表中标记为离线。当前用户切到隐身或离线状态时，本机不响应发现请求。
 
-实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；生产离线阈值为 30 秒，测试构造器可传入更短阈值。静态字段 `PORT` 由 `configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 49131)` 初始化，静态字段 `TRANSFER_PORT` 由 `configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 49132)` 初始化；`configuredPort(...)` 先读 JVM 参数，再读环境变量，解析为正整数就使用配置值，解析失败或未配置时回退默认端口。`SCAN_PORTS` 由 `configuredScanPorts()` 初始化，始终包含当前发现端口，并额外解析 `lantransfer.discoveryPorts` 或 `LANTRANSFER_DISCOVERY_PORTS` 中用逗号、分号或空白分隔的端口列表。`PACKET_BYTES` 提到 60000 字节，给 128px JPEG 头像 Base64 留出空间。`updateGroup(String)` 只把旧全局口令清洗后计算 SHA-256 十六进制摘要并保存在 `groupHash`，用于继续编码兼容旧发现消息，不再作为发现准入条件。`scan()` 创建临时 `DatagramSocket`，向 `127.0.0.1`、`255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`，并且对 `SCAN_PORTS` 中每个端口都发一次；实际发送由 `sendDiscover(...)` 执行，单个地址或端口发送失败只跳过当前目标，不会阻断其他地址，也不会跳过后续接收阶段；发现消息可以是 `LANTRANSFER_DISCOVER_V1` 或 `LANTRANSFER_DISCOVER_V1\t旧口令摘要`，二者在当前版本都会被接收。后台 `replyLoop()` 绑定当前 `PORT`，收到发现消息后只用 `groupMatches(...)` 通过旧字段兼容检查并继续检查 `discoverable(self.userStatus())`，`groupMatches(...)` 固定返回 true，所以旧口令不同不会再阻止回复；隐身和离线仍不回复；如果发现端口绑定失败，会直接打印异常，方便从多实例窗口看到端口冲突。允许发现时用 `encode(self)` 回复发送方，收到设备响应或资料广播时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t旧口令摘要\t个性签名\t头像Base64`；`parse(message, fallbackHost)` 仍兼容旧 4 到 8 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺签名和头像时为空，旧口令摘要存在、缺失或不同都会被接收。`avatar(String)` 会限制头像字段长度并只接受 Base64 字符，避免异常网络包污染 UI。`updateSelf(Profile)` 在登录或资料修改后先用账号、当前主机地址和当前传输端口调用 `idFor(...)` 生成设备ID，再用账号资料刷新本机发现身份并调用 `announce()`；这能让同一账号在 8 个本机实例中得到 8 个不同设备ID，避免 `seen` 表按 ID 覆盖。`updateStatus(UserStatus, String)` 在状态切换后刷新本机状态和签名并再次静默广播；`announce()` 直接把 `encode(self)` 发到所有广播地址和扫描端口，对端后台线程会在没有手动扫描的情况下接收并更新缓存。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本，并保留对方签名和头像。`broadcastAddresses()` 会加入回环地址和全局广播地址，再从 `NetworkInterface` 读取可广播地址；回环地址用于没有 VM 权限时的本机双实例测试，真实局域网仍依赖广播地址。`localDevice()` 用系统用户名、主机名和当前传输端口生成未登录本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
+实现方法：构造器生成本机 `UserDevice` 并通过 `remember(...)` 放入 `seen` 和 `seenAt`，默认启动 daemon 响应线程；默认离线阈值为 30 秒，指定构造器可传入自定义阈值。静态字段 `PORT` 由 `configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 49131)` 初始化，静态字段 `TRANSFER_PORT` 由 `configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 49132)` 初始化；`configuredPort(...)` 先读 JVM 参数，再读环境变量，解析为正整数就使用配置值，解析失败或未配置时回退默认端口。`SCAN_PORTS` 由 `configuredScanPorts()` 初始化，始终包含当前发现端口，并额外解析 `lantransfer.discoveryPorts` 或 `LANTRANSFER_DISCOVERY_PORTS` 中用逗号、分号或空白分隔的端口列表。`PACKET_BYTES` 提到 60000 字节，给 128px JPEG 头像 Base64 留出空间。`updateGroup(String)` 只把旧全局口令清洗后计算 SHA-256 十六进制摘要并保存在 `groupHash`，用于继续编码兼容旧发现消息，不再作为发现准入条件。`scan()` 创建临时 `DatagramSocket`，向 `127.0.0.1`、`255.255.255.255` 和所有网卡广播地址发送 `discoverMessage()`，并且对 `SCAN_PORTS` 中每个端口都发一次；实际发送由 `sendDiscover(...)` 执行，单个地址或端口发送失败只跳过当前目标，不会阻断其他地址，也不会跳过后续接收阶段；发现消息可以是 `LANTRANSFER_DISCOVER_V1` 或 `LANTRANSFER_DISCOVER_V1\t旧口令摘要`，二者在当前版本都会被接收。后台 `replyLoop()` 绑定当前 `PORT`，收到发现消息后只用 `groupMatches(...)` 通过旧字段兼容检查并继续检查 `discoverable(self.userStatus())`，`groupMatches(...)` 固定返回 true，所以旧口令不同不会再阻止回复；隐身和离线仍不回复；如果发现端口绑定失败，会直接打印异常，方便从多实例窗口看到端口冲突。允许发现时用 `encode(self)` 回复发送方，收到设备响应或资料广播时也会解析并缓存。响应协议是制表符分隔的短文本：`LANTRANSFER_HERE_V1\t设备ID\t昵称\t设备名\t主机地址\t传输端口\t用户状态\t旧口令摘要\t个性签名\t头像Base64`；`parse(message, fallbackHost)` 仍兼容旧 4 到 8 字段响应，缺状态时回退 `UserStatus.DEFAULT`，缺签名和头像时为空，旧口令摘要存在、缺失或不同都会被接收。`avatar(String)` 会限制头像字段长度并只接受 Base64 字符，避免异常网络包污染 UI。`updateSelf(Profile)` 在登录或资料修改后先用账号、当前主机地址和当前传输端口调用 `idFor(...)` 生成设备ID，再用账号资料刷新本机发现身份并调用 `announce()`；这能让同一账号在 8 个本机实例中得到 8 个不同设备ID，避免 `seen` 表按 ID 覆盖。`updateStatus(UserStatus, String)` 在状态切换后刷新本机状态和签名并再次静默广播；`announce()` 直接把 `encode(self)` 发到所有广播地址和扫描端口，对端后台线程会在没有手动扫描的情况下接收并更新缓存。`knownDevices()` 通过 `sorted()` 返回设备时会调用 `withStatus(...)`，按最后发现时间和用户状态生成 ONLINE/OFFLINE 及“刚刚/秒前/分钟/对方隐身/对方离线/已离线”展示文本，并保留对方签名和头像。`broadcastAddresses()` 会加入回环地址和全局广播地址，再从 `NetworkInterface` 读取可广播地址；回环地址用于没有 VM 权限时的本机双实例运行，真实局域网仍依赖广播地址。`localDevice()` 用系统用户名、主机名和当前传输端口生成未登录本机条目。该功能不需要服务器；如果防火墙或网段策略拦截 UDP，扫描结果至少保留本机。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpRx.java`
 
 所属功能：UDP 文件接收后端。
 
-详细功能：`UdpRx` 负责真实文件接收的后台服务。它默认监听 `LanPeer.TRANSFER_PORT`，接收 `UdpTx` 发来的文件开始包和文件内容分片包；该端口默认是 `49132`，可由 `lantransfer.transferPort` JVM 参数或 `LANTRANSFER_TRANSFER_PORT` 环境变量覆盖，方便宿主机多实例和虚拟机联调。监听线程只负责收包和处理 BEGIN，DATA 分片交给 8 个接收 worker 并行处理，接收 socket 会扩大缓冲区，避免稍大文件的多线程分片把系统 UDP 缓冲挤爆后出现“第xx分片未确认”。每个接收文件会创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，并按接收进度节点调用 `RxProgress` 供界面展示；如果接收端重启后再次收到同一文件的开始包，会从 `.part.meta` 恢复已接收分片并在 BEGIN ACK 中带回缺失分片列表，供发送端定向补发。接收端会用 `FileIcons.supportedName(...)` 拒收不支持的文件类型；本机状态为 BUSY 或发送端携带本次传输口令摘要时，`UdpRx` 会在创建接收状态前调用 `RxAsk` 询问用户是否允许接收，有口令时按口令摘要缓存确认结果，无口令忙碌确认按发送任务ID缓存，同一批文件或同一目录压缩包只弹一次确认或口令框；本机状态为 INVISIBLE 或 OFFLINE 时直接拒收。DATA 包写入成功后，`UdpRx` 会按 BEGIN 时读取到的 `downloadLimit` 延迟 ACK，形成接收侧下载限速闭环；下载限速不会在每个分片重新读取 `settings.properties`，否则大文件会被磁盘配置读取拖慢。收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件；如果 BEGIN 扩展字段标记为 `DIRZIP`，说明发送端传的是文件夹临时压缩包，接收端会把 zip 解压到同名目录并删除 zip 文件，从而保留子目录结构。最终删除元数据并推送 100% 接收进度。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
+详细功能：`UdpRx` 负责真实文件接收的后台服务。它默认监听 `LanPeer.TRANSFER_PORT`，接收 `UdpTx` 发来的文件开始包和文件内容分片包；该端口默认是 `49132`，可由 `lantransfer.transferPort` JVM 参数或 `LANTRANSFER_TRANSFER_PORT` 环境变量覆盖，方便多实例运行。监听线程只负责收包和处理 BEGIN，DATA 分片交给 8 个接收 worker 并行处理，接收 socket 会扩大缓冲区，避免稍大文件的多线程分片把系统 UDP 缓冲挤爆后出现“第xx分片未确认”。每个接收文件会创建 `.part` 临时文件和 `.part.meta` 分片状态文件，按分片序号写入正确偏移量，并按接收进度节点调用 `RxProgress` 供界面展示；如果接收端重启后再次收到同一文件的开始包，会从 `.part.meta` 恢复已接收分片并在 BEGIN ACK 中带回缺失分片列表，供发送端定向补发。接收端会用 `FileIcons.supportedName(...)` 拒收不支持的文件类型；本机状态为 BUSY 或发送端携带本次传输口令摘要时，`UdpRx` 会在创建接收状态前调用 `RxAsk` 询问用户是否允许接收，有口令时按口令摘要缓存确认结果，无口令忙碌确认按发送任务ID缓存，同一批文件或同一目录压缩包只弹一次确认或口令框；本机状态为 INVISIBLE 或 OFFLINE 时直接拒收。DATA 包写入成功后，`UdpRx` 会按 BEGIN 时读取到的 `downloadLimit` 延迟 ACK，形成接收侧下载限速闭环；下载限速不会在每个分片重新读取 `settings.properties`，否则大文件会被磁盘配置读取拖慢。收齐全部分片后校验 SHA-256，校验通过才移动为最终接收文件；如果 BEGIN 扩展字段标记为 `DIRZIP`，说明发送端传的是文件夹临时压缩包，接收端会把 zip 解压到同名目录并删除 zip 文件，从而保留子目录结构。最终删除元数据并推送 100% 接收进度。接收目录来自 `SettingsStore.load().receiveDir()`，因此设置页保存的新目录会被后续接收任务使用。
 
-实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口、扩大接收缓冲并循环接收 UDP 数据包；如果监听线程因端口占用、权限或网络栈异常退出，会把异常打印到进程错误日志，方便 GUI 多端测试时定位失败原因。`updateStatus(UserStatus)` 保存当前本机状态，`setAsk(RxAsk)` 保存接收前确认回调，空回调会自动允许；`setProgress(RxProgress)` 保存接收进度回调，空回调为空操作。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小、发送端 SHA-256、本次传输口令 SHA-256 摘要和文件夹压缩包标记；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handle(...)` 收到 BEGIN 时同步调用 `handleBegin(...)`，收到 DATA 时用 `workers.execute(...)` 交给接收 worker。`handleBegin(...)` 创建 `RxFile` 接收状态，如果同一任务文件已经在本轮接收中，就直接用已有 `RxFile.missing()` 生成缺失分片扩展字段并 ACK；新文件会先解析文件名、大小、口令摘要和 `DIRZIP` 标记，不支持的扩展名直接返回 `ACK FAIL` 和 `UNSUPPORTED`，通过类型检查后调用 `allowBegin(jobId, fileName, size, codeHash)`，DEFAULT/ONLINE 且无口令时直接允许，INVISIBLE/OFFLINE 直接拒绝，BUSY 或有口令时用 `approvalKey(jobId, codeHash)` 读取 `approvals` 缓存，`approvalKey(...)` 在口令摘要非空时直接使用口令摘要，在口令为空时使用 jobId，缓存没有记录时才调用一次 `ask.approve(fileName, size, codeHash)`，后续 BEGIN 包直接复用第一次同意或拒绝结果；同意后才通过 `createFile(...)` 和 `restoreOrReset()` 读取或创建 `.part`，拒绝时返回 `ACK FAIL` 和 `REJECTED` 扩展字段。`createFile(...)` 会把当前 `RxProgress`、BEGIN 时读取到的下载限速字节数和 `folderZip` 标记传入 `RxFile`，避免 DATA 阶段每个分片都读取设置文件。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`，写入成功后用本文件缓存的下载限速调用 `downloadRate.pause(...)`，通过推迟 ACK 控制发送端速度；0 表示不限速。`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`，随后打开一次 `.part` 的 `FileChannel` 供后续分片复用。`RxFile.write(...)` 对同一个文件使用同步入口，避免最终移动文件时和重复分片写入赛跑；实际写入复用同一个 `FileChannel` 并按 `chunkIndex * chunkSize` 定位，`BitSet` 记录哪些分片已经收到；新分片只在首片、每 16 片和最终完成时保存 `.part.meta`，保留断点续传能力并避免大文件每片刷元数据拖慢 ACK。未收齐时 `publishProgress()` 根据 `receivedCount * 100 / chunkCount` 按 25% 阈值调用 `progress.update(fileName, percent)`，重复分片不会重复推送；全部收齐后先 `finish()` 关闭临时文件通道、计算 SHA-256 并移动最终文件，`folderZip` 为 true 时调用 `unzipTarget()` 用 JDK `ZipInputStream` 解压到同名目录。`unzipDir(...)` 遇到已有目录会生成 `目录名-1` 这样的新目录，`unzipEntry(...)` 会检查解压后的标准化路径仍在目标目录内，防止异常 zip 条目越界写文件；解压完成后删除接收到的 zip。成功后再 `publish(100)`，校验或解压失败则不推送完成进度。`missing()` 只在已经存在部分分片时返回缺失索引，例如只收到第 0 片且总共 2 片时返回 `1`；完全没有历史分片时返回空字符串，让发送端按普通新任务完整发送。`RateLimit.pause(...)` 低于 1ms 的亚毫秒等待直接累计跳过，避免 Windows 把短睡眠放大成十几毫秒。
+实现方法：`start()` 创建 daemon 线程执行 `listen()`，`listen()` 用可复用地址绑定端口、扩大接收缓冲并循环接收 UDP 数据包；如果监听线程因端口占用、权限或网络栈异常退出，会把异常打印到进程错误日志，方便 GUI 多端运行时定位失败原因。`updateStatus(UserStatus)` 保存当前本机状态，`setAsk(RxAsk)` 保存接收前确认回调，空回调会自动允许；`setProgress(RxProgress)` 保存接收进度回调，空回调为空操作。协议使用三个短文本头：`LANTRANSFER_FILE_BEGIN_V1` 表示文件开始，携带任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小、发送端 SHA-256、本次传输口令 SHA-256 摘要和文件夹压缩包标记；`LANTRANSFER_FILE_DATA_V1` 表示文件分片，头部后面直接拼接二进制数据；`LANTRANSFER_FILE_ACK_V1` 是接收端回给发送端的确认。`handle(...)` 收到 BEGIN 时同步调用 `handleBegin(...)`，收到 DATA 时用 `workers.execute(...)` 交给接收 worker。`handleBegin(...)` 创建 `RxFile` 接收状态，如果同一任务文件已经在本轮接收中，就直接用已有 `RxFile.missing()` 生成缺失分片扩展字段并 ACK；新文件会先解析文件名、大小、口令摘要和 `DIRZIP` 标记，不支持的扩展名直接返回 `ACK FAIL` 和 `UNSUPPORTED`，通过类型检查后调用 `allowBegin(jobId, fileName, size, codeHash)`，DEFAULT/ONLINE 且无口令时直接允许，INVISIBLE/OFFLINE 直接拒绝，BUSY 或有口令时用 `approvalKey(jobId, codeHash)` 读取 `approvals` 缓存，`approvalKey(...)` 在口令摘要非空时直接使用口令摘要，在口令为空时使用 jobId，缓存没有记录时才调用一次 `ask.approve(fileName, size, codeHash)`，后续 BEGIN 包直接复用第一次同意或拒绝结果；同意后才通过 `createFile(...)` 和 `restoreOrReset()` 读取或创建 `.part`，拒绝时返回 `ACK FAIL` 和 `REJECTED` 扩展字段。`createFile(...)` 会把当前 `RxProgress`、BEGIN 时读取到的下载限速字节数和 `folderZip` 标记传入 `RxFile`，避免 DATA 阶段每个分片都读取设置文件。`handleData(...)` 找到对应 `RxFile` 并调用 `write(...)`，写入成功后用本文件缓存的下载限速调用 `downloadRate.pause(...)`，通过推迟 ACK 控制发送端速度；0 表示不限速。`uniqueTarget(...)` 会同时避开已存在文件和本轮正在接收的保留路径，避免并发同名文件互相覆盖。`RxFile` 初始化时读取 `.part.meta`，如果 size、chunkCount、chunkSize 和 SHA-256 匹配，就恢复已接收的 `BitSet`；如果不匹配或没有元数据，就清理旧 `.part`，随后打开一次 `.part` 的 `FileChannel` 供后续分片复用。`RxFile.write(...)` 对同一个文件使用同步入口，避免最终移动文件时和重复分片写入赛跑；实际写入复用同一个 `FileChannel` 并按 `chunkIndex * chunkSize` 定位，`BitSet` 记录哪些分片已经收到；新分片只在首片、每 16 片和最终完成时保存 `.part.meta`，保留断点续传能力并避免大文件每片刷元数据拖慢 ACK。未收齐时 `publishProgress()` 根据 `receivedCount * 100 / chunkCount` 按 25% 阈值调用 `progress.update(fileName, percent)`，重复分片不会重复推送；全部收齐后先 `finish()` 关闭临时文件通道、计算 SHA-256 并移动最终文件，`folderZip` 为 true 时调用 `unzipTarget()` 用 JDK `ZipInputStream` 解压到同名目录。`unzipDir(...)` 遇到已有目录会生成 `目录名-1` 这样的新目录，`unzipEntry(...)` 会检查解压后的标准化路径仍在目标目录内，防止异常 zip 条目越界写文件；解压完成后删除接收到的 zip。成功后再 `publish(100)`，校验或解压失败则不推送完成进度。`missing()` 只在已经存在部分分片时返回缺失索引，例如只收到第 0 片且总共 2 片时返回 `1`；完全没有历史分片时返回空字符串，让发送端按普通新任务完整发送。`RateLimit.pause(...)` 低于 1ms 的亚毫秒等待直接累计跳过，避免 Windows 把短睡眠放大成十几毫秒。
 
 ## `src/main/java/com/iwmei/lantransfer/service/UdpTx.java`
 
@@ -144,14 +135,6 @@
 详细功能：`UdpTx` 负责把用户选择的真实文件发送到可达目标设备，并返回传输结果页需要的 `TransferSummary`。它支持普通文件和文件夹发送：普通文件仍按 `FileIcons` 白名单判断，文件夹会在发送前用 JDK `ZipOutputStream` 打成临时 zip，作为一个文件发送，接收端再解压回同名目录，因此不会把目录内部文件打散到接收目录根部。发送时可接收文件传输页传入的本次口令，计算 SHA-256 摘要后随 BEGIN 包发送给接收端。它按“目标×文件”组合并发发送：如果选择 4 个用户和 5 个文件，会创建 20 个文件目标发送任务，同时覆盖老师要求的多目标并发和多文件并发。每个文件目标任务都使用 UDP socket 直接向对应主机发送 BEGIN 和 DATA；同一目标的多个文件共享一个 jobId 和目标级 `RateLimit`，保证本次口令只确认一次，上传限速也不会因为多文件并发被放大。在线、可达且用户状态为 DEFAULT/ONLINE/BUSY 的设备会进入真实 UDP 发送，离线、缺少地址、隐身和离线状态的设备会生成失败任务和拦截日志。BUSY 目标不会被发送端直接拦截，而是发送 BEGIN 后等待接收端确认。每个文件先计算 SHA-256 并发送开始包，如果接收端 BEGIN ACK 返回缺失分片列表，就只补发这些缺失分片，没有缺失列表时按普通新任务发送全部分片。DATA 阶段在只有 1 个文件目标任务时使用最多 8 个分片 worker 展示单文件分片并发；一旦外层已经存在多个“目标×文件”并发任务，单文件内部就固定为 1 个 worker，避免多对象发送时把 UDP 包和 ACK 数量叠到接收端缓冲无法承受。每个分片 ACK 等待 2 秒，超时后按系统设置中的最大重试次数重发；发送端会在正式提交并发 Future 前先通过进度回调推送整批“传输中”初始任务，让传输列表立即出现，随后多分片文件在 25%/50%/75% 进度点记录预计剩余时间日志，并通过进度回调推送当前文件目标的状态快照。发送过程中支持暂停和继续：暂停只阻塞后续 UDP 包发送，不破坏已经收到 ACK 的分片状态。
 
 实现方法：两参数 `run(...)` 调用带口令参数的 `run(...)` 并传入空口令，带 `Consumer<TransferSummary>` 的旧入口同样进入同一发送路径。`setPaused(boolean)` 使用 `pauseLock` 保存暂停状态，继续时 `notifyAll()` 唤醒等待线程；`waitIfPaused()` 在每次 `sendWithAck(...)` 真正发送 UDP 包前执行，暂停期间阻塞，线程被中断时返回失败并保留中断标记。带口令的 `run(...)` 先用 `sources(...)` 把 `TransferFile` 转成真正要发送的 `SourceFile` 列表，再用 `codeHash(code)` 把本次口令转成 SHA-256 摘要；普通文件只有 `FileIcons.supported(path)` 为 true 才进入列表，文件夹调用 `zipDir(...)` 创建临时 zip。`zipDir(...)` 用 `Files.createTempFile("ltx", ".zip")` 生成临时包，用 `Files.walk(root)` 遍历目录，并用 `zipEntry(...)` 把普通文件和空目录写入 zip 条目，条目名用相对路径并把反斜杠改成 `/`；生成的 `SourceFile` 文件名为原文件夹名加 `.zip`，`folderZip=true`，`temporary=true`。`zipName(...)` 负责给无扩展目录名补 `.zip`，`deleteTemps(...)` 在 `run(...)` 的 finally 中删除临时包，避免发送结束后污染系统临时目录。`sha256(...)` 用 JDK `MessageDigest` 计算源文件或临时 zip 的校验值。过滤或打包后如果没有任何可传输源文件，直接返回失败汇总并写入“没有可传输文件”日志，避免空路径误报成功。`sendableTargets(...)` 统计真实可发送目标，`perTargetBytesPerSecond(...)` 把 `SystemSettings.uploadLimit()` 按可发送目标数量折算为每目标字节速率；当可发送目标数和文件数的乘积大于 1 时，日志写入“文件目标并发：N 个任务”。`publishStart(...)` 在提交真正发送 Future 之前，为所有可发送目标和所有源文件生成 0% 且状态为“传输中”的 `TransferTask`，并通过回调交给页面，这就是提交后传输列表能立即出现的来源。`sendTargets(...)` 的写法对齐旧作业 `EchoServerUDP` 收到 UDP 包后立即启动处理线程的思路：它先为每个目标创建 `TargetJob`，统计本次真实 `activeTasks`，再把每个可发送目标和每个源文件组合成 `FileFuture`，用固定线程池一次性提交所有文件目标任务，因此 4 个用户和 5 个文件会同时提交 20 个任务；离线、隐身、不可达目标不会提交任务，只在汇总阶段生成失败行。每个 `sendFileTask(...)` 都创建独立 `DatagramSocket`、连接目标地址并调用 `sendFile(...)`，避免多个文件共享同一个 socket 时 ACK 互相抢；同一目标的多个任务共享 `TargetJob.jobId()` 和 `TargetJob.rate()`，所以口令确认和上传限速仍按目标聚合。`finishJobs(...)` 等待全部 Future 后按原目标顺序、原文件顺序重建 `TargetSend`，再由 `run(...)` 汇总成功目标数、失败目标数、任务列表、日志和重试次数。`sendFile(...)` 发送 `BEGIN` 元数据包，`beginMessage(...)` 写入任务 ID、文件序号、Base64 文件名、文件大小、分片数、分片大小、文件 SHA-256、本次口令 SHA-256 和 `DIRZIP/FILE` 标记；`beginTimeout(...)` 对所有 BEGIN ACK 统一使用 15 秒等待，因为 BEGIN 是唯一可能触发接收端确认弹窗或口令框的阶段。DATA 分片使用 2 秒 ACK 等待，覆盖接收端多线程写盘和局域网调度抖动。`sendWithAck(...)` 会临时切换 socket 超时、发送包、等待 ACK、失败时按最大重试次数重发，并在 finally 中恢复旧超时；它还会解析 ACK 第 6 个字段并放入 `AckResult.detail()`。`chunksToSend(...)` 把该字段中的逗号分隔缺失分片索引转成待发送列表，字段为空或解析失败时发送全部分片。`sendChunks(...)` 是单文件分片调度入口，调用 `chunkWorkers(chunks.size(), activeTasks)` 决定 worker 数；`chunkWorkers(...)` 在 `activeTasks > 1` 时直接返回 1，让多对象传输只保留外层目标文件并发，避免每个任务再叠加 8 个分片 worker 导致 UDP 包爆发和“第xx分片未确认”。只有 `activeTasks == 1` 且分片数大于 1 时，才按分片数、CPU 数和 `MAX_CHUNK_WORKERS` 创建最多 8 个 worker，并写入“分片并发：N 个 worker”日志。`sendChunks(...)` 用 `AtomicInteger cursor` 分配分片索引、`AtomicInteger failedChunk` 记录首个失败分片、`AtomicInteger totalRetries` 汇总重试次数、`AtomicLong sentBytes` 汇总已确认字节。`sendWorker(...)` 为每个 worker 创建独立 `DatagramSocket`，连接同一目标地址和端口，在循环中领取分片、调用 `sendChunk(...)`、等待该 worker socket 收到对应 ACK；不同 worker 的 ACK 不会互相抢。`sendChunk(...)` 用 `FileChannel` 和 `readChunk(...)` 按 `chunkIndex * chunkBytes` 位置读取数据，`readChunk(...)` 使用 `FileChannel.read(buffer, position)` 做并发安全的定位读取，不修改共享 channel 的当前位置。续传时仍可跳过已接收分片，只补缺失分片，并在日志中记录“断点续传：仅补发 N 个缺失分片”。单个文件开始发送后 `publishProgress(...)` 继续推送当前文件目标的 0% 快照；每个分片 ACK 后累计已发送字节，`publishChunkProgress(...)` 在 25%/50%/75% 阈值处写日志、计算 ETA、推送包含当前文件、目标、百分比、速度、耗时和日志副本的快照。`RateLimit.pause(...)` 使用同步方法保护目标级限速计数，避免多个分片 worker 同时修改发送字节，低于 1ms 的亚毫秒等待会直接累计跳过，避免 Windows 短睡眠拖慢大文件。最终按文件生成 `TransferTask`，按目标汇总成功数、失败数、重试次数、日志和总耗时。
-
-## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
-
-所属功能：文件传输结果报告的旧模拟自检辅助类。
-
-详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类只保留给 `TxSimCheck` 回归自检和对比旧结果格式。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
-
-实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免自检被坏路径中断。当前 App 真实发送不经过该类，删除它时需要同时删除 `TxSimCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/model/AuthResult.java`
 
@@ -223,7 +206,7 @@
 
 详细功能：保存目标总数、成功数、失败数、重试次数、总耗时、日志列表和任务列表。`UdpTx` 在真实发送开始、分片进度和最终完成时都会构造它，文件传输页用它展示统计卡、传输列表和日志，也用它执行“清除已完成”“移除单条任务”和“清空日志”的内存汇总更新。
 
-实现方法：服务层完成真实传输或旧模拟自检时返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。`withoutCompleted()` 过滤掉状态为“已完成”的任务，并用剩余任务重新计算目标数、成功数、失败数和重试数；`withoutTask(TransferTask)` 移除传入任务并复用同一套 `with(...)` 统计重算逻辑，供传输列表“移除”按钮使用；`withoutLogs()` 保留统计和任务，只把日志列表换成空列表。`UdpTx` 最终汇总会把每个目标的确认结果、失败结果和重试次数折算进这些字段，进度快照则用同一结构表达当前“传输中”任务。
+实现方法：服务层完成真实传输时返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。`withoutCompleted()` 过滤掉状态为“已完成”的任务，并用剩余任务重新计算目标数、成功数、失败数和重试数；`withoutTask(TransferTask)` 移除传入任务并复用同一套 `with(...)` 统计重算逻辑，供传输列表“移除”按钮使用；`withoutLogs()` 保留统计和任务，只把日志列表换成空列表。`UdpTx` 最终汇总会把每个目标的确认结果、失败结果和重试次数折算进这些字段，进度快照则用同一结构表达当前“传输中”任务。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferTask.java`
 
@@ -261,7 +244,7 @@
 
 所属功能：用户列表搜索匹配工具。
 
-详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID、目标主机地址和个性签名。它不依赖 JavaFX，因此页面和无框架自检都能复用同一套匹配逻辑。
+详细功能：`DeviceSearch` 负责按搜索框输入匹配 `UserDevice` 的昵称、设备名称、设备 ID、目标主机地址和个性签名。它不依赖 JavaFX，因此页面能复用同一套匹配逻辑。
 
 实现方法：`matches(UserDevice, String)` 对空搜索词直接返回 true；非空搜索词用 `Locale.ROOT` 转小写并 `trim()`，再调用 `contains(...)` 分别检查昵称、设备名、ID、host 和 `signature`。`contains(...)` 对 null 字段返回 false，避免局域网设备缺少地址或签名时触发异常。
 
@@ -272,86 +255,6 @@
 详细功能：显示认证入口、登录表单、注册表单和 GitHub Actions 等待提示页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录和注册密码栏都有小眼睛按钮，可以在隐藏密码和明文显示之间切换。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册按钮显示为“注册”，提交后会禁用表单并显示加载动画，后端返回后再根据结果决定显示错误、等待页或返回登录页。等待页目前复用“注册审核提示”视觉文案，实际触发条件是 `AuthStore.waitForAction(...)` 在等待远程 Actions 合入账号表时还没有看到新账号。
 
 实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`passwordBox(String)` 用一个 `PasswordField` 和一个绑定同一文本的 `TextField` 叠放在 `StackPane` 中，默认只显示 `PasswordField`；点击 `mdi2e-eye` 图标按钮时切换两个输入框的 `visible/managed` 状态，并把图标切到 `mdi2e-eye-off`，因此同一份密码值不会复制到多个业务变量。`labeledPassword(...)` 复用页面标签样式包装密码组合控件。`loginForm()` 创建账号、密码、记住我控件，不预置任何账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时从 `PasswordBox.getText()` 取密码构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果；成功时保存后端返回的 `Profile` 并调用 `app.showFileTransferPage()`，失败时只 toast 后端消息。`registerForm()` 把“注册”按钮和 `ProgressIndicator` 放在同一个 `StackPane` 里，按钮始终 `setMaxWidth(Double.MAX_VALUE)` 满宽，加载圈用 `StackPane.setAlignment(..., Pos.CENTER_RIGHT)` 浮在右侧，不参与挤压按钮宽度；点击提交后立即显示加载圈、禁用账号/密码/设备/提交按钮，然后构造 `RegisterRequest` 调用注册接口；返回后隐藏加载动画并恢复表单，失败时 toast 后端消息，`pendingReview` 为真时保存临时 `Profile` 并进入 `showReviewPending()`，注册成功且无需等待时 toast 后端消息并回到登录页。`showReviewPending()` 构建一个主窗口壳里的提示页，返回、我知道了和返回登录按钮都会回到登录页；它不直接轮询 Actions，再次登录会由 `AuthStore.login(...)` 重新拉取最新 `acco`。
-
-## `src/test/java/com/iwmei/lantransfer/service/AuthStoreCheck.java`
-
-所属功能：账号仓库无框架自检。
-
-详细功能：验证第一屏后端最关键路径：旧版自动 `admin/admin` 账号不会继续登录或回填，新账号能注册，本地注册会记录 GitHub Actions 自动审核通过且不进入审核等待，重复注册失败，错误密码失败，正确密码登录成功并返回资料；同时验证“记住我”账号保存和取消勾选清除、资料更新、头像、状态签名和状态枚举会持久化。
-
-实现方法：`main(String[] args)` 创建临时目录，把 `AuthStore` 指向临时 `acco`、`la` 和 `req`，关闭 Git 同步后先确认空账号表不能登录 `admin/admin`，再调用注册并检查 `acco` 表头、账号行、`AUTO_APPROVED`、`actions` 审核标记以及不包含明文密码；随后覆盖重复注册失败、错误密码失败、正确密码登录、记住账号读取、资料更新、状态更新、再次登录和清除记住账号接口。最后用反射调用 `repoPath(...)` 验证 HTTPS 与 SSH 远程地址都能解析成 `owner/repo`，并临时设置 `acco.t` 验证 `clean(...)` 会遮盖原始 token 和 URL 编码 token，避免 Git 失败输出泄漏密钥。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AuthStoreCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/AutoStartCheck.java`
-
-所属功能：开机自启动脚本无框架自检。
-
-详细功能：验证 `AutoStart` 能在指定目录创建启动脚本、脚本内容包含 JavaFX 启动命令，并能在关闭自启动时删除脚本。它只使用临时目录，不会写入真实 Windows 启动目录。
-
-实现方法：`main(String[] args)` 创建临时目录，用 `new AutoStart(dir)` 指向该目录，先调用 `sync(true)` 并检查 `scriptPath()` 存在和脚本内容，再调用 `sync(false)` 检查脚本删除，最后递归删除临时目录。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.AutoStartCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/LanPeerCheck.java`
-
-所属功能：局域网发现协议无框架自检。
-
-详细功能：验证 `LanPeer` 的响应文本编码、解析、本机设备兜底、传输地址携带、用户状态携带、个性签名携带、头像携带、传输端口 JVM 参数覆盖、登录后设备ID不等于账号ID、旧全局口令不再隔离发现、发现后在线状态和过期离线判定，不依赖真实网络环境。
-
-实现方法：`main(String[] args)` 先设置 `System.setProperty("lantransfer.transferPort", "49132")`，再使用 `new LanPeer(false, 1)` 禁止启动后台 UDP 线程并把离线阈值设为 1 毫秒，构造一个带 `UserStatus.BUSY` 的 `UserDevice`，执行 `encode(...)` 和 `parse(...)` 往返检查，再确认解析后的设备 `reachable()` 为真且用户状态保持 BUSY。随后构造 `Profile("张三", "U-1", ...)` 调用 `updateSelf(...)`，要求本机条目的设备ID不等于账号ID，避免同账号多实例覆盖。再调用 `updateGroup("team-a")` 编码消息，当前组解析应成功；切到 `team-b` 后解析同一消息仍应成功，证明旧全局口令字段不会再隔离局域网发现。最后确认 `knownDevices()` 至少包含本机设备，并且本机设备端口包含 49132，证明多实例传输端口覆盖已经进入发现协议；调用 `remember(...)` 记录该设备，立即读取应为 ONLINE，短暂等待后再次读取应为 OFFLINE。失败时 `require(...)` 抛出 `AssertionError`。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.LanPeerCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/SettingsStoreCheck.java`
-
-所属功能：系统设置仓库无框架自检。
-
-详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、传输口令、接收目录、语言、启动后最小化和提示音设置能够再次读出，同时确认默认不会在手动登录后自动隐藏到托盘。
-
-实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数和默认 `startMinimized=false`，再保存一份带 `groupCode`、`startMinimized=true` 和提示音开关的自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/RecentStoreCheck.java`
-
-所属功能：近期传输对象仓库无框架自检。
-
-详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址、用户状态、个性签名和头像，避免 App 重启后近期目标只剩内存中的旧对象。
-
-实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线且用户状态为 BUSY 的 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达、用户状态仍为 BUSY。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/GroupStoreCheck.java`
-
-所属功能：传输分组仓库无框架自检。
-
-详细功能：验证 `GroupStore` 可以保存分组、编辑分组、读取组详情、读取组目标、把组目标展开成真实成员，并在同一用户既被单独选择又属于组时去重，同时确认默认口令、成员签名和头像不会在分组快照中丢失。它覆盖用户列表“新建分组/编辑分组”和文件传输页“选择组作为传输对象”的最小后端闭环。
-
-实现方法：`main(String[] args)` 创建临时目录和 `groups.properties`，构造两个可达 `UserDevice`，调用 `save("测试组", "1234", List.of(one, two, one))` 保存包含重复成员和默认口令的分组。检查点包括返回对象是组目标、组名可以 roundtrip、`targets()` 能读出一个组、`all().get(0).code()` 能读回默认口令、`all().get(0).size()` 已去重为 2；随后调用 `update("测试组", "新组", "abcd", loaded.members())` 验证更新后的组目标使用新组名、旧组不会残留、新口令能读回；最后用更新后的组目标执行 `expand(List.of(renamed, two))`，确认展开后只有两个真实成员，并且成员仍保留 host/port、签名和头像。最后递归删除临时目录。
-
-## `src/test/java/com/iwmei/lantransfer/util/DeviceSearchCheck.java`
-
-所属功能：设备搜索匹配无框架自检。
-
-详细功能：验证用户列表搜索可以命中昵称、设备名、设备 ID、目标地址和个性签名，并且不会错误命中无关搜索词。
-
-实现方法：`main(String[] args)` 构造一个带昵称、设备名、ID 和 host 的 `UserDevice`，依次调用 `DeviceSearch.matches(...)` 检查中文昵称、英文设备名大小写、ID 片段、IP 片段和无关姓名。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.util.DeviceSearchCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/TxSimCheck.java`
-
-所属功能：传输模拟器无框架自检。
-
-详细功能：验证一个文件发送给一个在线目标和一个离线目标时，汇总统计、失败重试、任务行、日志数量、清除已完成和清空日志是否正确。
-
-实现方法：`main(String[] args)` 创建临时文件，构造在线和离线两个 `UserDevice`，调用 `new TxSim().run(...)`，用 `require(...)` 检查目标总数为 2、成功为 1、失败为 1、重试为 3、任务行为 2、日志为 4；随后调用 `withoutCompleted()` 检查已完成行被移除且只剩失败行，调用 `withoutLogs()` 检查日志为空，最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.TxSimCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/UdpWireCheck.java`
-
-所属功能：UDP 发送接收闭环无框架自检。
-
-详细功能：验证 `UdpTx` 和 `UdpRx` 在本机真实 UDP 环境下可以完成目标级并发发送、多文件目标组合并发、单文件分片级并发发送、文件夹压缩发送和接收后解压、上传限速分配、下载限速配置参与接收 ACK、ACK 确认、SHA-256 完整性校验、忙碌状态接收前确认、发送时传输口令、同一传输任务只确认一次口令、大文件口令传输、文件类型拒收、ETA 日志、发送端传输中进度快照、接收端进度回调、接收落盘、未完成接收元数据保存和缺失分片定向补发。它覆盖最核心的传输闭环：临时接收目录、临时设置文件、临时源文件、两个本机目标设备、发送汇总统计、重名接收文件处理、接收文件内容一致性、接收端回调出现 100% 完成进度、文件夹发送时进度快照出现 `folder.zip`、接收端最终得到同名目录和嵌套文件且不保留 zip、4 个目标和 5 个文件生成 20 个文件目标并发任务、两个较大文件发给两个目标时生成 4 个外层并发任务且不再叠加分片并发 worker、BUSY 接收端同意后落盘、BUSY 接收端拒绝后失败且不落盘、正确口令允许接收、同一正确口令任务包含两个文件时只调用一次接收确认、1MB 口令文件在默认 8KB 分片和 8 个 worker 下成功且重试次数低于 8、错误口令拒绝接收、单任务两分片文件预计剩余时间日志、分片并发日志、进度回调里出现“传输中”任务、半文件 `.part.meta` 保存、重启后从 `.part.meta` 返回缺失分片、发送端只补缺失分片、错误校验拒收和不支持扩展名拒收。
-
-实现方法：`main(String[] args)` 创建临时目录和源文件，保存一份带接收目录、10MB/s上传限速和20MB/s下载限速的 `SystemSettings`，用临时 UDP 端口启动 `UdpRx`，并通过 `setProgress(...)` 把接收进度写入线程安全列表，再构造两个 `127.0.0.1` 目标设备并调用 `new UdpTx(1024).run(...)`。检查点包括每目标限速为 5MB/s、成功目标数为 2、失败目标数为 0、`hello.txt` 和 `hello-1.txt` 均存在、两个接收文件内容都等于源文件内容，以及接收进度列表包含 `hello.txt:100`。随后创建 `folder/a.txt` 和 `folder/sub/b.txt`，用同一个发送器发送文件夹并把进度回调收进 `folderProgress`，要求汇总成功、进度快照出现文件名 `folder.zip` 且状态为“传输中”、接收目录中存在 `folder/a.txt` 和 `folder/sub/b.txt`，并且 `folder.zip` 已被接收端解压后删除。随后构造 5 个 `parallel-*.txt` 源文件和 4 个在线目标，调用默认 `new UdpTx().run(...)`，要求成功目标数为 4、任务行数为 20，并且日志包含“文件目标并发：20 个任务”，证明多用户和多文件是目标文件组合并发而不是目标内文件串行。再构造 2 个约 64KB 的 `parallel-large-*.bin`，用 `new UdpTx(1024)` 发给两个目标，要求成功目标数为 2、任务行数为 4，并确认日志中没有“分片并发”，证明多对象较大文件发送时只保留外层并发，不再叠加单文件分片 worker。随后创建三个 BUSY 相关接收器：第一个调用 `setAsk((name, bytes, codeHash) -> true)` 后启动，发送端目标也标记为 BUSY，要求发送成功、日志包含“等待接收确认”、`busy.txt` 落盘；第二个把接收器切到 BUSY 但发送端目标对象仍使用默认状态，`setAsk(...)` 延迟 2.2 秒后同意，用来验证 BEGIN 统一长等待能覆盖近期对象状态缓存过期的 GUI 场景，要求 `stale-busy.txt` 落盘；第三个调用 `setAsk((name, bytes, codeHash) -> false)` 后启动，要求发送失败且 `deny.txt` 不存在。接着启动口令接收器，用 `AtomicInteger secureAsks` 统计确认回调次数，回调用 `sha256("secret")` 比对 `codeHash`，正确口令一次发送 `secure.txt` 和 `secure2.txt` 两个文件，要求发送成功且 `secureAsks == 1`，证明同一 jobId 下后续文件不会重复弹口令；随后用默认 `new UdpTx()` 发送 1MB 的 `secure-large.bin`，要求发送成功且 `retryCount() < 8`，覆盖稍大文件携带口令时的多线程分片确认问题；错误口令发送要求失败。再用 `new UdpTx(512).run(..., progressSnapshots::add)` 发送两分片文件，确认日志包含“预计剩余”和“分片并发”，并确认回调列表中至少有一条 `TransferTask.status()` 为“传输中”且进度达到 25% 以上的快照。`sendPartial(...)` 手工发送一个只收到首个分片的文件，确认 `partial.bin.part.meta` 包含 `received=0`。续传检查先用 `sendResumePartial(...)` 在旧接收器上留下 `resume.bin.part` 和 `resume.bin.part.meta`，再启动新的 `UdpRx` 并用 `sendResumeBegin(...)` 确认 BEGIN ACK 带回缺失分片 `1`，最后让 `new UdpTx(512)` 真实发送同一文件，要求汇总成功、日志包含“断点续传”、最终 `resume.bin` 内容与源文件一致。最后 `sendBadChecksumBegin(...)` 手工发送一个 SHA-256 错误的空文件开始包，确认接收端返回 `FAIL` 且不会落盘 `bad.txt`；`sendUnsupportedBegin(...)` 发送 `.exe` 开始包，确认接收端返回 `FAIL UNSUPPORTED`。`freePort()` 用临时 `DatagramSocket(0)` 获取可用端口，`deleteTree(...)` 在结束时清理临时目录。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.UdpWireCheck`。
-
-## `src/test/java/com/iwmei/lantransfer/service/UdpPauseCheck.java`
-
-所属功能：UDP 暂停发送无框架自检。
-
-详细功能：验证发送端暂停开关会真正阻塞后续 UDP 包发送，并且继续后同一传输任务能够正常完成，不破坏接收端落盘和内容校验。
-
-实现方法：`main(String[] args)` 创建临时接收目录和设置文件，启动临时端口上的 `UdpRx`，创建一个小源文件和可达目标，先调用 `new UdpTx(512).setPaused(true)`，再用 `CompletableFuture.supplyAsync(...)` 启动发送。等待 300ms 后检查 Future 仍未完成，证明暂停有效；随后调用 `setPaused(false)`，要求 Future 在 5 秒内完成、成功目标数为 1，且接收目录中的文件内容与源文件一致。最后递归删除临时目录。
 
 ## `src/main/java/com/iwmei/lantransfer/view/FileTransfer.java`
 

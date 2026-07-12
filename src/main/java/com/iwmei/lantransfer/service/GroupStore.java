@@ -24,7 +24,7 @@ final class GroupStore {
         this(AppFiles.dataDir().resolve("groups.properties"));
     }
 
-    // 使用指定分组文件初始化仓库，供自检复用
+    // 使用指定分组文件初始化仓库
     GroupStore(Path store) {
         this.store = store;
     }

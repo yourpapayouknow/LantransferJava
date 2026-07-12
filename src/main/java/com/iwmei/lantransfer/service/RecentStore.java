@@ -27,7 +27,7 @@ final class RecentStore {
         this(AppFiles.dataDir().resolve("recent.properties"));
     }
 
-    // 使用指定近期对象文件初始化仓库，供测试复用
+    // 使用指定近期对象文件初始化仓库
     RecentStore(Path store) {
         this.store = store;
     }

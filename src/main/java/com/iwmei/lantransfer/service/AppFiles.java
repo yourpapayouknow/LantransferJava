@@ -10,7 +10,7 @@ final class AppFiles {
     private AppFiles() {
     }
 
-    // 返回当前仓库命名空间下的数据目录，允许测试实例用参数覆盖
+    // 返回当前仓库命名空间下的数据目录，允许多实例运行用参数覆盖
     static Path dataDir() {
         String override = configuredDataDir();
         if (!override.isBlank()) {
@@ -19,7 +19,7 @@ final class AppFiles {
         return Path.of(System.getProperty("user.home"), ".lantransfer", repoSlug());
     }
 
-    // 读取多实例测试或虚拟机联调指定的数据目录
+    // 读取多实例运行指定的数据目录
     private static String configuredDataDir() {
         String property = System.getProperty("lantransfer.dataDir", "").trim();
         if (!property.isBlank()) {
