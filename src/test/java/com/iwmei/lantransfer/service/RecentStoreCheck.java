@@ -39,7 +39,7 @@ public final class RecentStoreCheck {
     // 构造测试设备
     private static UserDevice device(String id, String nickname, String deviceName) {
         return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "刚刚", nickname.substring(0, 1),
-                "#4f7bd8", false, "127.0.0.1", 45332, UserStatus.BUSY, "签名", "QUJD");
+                "#4f7bd8", false, "127.0.0.1", 49132, UserStatus.BUSY, "签名", "QUJD");
     }
 
     // 断言条件为真

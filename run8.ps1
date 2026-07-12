@@ -7,7 +7,7 @@ if (!(Test-Path -LiteralPath $tokenFile)) {
 }
 
 $base = Join-Path $PSScriptRoot ".multi"
-$ports = 1..3 | ForEach-Object { 45329 + ($_ * 2) }
+$ports = 1..3 | ForEach-Object { 49129 + ($_ * 2) }
 $scanPorts = $ports -join ","
 
 Get-CimInstance Win32_Process |

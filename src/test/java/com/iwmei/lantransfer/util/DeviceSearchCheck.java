@@ -11,7 +11,7 @@ public final class DeviceSearchCheck {
     // 运行昵称、设备名、ID和地址匹配检查
     public static void main(String[] args) {
         UserDevice device = new UserDevice("D-1001", "张三", "DESKTOP-A", DeviceStatus.ONLINE, "刚刚",
-                "张", "#4f7bd8", false, "192.168.1.8", 45332, com.iwmei.lantransfer.model.UserStatus.DEFAULT,
+                "张", "#4f7bd8", false, "192.168.1.8", 49132, com.iwmei.lantransfer.model.UserStatus.DEFAULT,
                 "局域网签名", "");
         require(DeviceSearch.matches(device, "张"), "nickname should match");
         require(DeviceSearch.matches(device, "desktop"), "device name should match ignoring case");

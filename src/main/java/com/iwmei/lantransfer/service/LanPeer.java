@@ -25,8 +25,8 @@ import java.util.concurrent.ConcurrentMap;
 
 // 局域网设备发现服务，负责UDP广播扫描和本机发现响应
 final class LanPeer {
-    private static final int PORT = configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 45331);
-    static final int TRANSFER_PORT = configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 45332);
+    private static final int PORT = configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 49131);
+    static final int TRANSFER_PORT = configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 49132);
     private static final List<Integer> SCAN_PORTS = configuredScanPorts();
     private static final int WAIT_MILLIS = 900;
     private static final long OFFLINE_MILLIS = 30_000;
