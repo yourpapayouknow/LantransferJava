@@ -10,6 +10,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 ## Git Safety
 
 - 一改动一提交：每完成一个独立改动，必须立即编译/验证并创建一次 git commit。
+- 每次独立改动的 git commit 就是还原点；一旦发现本轮改动错误，先回到最近还原点或用反向补丁恢复，再继续修改。
 - 提交只包含本次改动相关文件；不要把无关文档、IDE 配置或其他线程留下的改动顺手带入提交。
 - 删除代码前先确认当前 JavaFX 前端核心文件已经提交备份。
 
