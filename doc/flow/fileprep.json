@@ -1,0 +1,33 @@
+{
+  "page": {"width_mm": 297, "height_mm": 410, "unit": "mm", "title": "文件选择过滤与发送源展开流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n上传/拖拽/选择文件夹", "shape": "ellipse", "x_mm": 100, "y_mm": 32, "width_mm": 82, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "support", "label": "FileIcons.supported\n扩展名/文件夹允许?", "shape": "diamond", "x_mm": 108, "y_mm": 76, "width_mm": 66, "height_mm": 48, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "skip", "label": "跳过不支持\ntoast计数", "shape": "rounded_rectangle", "x_mm": 208, "y_mm": 84, "width_mm": 68, "height_mm": 34, "fill": "#FCE8E6", "layer": "ui"},
+    {"id": "pending", "label": "加入pendingFiles\nTransferFile", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 144, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "sources", "label": "UdpTx.sources\n检查路径存在", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 196, "width_mm": 76, "height_mm": 34, "fill": "#E8F3E8", "layer": "tx"},
+    {"id": "empty", "label": "无可传文件\n空报告", "shape": "rounded_rectangle", "x_mm": 208, "y_mm": 198, "width_mm": 68, "height_mm": 34, "fill": "#FCE8E6", "layer": "tx"},
+    {"id": "dir", "label": "是文件夹?", "shape": "diamond", "x_mm": 112, "y_mm": 246, "width_mm": 58, "height_mm": 40, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "walk", "label": "Files.walk\n过滤内部文件", "shape": "rounded_rectangle", "x_mm": 16, "y_mm": 254, "width_mm": 72, "height_mm": 34, "fill": "#E8F3E8", "layer": "tx"},
+    {"id": "file", "label": "常规文件\n再次类型过滤", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 254, "width_mm": 72, "height_mm": 34, "fill": "#E8F3E8", "layer": "tx"},
+    {"id": "sha", "label": "计算size/SHA-256\n构造SourceFile", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 312, "width_mm": 78, "height_mm": 36, "fill": "#E8F3E8", "layer": "tx"},
+    {"id": "next", "label": "进入BEGIN发送\n口令摘要+元数据", "shape": "ellipse", "x_mm": 108, "y_mm": 370, "width_mm": 78, "height_mm": 24, "fill": "#F4F4F4", "layer": "tx"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "support", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "support", "to": "skip", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "support", "to": "pending", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "pending", "to": "sources", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "sources", "to": "empty", "label": "源为空", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "sources", "to": "dir", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "dir", "to": "walk", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "dir", "to": "file", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "walk", "to": "sha", "arrow": "end", "layer": "flow"},
+    {"id": "e10", "from": "file", "to": "sha", "arrow": "end", "layer": "flow"},
+    {"id": "e11", "from": "sha", "to": "next", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "文件选择过滤与发送源展开流程：FileTransfer/FileIcons -> UdpTx.sources", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

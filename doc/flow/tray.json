@@ -1,0 +1,31 @@
+{
+  "page": {"width_mm": 297, "height_mm": 240, "unit": "mm", "title": "托盘、自启动与完成提示音流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "settings", "label": "系统设置保存\n启动/托盘/提示音", "shape": "ellipse", "x_mm": 16, "y_mm": 34, "width_mm": 84, "height_mm": 28, "fill": "#F4F4F4", "layer": "settings"},
+    {"id": "store", "label": "SettingsStore.save\n写properties", "shape": "rounded_rectangle", "x_mm": 112, "y_mm": 30, "width_mm": 76, "height_mm": 34, "fill": "#E8F3E8", "layer": "settings"},
+    {"id": "auto", "label": "AutoStart.sync\n同步启动项", "shape": "diamond", "x_mm": 214, "y_mm": 26, "width_mm": 58, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "cmd", "label": "创建/删除\n极速互传.cmd", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 90, "width_mm": 76, "height_mm": 34, "fill": "#E8F3E8", "layer": "settings"},
+    {"id": "window", "label": "setWindow后\napplyStartupTray", "shape": "rounded_rectangle", "x_mm": 112, "y_mm": 92, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "need", "label": "需最小化到托盘?", "shape": "diamond", "x_mm": 24, "y_mm": 84, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "tray", "label": "ensureTray\n创建图标和菜单", "shape": "rounded_rectangle", "x_mm": 16, "y_mm": 154, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "hide", "label": "stage.hide\n不支持则普通最小化", "shape": "rounded_rectangle", "x_mm": 112, "y_mm": 154, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "menu", "label": "托盘菜单\n显示/退出", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 154, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "sound", "label": "传输或接收完成\nsoundOnComplete?", "shape": "diamond", "x_mm": 112, "y_mm": 198, "width_mm": 76, "height_mm": 34, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "beep", "label": "Toolkit.beep", "shape": "ellipse", "x_mm": 214, "y_mm": 204, "width_mm": 58, "height_mm": 20, "fill": "#F4F4F4", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "settings", "to": "store", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "store", "to": "auto", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "auto", "to": "cmd", "label": "启用/关闭", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "store", "to": "window", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "window", "to": "need", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "need", "to": "tray", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "tray", "to": "hide", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "hide", "to": "menu", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "sound", "to": "beep", "label": "是", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "托盘、自启动与完成提示音流程：SettingsStore/AutoStart/MainWindow", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

@@ -1,0 +1,26 @@
+{
+  "page": {"width_mm": 297, "height_mm": 320, "unit": "mm", "title": "传输结果页统计与清理流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n进度/最终回调", "shape": "ellipse", "x_mm": 100, "y_mm": 32, "width_mm": 82, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "summary", "label": "TransferSummary\n目标/成功/失败/重试", "shape": "rounded_rectangle", "x_mm": 96, "y_mm": 78, "width_mm": 90, "height_mm": 36, "fill": "#E8F3E8", "layer": "model"},
+    {"id": "result_page", "label": "showTransferResultPage\n结果页重绘", "shape": "rounded_rectangle", "x_mm": 96, "y_mm": 132, "width_mm": 90, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "sections", "label": "渲染三区域\n统计卡片/任务列表/日志", "shape": "rounded_rectangle", "x_mm": 96, "y_mm": 186, "width_mm": 90, "height_mm": 38, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "op", "label": "用户清理操作?", "shape": "diamond", "x_mm": 108, "y_mm": 244, "width_mm": 66, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "done", "label": "withoutCompleted\n移除已完成并重算", "shape": "rounded_rectangle", "x_mm": 16, "y_mm": 292, "width_mm": 78, "height_mm": 32, "fill": "#E8F3E8", "layer": "model"},
+    {"id": "clear", "label": "withoutLogs\n清空日志", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 294, "width_mm": 74, "height_mm": 30, "fill": "#E8F3E8", "layer": "model"},
+    {"id": "sound", "label": "最终完成\nplayDoneSound", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 294, "width_mm": 74, "height_mm": 30, "fill": "#EAF2FF", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "summary", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "summary", "to": "result_page", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "result_page", "to": "sections", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "sections", "to": "op", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "op", "to": "done", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "op", "to": "clear", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "sections", "to": "sound", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "传输结果页统计与清理流程：FileTransfer + TransferSummary", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}
