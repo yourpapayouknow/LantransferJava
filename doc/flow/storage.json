@@ -1,25 +1,213 @@
 {
-  "page": {"width_mm": 297, "height_mm": 210, "unit": "mm", "title": "本地数据与配置存储流程"},
-  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "page": {
+    "width_mm": 297,
+    "height_mm": 578,
+    "unit": "mm",
+    "title": "本地数据存储流程"
+  },
+  "style": {
+    "font": "Microsoft YaHei UI",
+    "font_size_pt": 14,
+    "theme": "classic_flow",
+    "fill": "#FFFFFF",
+    "line": "#202020",
+    "line_width_pt": 1.2,
+    "text_color": "#111111",
+    "corner_radius_mm": 1.5
+  },
   "nodes": [
-    {"id": "start", "label": "开始\n服务需要运行数据", "shape": "ellipse", "x_mm": 16, "y_mm": 34, "width_mm": 66, "height_mm": 24, "fill": "#F4F4F4", "layer": "storage"},
-    {"id": "appfiles", "label": "AppFiles.dataDir\n覆盖路径或用户目录", "shape": "diamond", "x_mm": 104, "y_mm": 26, "width_mm": 70, "height_mm": 48, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "repo", "label": "repoOrigin/repoSlug\n读取.git/config", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 32, "width_mm": 74, "height_mm": 34, "fill": "#E8F3E8", "layer": "storage"},
-    {"id": "local", "label": "dataDir下本地文件\nsettings/recent/groups/la", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 94, "width_mm": 86, "height_mm": 40, "fill": "#E8F3E8", "layer": "storage"},
-    {"id": "acco", "label": "仓库根文件\nacco账号表/req注册请求", "shape": "rounded_rectangle", "x_mm": 204, "y_mm": 94, "width_mm": 74, "height_mm": 40, "fill": "#EAF2FF", "layer": "storage"},
-    {"id": "stores", "label": "Store类读写\nSettings/Recent/Group/Auth", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 154, "width_mm": 86, "height_mm": 34, "fill": "#E8F3E8", "layer": "storage"},
-    {"id": "backend", "label": "LocalBackend组合\n供页面使用", "shape": "ellipse", "x_mm": 204, "y_mm": 158, "width_mm": 74, "height_mm": 26, "fill": "#F4F4F4", "layer": "storage"}
+    {
+      "id": "start",
+      "label": "开始\n应用启动",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 27.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    },
+    {
+      "id": "dir",
+      "label": "确定数据目录",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 78.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "settings",
+      "label": "读取系统设置",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 133.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "recent",
+      "label": "读取近期对象",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 188.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "groups",
+      "label": "读取用户分组",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 243.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "remember",
+      "label": "读取记住账号",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 298.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "accounts",
+      "label": "读取账号表",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 353.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "requests",
+      "label": "读取注册请求",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 408.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "backend",
+      "label": "组合页面数据",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 463.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "end",
+      "label": "结束",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 522.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    }
   ],
   "edges": [
-    {"id": "e1", "from": "start", "to": "appfiles", "arrow": "end", "layer": "flow"},
-    {"id": "e2", "from": "appfiles", "to": "repo", "label": "无覆盖", "arrow": "end", "layer": "flow"},
-    {"id": "e3", "from": "appfiles", "to": "local", "label": "确定目录", "arrow": "end", "layer": "flow"},
-    {"id": "e4", "from": "repo", "to": "acco", "arrow": "end", "layer": "flow"},
-    {"id": "e5", "from": "local", "to": "stores", "arrow": "end", "layer": "flow"},
-    {"id": "e6", "from": "acco", "to": "stores", "arrow": "end", "layer": "flow"},
-    {"id": "e7", "from": "stores", "to": "backend", "arrow": "end", "layer": "flow"}
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "dir",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e2",
+      "from": "dir",
+      "to": "settings",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e3",
+      "from": "settings",
+      "to": "recent",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e4",
+      "from": "recent",
+      "to": "groups",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e5",
+      "from": "groups",
+      "to": "remember",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e6",
+      "from": "remember",
+      "to": "accounts",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e7",
+      "from": "accounts",
+      "to": "requests",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e8",
+      "from": "requests",
+      "to": "backend",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e9",
+      "from": "backend",
+      "to": "end",
+      "arrow": "end",
+      "layer": "line"
+    }
   ],
   "groups": [],
-  "annotations": [{"id": "title", "text": "本地数据与配置存储流程：AppFiles + SettingsStore/RecentStore/GroupStore/AuthStore", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
-  "exports": {"png": true, "pdf": false, "svg": false}
+  "annotations": [
+    {
+      "id": "title",
+      "text": "本地数据存储流程",
+      "x_mm": 8,
+      "y_mm": 8,
+      "width_mm": 281,
+      "height_mm": 10,
+      "font_size_pt": 16,
+      "layer": "title"
+    }
+  ],
+  "exports": {
+    "png": true,
+    "pdf": false,
+    "svg": false
+  }
 }

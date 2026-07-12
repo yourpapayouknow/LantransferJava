@@ -1,41 +1,305 @@
 {
-  "page": {"width_mm": 297, "height_mm": 330, "unit": "mm", "title": "App生命周期流程"},
-  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "page": {
+    "width_mm": 297,
+    "height_mm": 698,
+    "unit": "mm",
+    "title": "应用生命周期流程"
+  },
+  "style": {
+    "font": "Microsoft YaHei UI",
+    "font_size_pt": 14,
+    "theme": "classic_flow",
+    "fill": "#FFFFFF",
+    "line": "#202020",
+    "line_width_pt": 1.2,
+    "text_color": "#111111",
+    "corner_radius_mm": 1.5
+  },
   "nodes": [
-    {"id": "start", "label": "开始\nJVM进程创建", "shape": "ellipse", "x_mm": 18, "y_mm": 34, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "life"},
-    {"id": "main", "label": "App.main\nApplication.launch", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
-    {"id": "stage", "label": "MainWindow.start\n初始化Stage", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
-    {"id": "callbacks", "label": "注册Rx回调\n确认/进度", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 82, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
-    {"id": "backend", "label": "LocalBackend构造\n启动UdpRx", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 82, "width_mm": 74, "height_mm": 32, "fill": "#E8F3E8", "layer": "backend"},
-    {"id": "settings", "label": "loadSettings\n失败也进登录页", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 82, "width_mm": 62, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
-    {"id": "auth", "label": "Auth.show\n登录/注册", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 142, "width_mm": 62, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
-    {"id": "login", "label": "登录\n成功?", "shape": "diamond", "x_mm": 112, "y_mm": 132, "width_mm": 58, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "login_fail", "label": "显示错误\n保留登录页", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 190, "width_mm": 74, "height_mm": 30, "fill": "#FCE8E6", "layer": "ui"},
-    {"id": "shell", "label": "文件传输页\n主窗口壳", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 142, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
-    {"id": "route", "label": "侧边栏路由\n传输/用户/我的/设置", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 236, "width_mm": 74, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
-    {"id": "control", "label": "窗口控制", "shape": "diamond", "x_mm": 112, "y_mm": 232, "width_mm": 58, "height_mm": 42, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "min", "label": "hideToTray\n或普通最小化", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 232, "width_mm": 62, "height_mm": 34, "fill": "#F4F4F4", "layer": "life"},
-    {"id": "close", "label": "stage.close\n或托盘退出", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 292, "width_mm": 74, "height_mm": 28, "fill": "#FCE8E6", "layer": "life"},
-    {"id": "end", "label": "结束\n窗口/进程销毁", "shape": "ellipse", "x_mm": 202, "y_mm": 294, "width_mm": 74, "height_mm": 24, "fill": "#F4F4F4", "layer": "life"}
+    {
+      "id": "start",
+      "label": "开始\nJVM进程创建",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 27.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    },
+    {
+      "id": "launch",
+      "label": "启动图形界面",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 78.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "window",
+      "label": "初始化主窗口",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 133.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "callbacks",
+      "label": "注册接收回调",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 188.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "backend",
+      "label": "启动本地后端\n和UDP接收",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 243.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "settings",
+      "label": "加载系统设置",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 298.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "auth",
+      "label": "显示登录注册页",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 353.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "login_ok",
+      "label": "登录成功?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 405.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "login_fail",
+      "label": "显示错误\n停留登录页",
+      "shape": "rounded_rectangle",
+      "x_mm": 8.0,
+      "y_mm": 413.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "home",
+      "label": "进入主界面",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 413.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "route",
+      "label": "切换功能页面",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 468.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "control",
+      "label": "窗口操作?",
+      "shape": "diamond",
+      "x_mm": 208.0,
+      "y_mm": 520.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "tray",
+      "label": "隐藏到托盘",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 528.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "close",
+      "label": "关闭窗口\n退出进程",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 583.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "end",
+      "label": "结束",
+      "shape": "ellipse",
+      "x_mm": 199.0,
+      "y_mm": 642.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    }
   ],
   "edges": [
-    {"id": "e1", "from": "start", "to": "main", "arrow": "end", "layer": "flow"},
-    {"id": "e2", "from": "main", "to": "stage", "arrow": "end", "layer": "flow"},
-    {"id": "e3", "from": "stage", "to": "callbacks", "arrow": "end", "layer": "flow"},
-    {"id": "e4", "from": "callbacks", "to": "backend", "arrow": "end", "layer": "flow"},
-    {"id": "e5", "from": "backend", "to": "settings", "arrow": "end", "layer": "flow"},
-    {"id": "e6", "from": "settings", "to": "auth", "arrow": "end", "layer": "flow"},
-    {"id": "e7", "from": "auth", "to": "login", "arrow": "end", "layer": "flow"},
-    {"id": "e8", "from": "login", "to": "shell", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e8n", "from": "login", "to": "login_fail", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e8r", "from": "login_fail", "to": "auth", "arrow": "end", "layer": "flow"},
-    {"id": "e9", "from": "shell", "to": "route", "arrow": "end", "layer": "flow"},
-    {"id": "e10", "from": "route", "to": "control", "arrow": "end", "layer": "flow"},
-    {"id": "e11", "from": "control", "to": "min", "label": "最小化", "arrow": "end", "layer": "flow"},
-    {"id": "e12", "from": "control", "to": "close", "label": "关闭/退出", "arrow": "end", "layer": "flow"},
-    {"id": "e13", "from": "close", "to": "end", "arrow": "end", "layer": "flow"}
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "launch",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e2",
+      "from": "launch",
+      "to": "window",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e3",
+      "from": "window",
+      "to": "callbacks",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e4",
+      "from": "callbacks",
+      "to": "backend",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e5",
+      "from": "backend",
+      "to": "settings",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e6",
+      "from": "settings",
+      "to": "auth",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e7",
+      "from": "auth",
+      "to": "login_ok",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e8",
+      "from": "login_ok",
+      "to": "login_fail",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e9",
+      "from": "login_ok",
+      "to": "home",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e10",
+      "from": "home",
+      "to": "route",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e11",
+      "from": "route",
+      "to": "control",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e12",
+      "from": "control",
+      "to": "tray",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e13",
+      "from": "control",
+      "to": "close",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e14",
+      "from": "close",
+      "to": "end",
+      "arrow": "end",
+      "layer": "line"
+    }
   ],
   "groups": [],
-  "annotations": [{"id": "title", "text": "App生命周期流程：App.main -> MainWindow.start -> LocalBackend -> 页面路由 -> 销毁", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
-  "exports": {"png": true, "pdf": false, "svg": false}
+  "annotations": [
+    {
+      "id": "title",
+      "text": "应用生命周期流程",
+      "x_mm": 8,
+      "y_mm": 8,
+      "width_mm": 281,
+      "height_mm": 10,
+      "font_size_pt": 16,
+      "layer": "title"
+    }
+  ],
+  "exports": {
+    "png": true,
+    "pdf": false,
+    "svg": false
+  }
 }

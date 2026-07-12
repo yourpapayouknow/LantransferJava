@@ -1,34 +1,269 @@
 {
-  "page": {"width_mm": 297, "height_mm": 500, "unit": "mm", "title": "接收DATA流程"},
-  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "page": {
+    "width_mm": 297,
+    "height_mm": 492,
+    "unit": "mm",
+    "title": "接收数据包流程"
+  },
+  "style": {
+    "font": "Microsoft YaHei UI",
+    "font_size_pt": 14,
+    "theme": "classic_flow",
+    "fill": "#FFFFFF",
+    "line": "#202020",
+    "line_width_pt": 1.2,
+    "text_color": "#111111",
+    "corner_radius_mm": 1.5
+  },
   "nodes": [
-    {"id": "start", "label": "开始\nUdpRx.listen", "shape": "ellipse", "x_mm": 108, "y_mm": 34, "width_mm": 82, "height_mm": 24, "fill": "#F4F4F4", "layer": "rx"},
-    {"id": "packet", "label": "收到DATA包", "shape": "parallelogram", "x_mm": 108, "y_mm": 78, "width_mm": 82, "height_mm": 32, "fill": "#F4F4F4", "layer": "rx"},
-    {"id": "parse", "label": "解析jobId\nfileIndex/chunkIndex", "shape": "rounded_rectangle", "x_mm": 96, "y_mm": 130, "width_mm": 106, "height_mm": 40, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "found", "label": "找到RxFile?", "shape": "diamond", "x_mm": 118, "y_mm": 194, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "fail", "label": "ACK FAIL", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 204, "width_mm": 78, "height_mm": 34, "fill": "#FCE8E6", "layer": "rx"},
-    {"id": "write", "label": "写入分片\n保存meta", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 260, "width_mm": 82, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "done", "label": "分片收齐?", "shape": "diamond", "x_mm": 118, "y_mm": 326, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "progress", "label": "进度回调\n25%节点", "shape": "rounded_rectangle", "x_mm": 14, "y_mm": 332, "width_mm": 82, "height_mm": 36, "fill": "#EAF2FF", "layer": "ui"},
-    {"id": "sha", "label": "SHA-256\n校验通过?", "shape": "diamond", "x_mm": 214, "y_mm": 326, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "finish", "label": "移动为最终文件\n删除meta", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 398, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "ack_ok", "label": "ACK OK", "shape": "ellipse", "x_mm": 14, "y_mm": 452, "width_mm": 82, "height_mm": 28, "fill": "#F4F4F4", "layer": "rx"}
+    {
+      "id": "start",
+      "label": "开始\n监听接收",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 27.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    },
+    {
+      "id": "packet",
+      "label": "收到数据包",
+      "shape": "parallelogram",
+      "x_mm": 103.0,
+      "y_mm": 78.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#F4F4F4",
+      "layer": "io"
+    },
+    {
+      "id": "parse",
+      "label": "解析分片编号",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 133.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "found",
+      "label": "找到接收文件?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 185.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "fail",
+      "label": "ACK失败",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 193.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "write",
+      "label": "写入分片\n保存记录",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 253.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "limit",
+      "label": "按下载限速等待",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 308.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "done",
+      "label": "分片收齐?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 360.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "progress",
+      "label": "进度回调",
+      "shape": "rounded_rectangle",
+      "x_mm": 8.0,
+      "y_mm": 368.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "sha",
+      "label": "SHA校验通过?",
+      "shape": "diamond",
+      "x_mm": 208.0,
+      "y_mm": 360.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "finish",
+      "label": "移动最终文件\n必要时解压",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 428.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "ok",
+      "label": "ACK成功",
+      "shape": "ellipse",
+      "x_mm": 9.0,
+      "y_mm": 432.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    }
   ],
   "edges": [
-    {"id": "e1", "from": "start", "to": "packet", "arrow": "end", "layer": "flow"},
-    {"id": "e2", "from": "packet", "to": "parse", "arrow": "end", "layer": "flow"},
-    {"id": "e3", "from": "parse", "to": "found", "arrow": "end", "layer": "flow"},
-    {"id": "e4", "from": "found", "to": "fail", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e5", "from": "found", "to": "write", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e6", "from": "write", "to": "done", "arrow": "end", "layer": "flow"},
-    {"id": "e7", "from": "done", "to": "progress", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e8", "from": "progress", "to": "ack_ok", "arrow": "end", "layer": "flow"},
-    {"id": "e9", "from": "done", "to": "sha", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e10", "from": "sha", "to": "fail", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e11", "from": "sha", "to": "finish", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e12", "from": "finish", "to": "ack_ok", "arrow": "end", "layer": "flow"}
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "packet",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e2",
+      "from": "packet",
+      "to": "parse",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e3",
+      "from": "parse",
+      "to": "found",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e4",
+      "from": "found",
+      "to": "fail",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e5",
+      "from": "found",
+      "to": "write",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e6",
+      "from": "write",
+      "to": "limit",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e7",
+      "from": "limit",
+      "to": "done",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e8",
+      "from": "done",
+      "to": "progress",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e9",
+      "from": "progress",
+      "to": "ok",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e10",
+      "from": "done",
+      "to": "sha",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e11",
+      "from": "sha",
+      "to": "fail",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e12",
+      "from": "sha",
+      "to": "finish",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e13",
+      "from": "finish",
+      "to": "ok",
+      "arrow": "end",
+      "layer": "line"
+    }
   ],
   "groups": [],
-  "annotations": [{"id": "title", "text": "接收DATA流程：UdpRx.handleData + RxFile.write/finish", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
-  "exports": {"png": true, "pdf": false, "svg": false}
+  "annotations": [
+    {
+      "id": "title",
+      "text": "接收数据包流程",
+      "x_mm": 8,
+      "y_mm": 8,
+      "width_mm": 281,
+      "height_mm": 10,
+      "font_size_pt": 16,
+      "layer": "title"
+    }
+  ],
+  "exports": {
+    "png": true,
+    "pdf": false,
+    "svg": false
+  }
 }

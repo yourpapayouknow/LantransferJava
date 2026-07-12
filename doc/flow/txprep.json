@@ -1,33 +1,197 @@
 {
-  "page": {"width_mm": 297, "height_mm": 225, "unit": "mm", "title": "UDP发送准备流程"},
-  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "page": {
+    "width_mm": 297,
+    "height_mm": 482,
+    "unit": "mm",
+    "title": "UDP发送准备流程"
+  },
+  "style": {
+    "font": "Microsoft YaHei UI",
+    "font_size_pt": 14,
+    "theme": "classic_flow",
+    "fill": "#FFFFFF",
+    "line": "#202020",
+    "line_width_pt": 1.2,
+    "text_color": "#111111",
+    "corner_radius_mm": 1.5
+  },
   "nodes": [
-    {"id": "start", "label": "开始\nLocalBackend队列", "shape": "ellipse", "x_mm": 18, "y_mm": 34, "width_mm": 68, "height_mm": 24, "fill": "#F4F4F4", "layer": "backend"},
-    {"id": "expand", "label": "GroupStore.expand\n加载SystemSettings", "shape": "rounded_rectangle", "x_mm": 106, "y_mm": 30, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
-    {"id": "sources", "label": "UdpTx.run\n展开SourceFile", "shape": "rounded_rectangle", "x_mm": 208, "y_mm": 30, "width_mm": 74, "height_mm": 34, "fill": "#E8F3E8", "layer": "tx"},
-    {"id": "has_file", "label": "有可传文件?", "shape": "diamond", "x_mm": 214, "y_mm": 86, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "empty", "label": "生成空任务报告", "shape": "rounded_rectangle", "x_mm": 220, "y_mm": 154, "width_mm": 62, "height_mm": 30, "fill": "#FCE8E6", "layer": "tx"},
-    {"id": "targets", "label": "sendTargets\n多目标并发", "shape": "rounded_rectangle", "x_mm": 106, "y_mm": 94, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "tx"},
-    {"id": "sendable", "label": "目标在线且\n状态允许?", "shape": "diamond", "x_mm": 22, "y_mm": 86, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "blocked", "label": "failedTask\n不可发送", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 154, "width_mm": 62, "height_mm": 30, "fill": "#FCE8E6", "layer": "tx"},
-    {"id": "begin", "label": "发送BEGIN\n文件名/大小/SHA/口令摘要", "shape": "rounded_rectangle", "x_mm": 106, "y_mm": 150, "width_mm": 78, "height_mm": 38, "fill": "#E8F3E8", "layer": "tx"},
-    {"id": "begin_ack", "label": "BEGIN ACK\n成功?", "shape": "diamond", "x_mm": 112, "y_mm": 190, "width_mm": 58, "height_mm": 34, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "next", "label": "进入\n分片ACK流程", "shape": "ellipse", "x_mm": 204, "y_mm": 194, "width_mm": 74, "height_mm": 24, "fill": "#F4F4F4", "layer": "tx"}
+    {
+      "id": "start",
+      "label": "开始\n后端接收任务",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 27.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    },
+    {
+      "id": "targets",
+      "label": "展开分组目标",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 78.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "settings",
+      "label": "读取发送设置",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 133.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "sources",
+      "label": "展开发送源\n并打包文件夹",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 188.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "speed",
+      "label": "分配上传限速",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 243.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "begin",
+      "label": "发送开始包",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 298.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "ack",
+      "label": "收到确认?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 350.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "fail",
+      "label": "重试或失败",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 358.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "chunks",
+      "label": "进入分片发送",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 418.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    }
   ],
   "edges": [
-    {"id": "e1", "from": "start", "to": "expand", "arrow": "end", "layer": "flow"},
-    {"id": "e2", "from": "expand", "to": "sources", "arrow": "end", "layer": "flow"},
-    {"id": "e3", "from": "sources", "to": "has_file", "arrow": "end", "layer": "flow"},
-    {"id": "e4", "from": "has_file", "to": "empty", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e5", "from": "has_file", "to": "targets", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e6", "from": "targets", "to": "sendable", "arrow": "end", "layer": "flow"},
-    {"id": "e7", "from": "sendable", "to": "blocked", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e8", "from": "sendable", "to": "begin", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e9", "from": "begin", "to": "begin_ack", "arrow": "end", "layer": "flow"},
-    {"id": "e10", "from": "begin_ack", "to": "blocked", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e11", "from": "begin_ack", "to": "next", "label": "是", "arrow": "end", "layer": "flow"}
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "targets",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e2",
+      "from": "targets",
+      "to": "settings",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e3",
+      "from": "settings",
+      "to": "sources",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e4",
+      "from": "sources",
+      "to": "speed",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e5",
+      "from": "speed",
+      "to": "begin",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e6",
+      "from": "begin",
+      "to": "ack",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e7",
+      "from": "ack",
+      "to": "fail",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e8",
+      "from": "ack",
+      "to": "chunks",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    }
   ],
   "groups": [],
-  "annotations": [{"id": "title", "text": "UDP发送准备流程：LocalBackend.startTransfer -> UdpTx.run/sendFile(BEGIN)", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
-  "exports": {"png": true, "pdf": false, "svg": false}
+  "annotations": [
+    {
+      "id": "title",
+      "text": "UDP发送准备流程",
+      "x_mm": 8,
+      "y_mm": 8,
+      "width_mm": 281,
+      "height_mm": 10,
+      "font_size_pt": 16,
+      "layer": "title"
+    }
+  ],
+  "exports": {
+    "png": true,
+    "pdf": false,
+    "svg": false
+  }
 }

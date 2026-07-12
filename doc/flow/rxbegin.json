@@ -1,37 +1,300 @@
 {
-  "page": {"width_mm": 297, "height_mm": 480, "unit": "mm", "title": "接收BEGIN流程"},
-  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "page": {
+    "width_mm": 297,
+    "height_mm": 552,
+    "unit": "mm",
+    "title": "接收开始包流程"
+  },
+  "style": {
+    "font": "Microsoft YaHei UI",
+    "font_size_pt": 14,
+    "theme": "classic_flow",
+    "fill": "#FFFFFF",
+    "line": "#202020",
+    "line_width_pt": 1.2,
+    "text_color": "#111111",
+    "corner_radius_mm": 1.5
+  },
   "nodes": [
-    {"id": "start", "label": "开始\nUdpRx.listen", "shape": "ellipse", "x_mm": 108, "y_mm": 34, "width_mm": 82, "height_mm": 24, "fill": "#F4F4F4", "layer": "rx"},
-    {"id": "packet", "label": "收到BEGIN包", "shape": "parallelogram", "x_mm": 108, "y_mm": 78, "width_mm": 82, "height_mm": 32, "fill": "#F4F4F4", "layer": "rx"},
-    {"id": "parse", "label": "解析job/file\n文件名/大小/SHA/口令", "shape": "rounded_rectangle", "x_mm": 96, "y_mm": 130, "width_mm": 106, "height_mm": 40, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "active", "label": "已有active?", "shape": "diamond", "x_mm": 118, "y_mm": 194, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "ack_existing", "label": "ACK OK\n返回缺失分片", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 200, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "type", "label": "文件类型\n支持?", "shape": "diamond", "x_mm": 118, "y_mm": 260, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "fail_type", "label": "ACK FAIL\nUNSUPPORTED", "shape": "rounded_rectangle", "x_mm": 14, "y_mm": 266, "width_mm": 82, "height_mm": 34, "fill": "#FCE8E6", "layer": "rx"},
-    {"id": "allow", "label": "状态/口令\n允许开始?", "shape": "diamond", "x_mm": 118, "y_mm": 326, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
-    {"id": "ask", "label": "MainWindow确认\n忙碌或口令", "shape": "rounded_rectangle", "x_mm": 14, "y_mm": 332, "width_mm": 82, "height_mm": 36, "fill": "#EAF2FF", "layer": "ui"},
-    {"id": "reject", "label": "ACK FAIL\nREJECTED", "shape": "rounded_rectangle", "x_mm": 14, "y_mm": 398, "width_mm": 82, "height_mm": 34, "fill": "#FCE8E6", "layer": "rx"},
-    {"id": "create", "label": "createFile\n.part/.meta", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 398, "width_mm": 82, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "restore", "label": "restoreOrReset\n返回缺失分片", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 398, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"},
-    {"id": "ack_new", "label": "ACK OK\n返回缺失分片", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 444, "width_mm": 78, "height_mm": 34, "fill": "#E8F3E8", "layer": "rx"}
+    {
+      "id": "start",
+      "label": "开始\n监听接收",
+      "shape": "ellipse",
+      "x_mm": 104.0,
+      "y_mm": 27.0,
+      "width_mm": 92,
+      "height_mm": 26,
+      "fill": "#F4F4F4",
+      "layer": "life"
+    },
+    {
+      "id": "packet",
+      "label": "收到开始包",
+      "shape": "parallelogram",
+      "x_mm": 103.0,
+      "y_mm": 78.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#F4F4F4",
+      "layer": "io"
+    },
+    {
+      "id": "parse",
+      "label": "解析文件信息\n识别文件夹标记",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 133.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "active",
+      "label": "已有任务?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 185.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "old_ack",
+      "label": "继续断点接收\nACK",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 193.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "type",
+      "label": "类型支持?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 245.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "bad_type",
+      "label": "拒收类型\nACK失败",
+      "shape": "rounded_rectangle",
+      "x_mm": 198.0,
+      "y_mm": 253.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "allow",
+      "label": "需要确认?",
+      "shape": "diamond",
+      "x_mm": 113.0,
+      "y_mm": 305.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "ask",
+      "label": "弹出确认",
+      "shape": "rounded_rectangle",
+      "x_mm": 8.0,
+      "y_mm": 313.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#EAF2FF",
+      "layer": "ui"
+    },
+    {
+      "id": "agree",
+      "label": "用户同意?",
+      "shape": "diamond",
+      "x_mm": 18.0,
+      "y_mm": 365.0,
+      "width_mm": 74,
+      "height_mm": 50,
+      "fill": "#FFF3D6",
+      "layer": "decision"
+    },
+    {
+      "id": "reject",
+      "label": "拒绝接收\nACK失败",
+      "shape": "rounded_rectangle",
+      "x_mm": 8.0,
+      "y_mm": 433.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#FCE8E6",
+      "layer": "fail"
+    },
+    {
+      "id": "create",
+      "label": "创建临时文件",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 373.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "restore",
+      "label": "恢复缺失记录",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 433.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    },
+    {
+      "id": "new_ack",
+      "label": "准备接收数据\nACK",
+      "shape": "rounded_rectangle",
+      "x_mm": 103.0,
+      "y_mm": 488.0,
+      "width_mm": 94,
+      "height_mm": 34,
+      "fill": "#E8F3E8",
+      "layer": "backend"
+    }
   ],
   "edges": [
-    {"id": "e1", "from": "start", "to": "packet", "arrow": "end", "layer": "flow"},
-    {"id": "e2", "from": "packet", "to": "parse", "arrow": "end", "layer": "flow"},
-    {"id": "e3", "from": "parse", "to": "active", "arrow": "end", "layer": "flow"},
-    {"id": "e4", "from": "active", "to": "ack_existing", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e5", "from": "active", "to": "type", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e6", "from": "type", "to": "fail_type", "label": "否", "arrow": "end", "layer": "flow"},
-    {"id": "e7", "from": "type", "to": "allow", "label": "是", "arrow": "end", "layer": "flow"},
-    {"id": "e8", "from": "allow", "to": "ask", "label": "需确认", "arrow": "end", "layer": "flow"},
-    {"id": "e9", "from": "ask", "to": "reject", "label": "拒绝", "arrow": "end", "layer": "flow"},
-    {"id": "e10", "from": "allow", "to": "create", "label": "允许", "arrow": "end", "layer": "flow"},
-    {"id": "e11", "from": "ask", "to": "create", "label": "同意", "arrow": "end", "layer": "flow"},
-    {"id": "e12", "from": "create", "to": "restore", "arrow": "end", "layer": "flow"},
-    {"id": "e13", "from": "restore", "to": "ack_new", "arrow": "end", "layer": "flow"}
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "packet",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e2",
+      "from": "packet",
+      "to": "parse",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e3",
+      "from": "parse",
+      "to": "active",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e4",
+      "from": "active",
+      "to": "old_ack",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e5",
+      "from": "active",
+      "to": "type",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e6",
+      "from": "type",
+      "to": "bad_type",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e7",
+      "from": "type",
+      "to": "allow",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e8",
+      "from": "allow",
+      "to": "ask",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e9",
+      "from": "allow",
+      "to": "create",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e10",
+      "from": "ask",
+      "to": "agree",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e11",
+      "from": "agree",
+      "to": "reject",
+      "arrow": "end",
+      "layer": "line",
+      "label": "否"
+    },
+    {
+      "id": "e12",
+      "from": "agree",
+      "to": "create",
+      "arrow": "end",
+      "layer": "line",
+      "label": "是"
+    },
+    {
+      "id": "e13",
+      "from": "create",
+      "to": "restore",
+      "arrow": "end",
+      "layer": "line"
+    },
+    {
+      "id": "e14",
+      "from": "restore",
+      "to": "new_ack",
+      "arrow": "end",
+      "layer": "line"
+    }
   ],
   "groups": [],
-  "annotations": [{"id": "title", "text": "接收BEGIN流程：UdpRx.handleBegin + MainWindow.confirmReceive", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
-  "exports": {"png": true, "pdf": false, "svg": false}
+  "annotations": [
+    {
+      "id": "title",
+      "text": "接收开始包流程",
+      "x_mm": 8,
+      "y_mm": 8,
+      "width_mm": 281,
+      "height_mm": 10,
+      "font_size_pt": 16,
+      "layer": "title"
+    }
+  ],
+  "exports": {
+    "png": true,
+    "pdf": false,
+    "svg": false
+  }
 }
