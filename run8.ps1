@@ -7,14 +7,14 @@ if (!(Test-Path -LiteralPath $tokenFile)) {
 }
 
 $base = Join-Path $PSScriptRoot ".multi"
-$ports = 1..8 | ForEach-Object { 45329 + ($_ * 2) }
+$ports = 1..3 | ForEach-Object { 45329 + ($_ * 2) }
 $scanPorts = $ports -join ","
 
 function Q($text) {
     return $text.Replace("'", "''")
 }
 
-for ($i = 1; $i -le 8; $i++) {
+for ($i = 1; $i -le 3; $i++) {
     $dir = Join-Path $base "p$i"
     $findPort = $ports[$i - 1]
     $sendPort = $findPort + 1
@@ -35,7 +35,7 @@ Set-Location -LiteralPath '$(Q $PSScriptRoot)'
     Start-Sleep -Milliseconds 600
 }
 
-1..8 | ForEach-Object {
+1..3 | ForEach-Object {
     $findPort = $ports[$_ - 1]
     [pscustomobject]@{
         Id = $_
