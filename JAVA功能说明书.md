@@ -2,16 +2,16 @@
 
 本文档是本项目唯一的 Java 类说明书。每次新增或修改 Java 文件，都要同步更新对应条目；如果功能暂不实现，记录到“功能跳过记录”。
 
-## 后端实现顺序
+## 当前实现状态
 
-1. 登录与注册：替换演示账号逻辑，提供无服务器环境下可用的账号存储、登录校验、注册记录和资料返回。
-2. 文件传输首页：接入真实近期传输对象、待传输文件信息、传输任务创建和传输结果。
-3. 用户列表：接入可发现设备、搜索、在线状态和近期对象维护。
-4. 局域网扫描：实现广播或组播发现本局域网运行本程序的主机。
-5. 我的资料：实现资料保存、状态切换、自定义状态和账号信息读取。
-6. 系统设置：实现本机 IP、限速、重试次数、主题、字体、缩放、接收目录、语言和启动项的读写。
-7. 传输结果：实现 UDP 多线程发送、确认、三次重试、失败报告、日志、完整性校验、分片缓存、断点重传和剩余时间统计。
-8. 特色扩展：按复杂度依次处理传输口令小群组、按用户状态条件传输、智能带宽分配等功能。
+1. 登录与注册：当前主流程已接入 `AuthStore`、仓库根目录 `acco`、`req/` 注册请求和 GitHub Actions 合入机制，登录必须通过账号表校验。
+2. 文件传输首页：当前主流程已接入真实近期对象、本地分组目标、文件类型匹配、传输口令、暂停发送、传输进度快照和结果清理。
+3. 用户列表：当前主流程已接入局域网发现、本机标识、搜索、扫描按钮内加载动画、新建/取消分组、组编辑、组展开和发送到文件传输页。
+4. 局域网扫描：当前主流程使用 UDP 广播、回环地址和可配置发现端口发现同程序客户端，并通过静默广播同步昵称、用户ID、设备名、签名、状态和头像。
+5. 我的资料：当前主流程已接入资料保存、头像压缩上传、状态切换、自定义状态、复制用户ID和局域网资料广播。
+6. 系统设置：当前主流程已接入本机 IP 展示、上传/下载限速、重试次数、主题色、系统中文字体、缩放、接收目录、启动项和完成提示音；语言字段只保存，不切换界面文案。
+7. 传输结果：当前主流程已接入 UDP 多目标发送、BEGIN/DATA/ACK 确认、失败重试、分片并发、SHA-256 校验、分片缓存、断点续传、下载限速、剩余时间日志和结果报告。
+8. 保留项：`MockBackendFacade` 和 `TxSim` 只是隔离的联调/自检辅助类，不参与 `AppController` 当前主流程。
 
 ## 功能跳过记录
 
@@ -59,11 +59,11 @@
 
 ## `src/main/java/com/iwmei/lantransfer/service/MockBackendFacade.java`
 
-所属功能：前端联调用假数据后端。
+所属功能：隔离的前端联调用假数据后端。
 
-详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice`、一个演示分组和一份默认 `SystemSettings`，只供独立前端联调使用，不由 `AppController` 主流程实例化。它支持假登录、假注册、假记住账号、假近期设备、假全部设备、假分组详情、保存临时分组目标、更新临时分组目标、假扫描设备、固定设置读取、普通传输调用和带本次口令的传输调用。登录只接受 `admin/admin`，记住账号固定返回 `admin`，注册总是返回“注册申请已提交”，传输总是返回固定的 4 条任务和 5 条日志。
+详细功能：当前类内置一个带默认状态的 `Profile`、18 个 `UserDevice`、一个演示分组和一份默认 `SystemSettings`，只供独立前端联调或旧页面快照测试使用，不由 `AppController` 主流程实例化。它支持模拟登录、模拟注册、模拟记住账号、模拟近期设备、模拟全部设备、模拟分组详情、保存临时分组目标、更新临时分组目标、模拟扫描设备、固定设置读取、普通传输调用和带本次口令的传输调用。登录只接受 `admin/admin`，记住账号固定返回 `admin`，注册总是返回等待状态，传输总是返回固定的 4 条任务和 5 条日志；这些数据不能代表当前 App 的真实业务路径。
 
-实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRememberedAccount()` 返回 `admin` 只服务 Mock 登录场景，真实登录页不会从这里取默认密码；`loadRecentDevices()` 返回前 5 个设备，`loadGroups()` 返回一个 `Group("演示组", "demo", devices.subList(0, 3))`，用于联调分组列表视图、默认口令展示和展开成员矩阵；`saveGroup(name, code, members)` 和 `updateGroup(oldName, name, code, members)` 都构造带默认口令的 `UserDevice.group(...)` 供前端联调分组卡片；普通 `startTransfer(...)` 和带 `code` 的 `startTransfer(...)` 都调用 `mockTransfer(...)` 生成固定汇总，不做真实 UDP。`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置。该类只能用于独立联调或测试，不能重新接回主 App 流程。
+实现方法：所有方法都用 `CompletableFuture.completedFuture(...)` 立即返回，模拟异步后端但不做真实 IO。`loadRememberedAccount()` 返回 `admin` 只服务 Mock 登录场景，真实登录页在主流程中通过 `LocalBackend -> AuthStore` 读取本机 `la`；`loadRecentDevices()` 返回前 5 个设备，`loadGroups()` 返回一个 `Group("演示组", "demo", devices.subList(0, 3))`，用于联调分组列表视图、默认口令展示和展开成员矩阵；`saveGroup(name, code, members)` 和 `updateGroup(oldName, name, code, members)` 都构造带默认口令的 `UserDevice.group(...)` 供前端联调分组卡片；普通 `startTransfer(...)` 和带 `code` 的 `startTransfer(...)` 都调用 `mockTransfer(...)` 生成固定汇总，不做真实 UDP。`scanLanDevices()` 返回前 4 个设备，`loadSettings()` 返回固定 IP、限速、重试次数和主题配置。该类只能用于独立联调或测试，不能重新接回主 App 流程。
 
 ## `src/main/java/com/iwmei/lantransfer/service/AppFiles.java`
 
@@ -109,7 +109,7 @@
 
 所属功能：近期传输对象本地仓库。
 
-详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖内存或演示数据。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、用户状态、最近传输时间、头像首字、头像颜色、图片头像标记、头像 Base64、个性签名、目标地址和传输端口，最多保留 12 个。
+详细功能：`RecentStore` 负责把最近传输过的目标设备保存到本地 `recent.properties`，让文件传输首页重启后仍能显示真实近期对象，而不是只依赖本次进程内存。它保存 `UserDevice` 的 ID、昵称、设备名、在线状态、用户状态、最近传输时间、头像首字、头像颜色、图片头像标记、头像 Base64、个性签名、目标地址和传输端口，最多保留 12 个。
 
 实现方法：默认构造器使用 `AppFiles.dataDir().resolve("recent.properties")` 定位文件。`load()` 用 `Properties` 读取 `count` 和每个序号下的设备字段，字段缺失时使用安全默认值，设备在线状态解析失败时回退 `DeviceStatus.OFFLINE`，用户状态解析失败时回退 `UserStatus.DEFAULT`。`remember(List<UserDevice>)` 把本次目标更新时间后放到 `LinkedHashMap` 前面，再追加旧记录并按 ID 去重，最后截取前 12 个写回。`save(...)` 创建父目录并写入 properties，同时记录 `repo.origin`；`put(...)` 保存 `userStatus`、`signature` 和 `avatar`，让近期对象重启后仍保留对方通过 UDP 发来的资料。`touched(...)` 只更新时间文本，保留用户状态、签名和头像。该实现用本地文件替代数据库，足够满足无服务器课堂项目的近期对象恢复。
 
@@ -119,7 +119,7 @@
 
 详细功能：`GroupStore` 负责用户列表中的新建分组、编辑分组、分组列表展示和文件传输页中的组目标展开。它把分组名、默认口令和组内用户快照保存到 `groups.properties`，读取时可以返回完整 `Group` 详情，也可以生成 `UserDevice.group(...)` 形式的组目标；编辑组名时会删除旧组名记录并写入新组名记录，避免列表里出现重复组。当文件传输页选择组作为近期传输对象时，后端会把该组展开成组内所有真实成员，再交给 `UdpTx` 非阻塞并发发送。分组保存的是用户当时的网络地址、端口、状态、签名和头像信息，不依赖服务器。
 
-实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；测试构造器允许指定临时文件。`save(name, code, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供前端加入近期对象。`update(oldName, name, code, members)` 使用同一套成员清洗逻辑，先从 `loadGroups()` 结果中移除 `oldName` 清洗后的旧 key，再写入新 `Group`，用于组卡片编辑组名和默认口令。`all()` 读取所有分组并返回 `Group` 详情，用户列表页用它显示组名、`共xx名用户`、默认口令和展开成员；`targets()` 从 `Group.target()` 得到所有组目标。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、`code`、成员数量和每个成员字段；`put(...)` 和 `device(...)` 会写入并读取 `signature` 与 `avatar`，让分组成员在稍后发送时仍带有用户资料快照；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
+实现方法：默认构造器使用 `AppFiles.dataDir().resolve("groups.properties")` 定位文件；测试构造器允许指定临时文件。`save(name, code, members)` 先用 `UserDevice.cleanGroupName(...)` 清洗组名，再用 `cleanMembers(...)` 去掉空值、组目标和重复成员，成员为空时抛出异常；写入成功后返回 `UserDevice.group(groupName, memberCount)` 供调用方知道分组目标已经创建，实际带默认口令的传输对象由后续 `targets()` 或 `Group.target()` 重新从文件中读取生成。`update(oldName, name, code, members)` 使用同一套成员清洗逻辑，先从 `loadGroups()` 结果中移除 `oldName` 清洗后的旧 key，再写入新 `Group`，用于组卡片编辑组名和默认口令。`all()` 读取所有分组并返回 `Group` 详情，用户列表页用它显示组名、`共xx名用户`、默认口令和展开成员；`targets()` 从 `Group.target()` 得到所有组目标，目标的 `signature` 字段会携带默认口令。`expand(targets)` 遍历用户选择的目标，普通用户原样保留，组目标按 `groupName()` 查表展开，使用 `LinkedHashMap` 按 ID 去重，避免同一用户既被单独选中又在组里时重复发送。`loadGroups()` 和 `writeGroups(...)` 使用 Java `Properties` 保存 `count`、组名、`code`、成员数量和每个成员字段；`put(...)` 和 `device(...)` 会写入并读取 `signature` 与 `avatar`，让分组成员在稍后发送时仍带有用户资料快照；设备状态和用户状态解析失败时分别回退 `OFFLINE` 和 `DEFAULT`。
 
 ## `src/main/java/com/iwmei/lantransfer/service/LanPeer.java`
 
@@ -147,11 +147,11 @@
 
 ## `src/main/java/com/iwmei/lantransfer/service/TxSim.java`
 
-所属功能：文件传输结果报告的本地模拟后端。
+所属功能：文件传输结果报告的旧模拟自检辅助类。
 
-详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类只保留给回归自检。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
+详细功能：`TxSim` 是早期在真正 UDP 发送内核完成前使用的本地模拟器，目前主后端已改用 `UdpTx`，该类只保留给 `TxSimCheck` 回归自检和对比旧结果格式。它会读取文件或文件夹大小，按文件和目标组合生成传输列表行，在线目标记为成功，离线目标记为失败并记录三次重试，同时生成开始、每个目标结果和结束日志。
 
-实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免 UI 被坏路径中断。后续如果 `UdpTx` 已覆盖所有课堂展示路径，可以删除该类和对应自检。
+实现方法：`run(List<TransferFile>, List<UserDevice>)` 先把空入参转成空列表，统计总字节数、在线目标数、失败目标数和重试次数，再调用 `tasks(...)` 与 `logs(...)` 构造 `TransferSummary`。`tasks(...)` 对每个文件和每个目标生成一条 `TransferTask`，在线设备进度 100 且状态为“已完成”，离线设备进度 0、速度为 `-`、状态为“传输失败”、重试次数为 3。`sizeOf(Path)` 对文件直接读 `Files.size`，对目录用 `Files.walk` 汇总普通文件大小；异常时按 0 处理，避免自检被坏路径中断。当前 App 真实发送不经过该类，删除它时需要同时删除 `TxSimCheck`。
 
 ## `src/main/java/com/iwmei/lantransfer/model/AuthResult.java`
 
@@ -173,9 +173,9 @@
 
 所属功能：注册请求数据对象。
 
-详细功能：封装注册表单中的账号、密码和当前设备名称。
+详细功能：封装注册表单中的账号、密码和当前设备名称。当前真实注册由 `AuthStore.register(...)` 使用它生成 `req/<账号>` 注册请求，并等待 GitHub Actions 合入 `acco`。
 
-实现方法：使用 `record` 作为服务层输入。后续真实注册实现应在服务层校验空账号、弱密码、重复账号和设备名缺省值，并返回 `AuthResult`。
+实现方法：使用 `record` 作为服务层输入，页面只负责传入表单值。空账号、弱密码、重复账号和设备名缺省值都在 `AuthStore` 内校验或清洗，避免界面层和后端重复实现规则；注册结果统一通过 `AuthResult` 返回给 `Auth.registerForm()`。
 
 ## `src/main/java/com/iwmei/lantransfer/model/Profile.java`
 
@@ -207,7 +207,7 @@
 
 详细功能：表示一个可传输目标，包含账号或设备 ID、昵称、设备名、设备在线状态、用户状态、上次在线时间、头像文字、头像颜色、是否使用图片头像、目标主机地址、目标传输端口、个性签名和头像 Base64。它也可以表示本地传输分组目标：分组目标的 ID 使用 `GROUP:` 前缀，显示为“组：分组名”，实际发送前由 `GroupStore` 展开成组内真实用户；分组目标的 `signature` 字段保存默认口令，只给发送前口令输入框预填使用，不作为普通用户签名展示。
 
-实现方法：使用 `record` 让设备列表、近期对象、用户列表卡片和传输任务共享同一数据结构。保留旧 8 参数构造器、带地址构造器和带用户状态构造器，旧调用会自动使用 `UserStatus.DEFAULT`、空签名和空头像；新增的 `signature` 与 `avatar` 放在末尾，降低对已有调用点的影响。`reachable()` 用于判断设备是否有真实传输地址。`groupTarget()` 通过 `GROUP:` 前缀判断当前对象是否为分组，`groupName()` 返回前缀后的分组名，`group(String, int)` 创建无默认口令的分组卡片，`group(String, int, String)` 创建带默认口令的分组卡片，组目标自身不携带头像。`cleanGroupName(String)` 统一清理空组名。`DeviceStatus` 决定在线/离线样式，`UserStatus` 决定对方是否允许被发现或直接接收文件，`lastSeen` 当前是展示文本，后续真实在线检测可改为由服务层生成。
+实现方法：使用 `record` 让设备列表、近期对象、用户列表卡片和传输任务共享同一数据结构。保留旧 8 参数构造器、带地址构造器和带用户状态构造器，旧调用会自动使用 `UserStatus.DEFAULT`、空签名和空头像；新增的 `signature` 与 `avatar` 放在末尾，降低对已有调用点的影响。`reachable()` 用于判断设备是否有真实传输地址。`groupTarget()` 通过 `GROUP:` 前缀判断当前对象是否为分组，`groupName()` 返回前缀后的分组名，`group(String, int)` 创建无默认口令的分组卡片，`group(String, int, String)` 创建带默认口令的分组卡片，组目标自身不携带头像。`cleanGroupName(String)` 统一清理空组名。`DeviceStatus` 决定在线/离线样式，`UserStatus` 决定对方是否允许被发现或直接接收文件，`lastSeen` 是由 `LanPeer`、`RecentStore` 或 `GroupStore` 生成的展示文本。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferFile.java`
 
@@ -215,15 +215,15 @@
 
 详细功能：保存待发送文件或文件夹的显示名称、大小文本和本地路径。
 
-实现方法：文件选择器和拖拽事件创建 `TransferFile`，其中 `Path` 供图标判断、修改时间读取和后续真实传输读取文件内容使用。大小当前是提前格式化好的文本，避免 UI 反复计算。
+实现方法：文件选择器和拖拽事件创建 `TransferFile`，其中 `Path` 供图标判断、修改时间读取和 `UdpTx` 读取真实文件内容使用。大小是提前格式化好的文本，避免 UI 反复计算。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferSummary.java`
 
 所属功能：一次传输结果汇总。
 
-详细功能：保存目标总数、成功数、失败数、重试次数、总耗时、日志列表和任务列表。传输结果页用它展示统计卡、传输列表和日志，也用它执行“清除已完成”和“清空日志”的内存汇总更新。
+详细功能：保存目标总数、成功数、失败数、重试次数、总耗时、日志列表和任务列表。`UdpTx` 在真实发送开始、分片进度和最终完成时都会构造它，文件传输页用它展示统计卡、传输列表和日志，也用它执行“清除已完成”和“清空日志”的内存汇总更新。
 
-实现方法：服务层完成或模拟完成传输后返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。`withoutCompleted()` 过滤掉状态为“已完成”的任务，并用剩余任务重新计算目标数、成功数、失败数和重试数；`withoutLogs()` 保留统计和任务，只把日志列表换成空列表。后续真实 UDP 发送应在最终汇总时把每个目标的确认和重试结果折算进这些字段。
+实现方法：服务层完成真实传输或旧模拟自检时返回该 `record`。`logs` 是按顺序展示的文本，`tasks` 是每个目标或文件的进度行。`withoutCompleted()` 过滤掉状态为“已完成”的任务，并用剩余任务重新计算目标数、成功数、失败数和重试数；`withoutLogs()` 保留统计和任务，只把日志列表换成空列表。`UdpTx` 最终汇总会把每个目标的确认结果、失败结果和重试次数折算进这些字段，进度快照则用同一结构表达当前“传输中”任务。
 
 ## `src/main/java/com/iwmei/lantransfer/model/TransferTask.java`
 
@@ -237,9 +237,9 @@
 
 所属功能：用户自定义接收状态枚举。
 
-详细功能：定义默认、在线、忙碌、隐身、离线五种状态。它服务于“我的”页面状态卡和后续条件文件传输逻辑。
+详细功能：定义默认、在线、忙碌、隐身、离线五种状态。它服务于“我的”页面状态卡、局域网发现响应、用户列表展示、发送端条件过滤和接收端门禁。
 
-实现方法：枚举值只表达状态，不带行为。后续后端根据状态决定是否允许被扫描、是否自动接收、是否弹确认和是否拒绝传输。
+实现方法：枚举值只表达状态，不带行为，具体判断分散在最靠近业务的位置：`LanPeer.discoverable(...)` 让隐身和离线用户不响应发现；`UdpTx.sendable(...)` 让隐身和离线目标不进入发送；`UdpRx.allowBegin(...)` 让忙碌状态弹确认、隐身和离线状态拒收、默认和在线状态自动接收无口令请求。`AuthStore` 把该枚举名保存到 `acco`，`Profile` 和 `UserDevice` 负责携带当前值。
 
 ## `src/main/java/com/iwmei/lantransfer/model/DeviceStatus.java`
 
@@ -255,7 +255,7 @@
 
 详细功能：负责生成文件修改时间文本、判断文件或文件夹图标、格式化文件大小、识别文件类型标签、判断当前是否允许传输该类型、识别 Adobe 工程文件、设计文件和常见 IDE 项目文件夹。
 
-实现方法：`modifiedAtLabel(Path)` 读取 `Files.getLastModifiedTime` 并按 `yyyy-MM-dd HH:mm` 展示，异常时返回占位。`iconLiteral(Path)` 先判断目录，目录交给 `folderIcon(Path)` 扫描直接子项，再按扩展名返回 Ikonli 图标字面量。`SUPPORTED` 保存当前允许传输的扩展名白名单；`supported(Path)` 允许文件夹和白名单文件，`supportedName(String)` 给接收端用文件名做同样校验，无扩展名按普通文件允许。`typeLabel(Path)` 返回“图片、文档、表格、代码、未知类型”等短标签，文件传输页用它展示匹配结果。`readableSize(File)` 用字节数换算 MB/KB/B，文件夹直接显示“文件夹”。`folderIcon(Path)` 只扫描一层，这是为拖拽速度保留的简化；如果以后要求深层识别，再改递归扫描。
+实现方法：`modifiedAtLabel(Path)` 读取 `Files.getLastModifiedTime` 并按 `yyyy-MM-dd HH:mm` 展示，异常时返回 `修改日期：-`。`iconLiteral(Path)` 先判断目录，目录交给 `folderIcon(Path)` 扫描直接子项，再按扩展名返回 Ikonli 图标字面量。`SUPPORTED` 保存当前允许传输的扩展名白名单；`supported(Path)` 允许文件夹和白名单文件，`supportedName(String)` 给接收端用文件名做同样校验，无扩展名按普通文件允许。`typeLabel(Path)` 返回“图片、文档、表格、代码、未知类型”等短标签，文件传输页用它展示匹配结果。`readableSize(File)` 用字节数换算 MB/KB/B，文件夹直接显示“文件夹”。`folderIcon(Path)` 只扫描一层，这是为了拖拽时快速显示图标；深层内容是否支持传输由 `UdpTx` 展开文件夹时逐个文件过滤。
 
 ## `src/main/java/com/iwmei/lantransfer/util/DeviceSearch.java`
 
@@ -269,9 +269,9 @@
 
 所属功能：登录与注册页面。
 
-详细功能：显示认证入口、登录表单、注册表单和注册审核等待页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录和注册密码栏都有小眼睛按钮，可以在隐藏密码和明文显示之间切换。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册按钮显示为“注册”，提交后会禁用表单并显示加载动画，后端返回后再根据结果决定显示错误、审核等待页或返回登录页。
+详细功能：显示认证入口、登录表单、注册表单和 GitHub Actions 等待提示页。登录表单会异步读取本地已记住账号并回填账号框，密码框不会从本地文件回填；登录和注册密码栏都有小眼睛按钮，可以在隐藏密码和明文显示之间切换。登录成功后写入 `app.profile` 并进入文件传输页，登录失败显示 toast；注册按钮显示为“注册”，提交后会禁用表单并显示加载动画，后端返回后再根据结果决定显示错误、等待页或返回登录页。等待页目前复用“注册审核提示”视觉文案，实际触发条件是 `AuthStore.waitForAction(...)` 在等待远程 Actions 合入账号表时还没有看到新账号。
 
-实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`passwordBox(String)` 用一个 `PasswordField` 和一个绑定同一文本的 `TextField` 叠放在 `StackPane` 中，默认只显示 `PasswordField`；点击 `mdi2e-eye` 图标按钮时切换两个输入框的 `visible/managed` 状态，并把图标切到 `mdi2e-eye-off`，因此同一份密码值不会复制到多个业务变量。`labeledPassword(...)` 复用页面标签样式包装密码组合控件。`loginForm()` 创建账号、密码、记住我控件，不写入任何默认演示账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时从 `PasswordBox.getText()` 取密码构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果。`registerForm()` 把“注册”按钮和 `ProgressIndicator` 放在同一个 `StackPane` 里，按钮始终 `setMaxWidth(Double.MAX_VALUE)` 满宽，加载圈用 `StackPane.setAlignment(..., Pos.CENTER_RIGHT)` 浮在右侧，不参与挤压按钮宽度；点击提交后立即显示加载圈、禁用账号/密码/设备/提交按钮，然后构造 `RegisterRequest` 调用注册接口；返回后隐藏加载动画并恢复表单，失败时 toast 后端消息，`pendingReview` 为真时进入 `showReviewPending()`，本地注册成功且无需审核时提示“注册成功，请登录”并回到登录页。`showReviewPending()` 保留给以后接入真正审核流程。
+实现方法：`show(boolean)` 根据 `registerMode` 选择 `loginForm()` 或 `registerForm()`。`passwordBox(String)` 用一个 `PasswordField` 和一个绑定同一文本的 `TextField` 叠放在 `StackPane` 中，默认只显示 `PasswordField`；点击 `mdi2e-eye` 图标按钮时切换两个输入框的 `visible/managed` 状态，并把图标切到 `mdi2e-eye-off`，因此同一份密码值不会复制到多个业务变量。`labeledPassword(...)` 复用页面标签样式包装密码组合控件。`loginForm()` 创建账号、密码、记住我控件，不预置任何账号；随后调用 `app.controller.loadRememberedAccount()`，如果有已保存账号，则在 JavaFX 线程回填账号、清空密码并勾选“记住我”。点击登录时从 `PasswordBox.getText()` 取密码构造 `LoginRequest` 调用 `app.controller.login(...)`，异步返回后切回 UI 线程处理结果；成功时保存后端返回的 `Profile` 并调用 `app.showFileTransferPage()`，失败时只 toast 后端消息。`registerForm()` 把“注册”按钮和 `ProgressIndicator` 放在同一个 `StackPane` 里，按钮始终 `setMaxWidth(Double.MAX_VALUE)` 满宽，加载圈用 `StackPane.setAlignment(..., Pos.CENTER_RIGHT)` 浮在右侧，不参与挤压按钮宽度；点击提交后立即显示加载圈、禁用账号/密码/设备/提交按钮，然后构造 `RegisterRequest` 调用注册接口；返回后隐藏加载动画并恢复表单，失败时 toast 后端消息，`pendingReview` 为真时保存临时 `Profile` 并进入 `showReviewPending()`，注册成功且无需等待时 toast 后端消息并回到登录页。`showReviewPending()` 构建一个主窗口壳里的提示页，返回、我知道了和返回登录按钮都会回到登录页；它不直接轮询 Actions，再次登录会由 `AuthStore.login(...)` 重新拉取最新 `acco`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/AuthStoreCheck.java`
 
@@ -301,15 +301,15 @@
 
 所属功能：系统设置仓库无框架自检。
 
-详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、传输口令、接收目录、语言和提示音设置能够再次读出。
+详细功能：验证默认设置可加载，保存后的上传限速、重试次数、主题色、缩放比例、传输口令、接收目录、语言、启动后最小化和提示音设置能够再次读出，同时确认默认不会在手动登录后自动隐藏到托盘。
 
-实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数，再保存一份带 `groupCode` 的自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
+实现方法：`main(String[] args)` 创建临时 properties 路径，先调用 `load()` 检查默认重试次数和默认 `startMinimized=false`，再保存一份带 `groupCode`、`startMinimized=true` 和提示音开关的自定义 `SystemSettings` 并重新读取，用 `require(...)` 检查关键字段和新字段。最后删除临时文件。运行方式是先编译测试类，再执行 `java -cp target/classes;target/test-classes com.iwmei.lantransfer.service.SettingsStoreCheck`。
 
 ## `src/test/java/com/iwmei/lantransfer/service/RecentStoreCheck.java`
 
 所属功能：近期传输对象仓库无框架自检。
 
-详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址、用户状态、个性签名和头像，避免 App 重启后近期目标退回纯演示数据。
+详细功能：验证 `RecentStore` 可以保存、读取、去重并置顶近期传输对象，同时保留目标网络地址、用户状态、个性签名和头像，避免 App 重启后近期目标只剩内存中的旧对象。
 
 实现方法：`main(String[] args)` 创建临时 properties 文件，构造两个在线且用户状态为 BUSY 的 `UserDevice`，先调用 `remember(...)` 保存两个目标，再重复保存第二个目标。检查点包括读取数量为 2、重复保存不会让列表变长、最新目标移动到第一位、最近传输时间不为空、目标地址和端口仍可达、用户状态仍为 BUSY。运行方式是先编译测试类，再在 Windows PowerShell 中执行 `java -cp 'target\classes;target\test-classes' com.iwmei.lantransfer.service.RecentStoreCheck`。
 
@@ -357,9 +357,9 @@
 
 所属功能：文件传输首页、待发送列表和传输结果页。
 
-详细功能：加载传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示传输对象、传输列表、传输结果统计、传输日志和发送端传输中进度快照。选择或拖拽文件时会用 `FileIcons.supported(...)` 做文件类型匹配，不支持的扩展名会被跳过并 toast 提示；待传输卡片会显示类型标签、大小和修改时间。传输对象可以是单个用户，也可以是本地分组；选择分组发送时后端会展开组内成员并对所有成员并发发送，组目标携带的默认口令会预填到发送前口令输入框。传输对象区域标题显示为“传输对象”，对象卡片按每行 5 个自动换行，不再限制最多只展示 5 个。它也是从登录后进入的第一个主功能页。当前首页传输列表不再固定显示演示任务，而是显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输开始前会询问“本次传输口令”，空值表示无口令；传输开始后页面会先进入结果页显示空汇总，后续收到后端进度回调时刷新“传输中”行，最终 Future 完成后播放提示音并刷新为完整结果。传输过程中会显示“暂停发送/继续发送”按钮。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
+详细功能：加载传输对象，显示上传文件/文件夹入口，支持拖拽加入待传输项，展示传输对象、传输列表、传输结果统计、传输日志和发送端传输中进度快照。选择或拖拽文件时会用 `FileIcons.supported(...)` 做文件类型匹配，不支持的扩展名会被跳过并 toast 提示；待传输卡片会显示类型标签、大小和修改时间。传输对象可以是单个用户，也可以是本地分组；选择分组发送时后端会展开组内成员并对所有成员并发发送，组目标携带的默认口令会预填到发送前口令输入框。传输对象区域标题显示为“传输对象”，对象卡片按每行 5 个自动换行，不限制对象总数。它也是从登录后进入的第一个主功能页。当前首页传输列表显示 `app.currentSummary` 中的真实本地传输结果；没有结果时只显示空表头和 0 计数。传输开始前会询问“本次传输口令”，空值表示无口令；传输开始后页面会先进入结果页显示空汇总，后续收到后端进度回调时刷新“传输中”行，最终 Future 完成后播放提示音并刷新为完整结果。传输过程中会显示“暂停发送/继续发送”按钮。传输结果页的“清除已完成”和“清空日志”按钮会直接更新当前内存汇总并刷新页面。
 
-实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时把返回的全部设备加入 `app.recentTargets`，不再做前 5 个截断，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮；没有待传输项时提示文字为“或拖拽到此处”，发送中会禁用开始和清除按钮，并通过 `pauseButton()` 显示当前暂停状态。`addFiles(...)` 逐个调用 `FileIcons.supported(...)`，支持的文件加入 `pendingFiles`，不支持的计数后提示“已跳过不支持的文件类型：N个”；文件夹允许加入，真正发送时由 `UdpTx` 对文件夹内部文件再次过滤。`pendingFileCard(...)` 使用 `FileIcons.iconLiteral(...)`、`FileIcons.typeLabel(...)`、`FileIcons.readableSize(...)` 和 `FileIcons.modifiedAtLabel(...)` 展示图标、类型、大小和修改时间。`recentTargetsSection(...)` 使用 `app.glassSection("传输对象")` 创建传输对象区，用 `app.cardGrid(5, 8, 8)` 和 `app.addCard(..., i, 5)` 按 5 列排布全部对象，行数随对象数量自然增长。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项和目标列表，`hasUsableTarget(...)` 要求至少有一个真实可达用户或组目标，未选择有效对象时直接提示用户选择；随后选择 `selectedTargets` 或近期目标作为目标列表，调用 `askTransferCode(...)` 弹出本次口令输入框，`defaultGroupCode(...)` 从组目标的 `signature` 读取默认口令预填，取消则不发送。确认后重置暂停状态，写入空 `TransferSummary` 并进入结果页，再调用 `app.controller.startTransfer(files, targets, code, progress)`；进度回调和最终完成回调都通过 `Platform.runLater(...)` 调用 `showTransferProgress(...)`，最终完成时调用 `app.playDoneSound()`，最终完成或异常时清理 `transferRunning/transferPaused`。`togglePause()` 翻转 `app.transferPaused` 并调用 `app.controller.pauseTransfer(...)`。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
+实现方法：`showFileTransferPage()` 调用控制器加载近期设备，首次进入时把返回对象全部加入 `app.recentTargets`，然后把 `app.currentSummary == null ? List.of() : app.currentSummary.tasks()` 传给 `transferListSection(...)`。`uploadStrip()` 绑定文件选择、文件夹选择、拖拽进入/离开/释放事件，并按 `app.pendingFiles` 动态显示开始发送和清除按钮；没有待传输项时提示文字为“或拖拽到此处”，发送中会禁用开始和清除按钮，并通过 `pauseButton()` 显示当前暂停状态。`addFiles(...)` 逐个调用 `FileIcons.supported(...)`，支持的文件加入 `pendingFiles`，不支持的计数后提示“已跳过不支持的文件类型：N个”；文件夹允许加入，真正发送时由 `UdpTx` 对文件夹内部文件再次过滤。`pendingFileCard(...)` 使用 `FileIcons.iconLiteral(...)`、`FileIcons.typeLabel(...)`、`FileIcons.readableSize(...)` 和 `FileIcons.modifiedAtLabel(...)` 展示图标、类型、大小和修改时间。`recentTargetsSection(...)` 使用 `app.glassSection("传输对象")` 创建传输对象区，用 `app.cardGrid(5, 8, 8)` 和 `app.addCard(..., i, 5)` 按 5 列排布全部对象，行数随对象数量自然增长。`transferListSection(...)` 根据任务状态动态计算全部、进行中、已完成和已失败数量；已完成数量为 0 或没有汇总时禁用“清除已完成”。`clearCompletedTasks()` 调用 `TransferSummary.withoutCompleted()` 后重绘结果页，`clearLogs()` 调用 `TransferSummary.withoutLogs()` 后重绘结果页。`startTransfer()` 校验待传输项和目标列表，`hasUsableTarget(...)` 要求至少有一个真实可达用户或组目标，未选择有效对象时直接提示用户选择；随后选择 `selectedTargets` 或近期目标作为目标列表，调用 `askTransferCode(...)` 弹出本次口令输入框，`defaultGroupCode(...)` 从组目标的 `signature` 读取默认口令预填，取消则不发送。确认后重置暂停状态，写入空 `TransferSummary` 并进入结果页，再调用 `app.controller.startTransfer(files, targets, code, progress)`；进度回调和最终完成回调都通过 `Platform.runLater(...)` 调用 `showTransferProgress(...)`，最终完成时调用 `app.playDoneSound()`，最终完成或异常时清理 `transferRunning/transferPaused`。`togglePause()` 翻转 `app.transferPaused` 并调用 `app.controller.pauseTransfer(...)`。`showTransferResultPage()`、`resultSummarySection(...)` 和 `transferLogSection(...)` 根据汇总对象展示统计和日志。
 
 ## `src/main/java/com/iwmei/lantransfer/view/UserList.java`
 
