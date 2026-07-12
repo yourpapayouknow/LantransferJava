@@ -26,7 +26,9 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 // 文件传输页面逻辑
@@ -371,8 +373,44 @@ final class FileTransfer {
 
     // 显示最新传输进度或最终结果
     private void showTransferProgress(TransferSummary summary) {
-        app.currentSummary = summary;
+        app.currentSummary = mergeSummary(app.currentSummary, summary);
         showTransferResultPage();
+    }
+
+    // 合并并发发送线程推送的单任务进度快照
+    private TransferSummary mergeSummary(TransferSummary oldSummary, TransferSummary newSummary) {
+        if (oldSummary == null || oldSummary.tasks().isEmpty()) {
+            return newSummary;
+        }
+        Map<String, TransferTask> tasks = new LinkedHashMap<>();
+        for (TransferTask task : oldSummary.tasks()) {
+            tasks.put(taskKey(task), task);
+        }
+        for (TransferTask task : newSummary.tasks()) {
+            tasks.put(taskKey(task), task);
+        }
+        return new TransferSummary(newSummary.targetCount(), newSummary.successCount(), newSummary.failedCount(),
+                newSummary.retryCount(), newSummary.elapsed(), mergeLogs(oldSummary.logs(), newSummary.logs()),
+                new ArrayList<>(tasks.values()));
+    }
+
+    // 合并进度日志并保持原顺序
+    private List<String> mergeLogs(List<String> oldLogs, List<String> newLogs) {
+        Map<String, String> logs = new LinkedHashMap<>();
+        for (String line : oldLogs) {
+            logs.putIfAbsent(line, line);
+        }
+        for (String line : newLogs) {
+            logs.putIfAbsent(line, line);
+        }
+        return new ArrayList<>(logs.values());
+    }
+
+    // 生成传输任务的稳定合并键
+    private String taskKey(TransferTask task) {
+        UserDevice target = task.target();
+        String targetId = target == null ? "" : target.id() + "@" + target.host() + ":" + target.port();
+        return task.fileName() + "\u0000" + targetId;
     }
 
     // 打开文件选择器并加入待传输列表

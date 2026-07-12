@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 // UDP文件接收服务，负责后台监听传输端口并把收到的文件落盘到接收目录
 final class UdpRx {
@@ -120,7 +122,7 @@ final class UdpRx {
 
     // 处理文件开始包并创建接收状态
     private void handleBegin(DatagramSocket socket, DatagramPacket packet) {
-        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 9);
+        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 10);
         if (parts.length < 7) {
             return;
         }
@@ -140,10 +142,11 @@ final class UdpRx {
             int chunkSize = intValue(parts[6], -1);
             String sha256 = parts.length >= 8 ? parts[7] : "";
             String codeHash = parts.length >= 9 ? parts[8] : "";
+            boolean folderZip = parts.length >= 10 && "DIRZIP".equals(parts[9]);
             if (!FileIcons.supportedName(fileName)) {
                 detail = "UNSUPPORTED";
             } else if (allowBegin(jobId, fileName, size, codeHash)) {
-                RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
+                RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256, folderZip);
                 active.put(key, file);
                 detail = file.missing();
                 if (chunkCount == 0) {
@@ -211,7 +214,8 @@ final class UdpRx {
     }
 
     // 创建单个文件的接收状态
-    private RxFile createFile(String fileName, long size, int chunkCount, int chunkSize, String sha256) throws IOException {
+    private RxFile createFile(String fileName, long size, int chunkCount, int chunkSize, String sha256,
+                              boolean folderZip) throws IOException {
         if (size < 0 || chunkCount < 0 || chunkSize <= 0) {
             throw new IOException("bad file metadata");
         }
@@ -220,7 +224,7 @@ final class UdpRx {
         Path target = uniqueTarget(dir, safeName(fileName));
         Path part = target.resolveSibling(target.getFileName() + ".part");
         Path meta = target.resolveSibling(target.getFileName() + ".part.meta");
-        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), progress,
+        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), folderZip, progress,
                 downloadBytesPerSecond());
     }
 
@@ -335,6 +339,7 @@ final class UdpRx {
         private final int chunkSize;
         private final String sha256;
         private final String fileName;
+        private final boolean folderZip;
         private final RxProgress progress;
         private final long downloadBytesPerSecond;
         private final FileChannel channel;
@@ -345,7 +350,8 @@ final class UdpRx {
 
         // 初始化接收中文件状态
         private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256,
-                       String fileName, RxProgress progress, long downloadBytesPerSecond) throws IOException {
+                       String fileName, boolean folderZip, RxProgress progress, long downloadBytesPerSecond)
+                throws IOException {
             this.target = target;
             this.part = part;
             this.meta = meta;
@@ -354,6 +360,7 @@ final class UdpRx {
             this.chunkSize = chunkSize;
             this.sha256 = sha256 == null ? "" : sha256;
             this.fileName = fileName;
+            this.folderZip = folderZip;
             this.progress = progress;
             this.downloadBytesPerSecond = downloadBytesPerSecond;
             restoreOrReset();
@@ -452,8 +459,54 @@ final class UdpRx {
                 throw new IOException("sha256 mismatch");
             }
             Files.move(part, target);
+            if (folderZip) {
+                unzipTarget();
+            }
             Files.deleteIfExists(meta);
             done = true;
+        }
+
+        // 解压文件夹传输压缩包
+        private void unzipTarget() throws IOException {
+            Path dir = unzipDir(target);
+            Files.createDirectories(dir);
+            try (ZipInputStream input = new ZipInputStream(Files.newInputStream(target))) {
+                for (ZipEntry entry = input.getNextEntry(); entry != null; entry = input.getNextEntry()) {
+                    unzipEntry(input, entry, dir);
+                    input.closeEntry();
+                }
+            }
+            Files.deleteIfExists(target);
+        }
+
+        // 生成不覆盖旧目录的解压目录
+        private Path unzipDir(Path zip) {
+            String fileName = zip.getFileName().toString();
+            String base = fileName.toLowerCase().endsWith(".zip") ? fileName.substring(0, fileName.length() - 4) : fileName;
+            Path dir = zip.resolveSibling(base);
+            if (!Files.exists(dir)) {
+                return dir;
+            }
+            for (int index = 1; ; index++) {
+                Path candidate = zip.resolveSibling(base + "-" + index);
+                if (!Files.exists(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        // 解压单个zip条目并阻止越界路径
+        private void unzipEntry(ZipInputStream input, ZipEntry entry, Path dir) throws IOException {
+            Path target = dir.resolve(entry.getName()).normalize();
+            if (!target.startsWith(dir)) {
+                throw new IOException("bad zip entry");
+            }
+            if (entry.isDirectory()) {
+                Files.createDirectories(target);
+                return;
+            }
+            Files.createDirectories(target.getParent());
+            Files.copy(input, target);
         }
 
         // 从元数据恢复已接收分片，元数据不匹配时清理旧临时文件

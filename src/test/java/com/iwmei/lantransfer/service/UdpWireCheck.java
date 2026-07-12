@@ -38,6 +38,7 @@ public final class UdpWireCheck {
         Path secureSource = root.resolve("secure.txt");
         Path secureSecond = root.resolve("secure2.txt");
         Path secureLarge = root.resolve("secure-large.bin");
+        Path folder = root.resolve("folder");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
@@ -47,6 +48,9 @@ public final class UdpWireCheck {
             Files.writeString(secureSource, "secure confirm");
             Files.writeString(secureSecond, "secure confirm 2");
             Files.write(secureLarge, "L".repeat(1024 * 1024).getBytes(StandardCharsets.UTF_8));
+            Files.createDirectories(folder.resolve("sub"));
+            Files.writeString(folder.resolve("a.txt"), "folder a");
+            Files.writeString(folder.resolve("sub").resolve("b.txt"), "folder b");
             List<TransferFile> parallelFiles = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 Path path = root.resolve("parallel-" + i + ".txt");
@@ -80,6 +84,18 @@ public final class UdpWireCheck {
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
             require(rxProgress.stream().anyMatch(item -> item.equals("hello.txt:100")),
                     "receiver progress should publish completion");
+            List<TransferSummary> folderProgress = new ArrayList<>();
+            TransferSummary folderSummary = tx.run(List.of(new TransferFile("folder", "文件夹", folder)),
+                    List.of(first), store.load(), "", folderProgress::add);
+            require(folderSummary.successCount() == 1, "folder zip transfer should succeed");
+            require(folderProgress.stream().anyMatch(snapshot -> snapshot.tasks().stream()
+                            .anyMatch(task -> "folder.zip".equals(task.fileName()) && "传输中".equals(task.status()))),
+                    "folder transfer should publish initial running task: " + folderProgress);
+            require("folder a".equals(Files.readString(receiveDir.resolve("folder").resolve("a.txt"))),
+                    "folder root file should be restored");
+            require("folder b".equals(Files.readString(receiveDir.resolve("folder").resolve("sub").resolve("b.txt"))),
+                    "folder nested file should be restored");
+            require(!Files.exists(receiveDir.resolve("folder.zip")), "folder package should be removed after unzip");
             UserDevice third = new UserDevice("self-parallel-3", "本机C", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
                     "#7a52d8", false, "127.0.0.1", port);
             UserDevice fourth = new UserDevice("self-parallel-4", "本机D", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",

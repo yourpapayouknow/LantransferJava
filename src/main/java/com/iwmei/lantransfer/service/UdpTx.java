@@ -8,6 +8,7 @@ import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
 import com.iwmei.lantransfer.util.FileIcons;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -35,6 +36,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 // UDP文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
 final class UdpTx {
@@ -86,42 +89,47 @@ final class UdpTx {
                         Consumer<TransferSummary> progress) {
         long started = System.nanoTime();
         List<SourceFile> sources = sources(files == null ? List.of() : files);
-        List<UserDevice> safeTargets = targets == null ? List.of() : targets;
-        Consumer<TransferSummary> safeProgress = progress == null ? summary -> {
-        } : progress;
-        int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
-        int sendableCount = sendableTargets(safeTargets);
-        long bytesPerSecond = perTargetBytesPerSecond(settings, sendableCount);
-        String codeHash = codeHash(code);
-        List<TransferTask> tasks = new ArrayList<>();
-        List<String> logs = new ArrayList<>();
-        int success = 0;
-        int failed = 0;
-        int retries = 0;
-        logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
+        try {
+            List<UserDevice> safeTargets = targets == null ? List.of() : targets;
+            Consumer<TransferSummary> safeProgress = progress == null ? summary -> {
+            } : progress;
+            int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
+            int sendableCount = sendableTargets(safeTargets);
+            long bytesPerSecond = perTargetBytesPerSecond(settings, sendableCount);
+            String codeHash = codeHash(code);
+            List<TransferTask> tasks = new ArrayList<>();
+            List<String> logs = new ArrayList<>();
+            int success = 0;
+            int failed = 0;
+            int retries = 0;
+            logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
 
-        // 空文件拦截
-        if (sources.isEmpty()) {
-            logs.add(stamp("⚠ 没有可传输文件"));
-            return new TransferSummary(safeTargets.size(), 0, safeTargets.isEmpty() ? 0 : safeTargets.size(), 0,
-                    elapsed(started), logs, List.of());
-        }
-        int pairTasks = sources.size() * sendableCount;
-        if (pairTasks > 1) {
-            logs.add(stamp("⇄ 文件目标并发：" + pairTasks + " 个任务"));
-        }
-        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, codeHash, safeProgress)) {
-            tasks.addAll(sent.tasks());
-            logs.addAll(sent.logs());
-            retries += sent.retries();
-            if (sent.success()) {
-                success++;
-            } else {
-                failed++;
+            // 空文件拦截
+            if (sources.isEmpty()) {
+                logs.add(stamp("⚠ 没有可传输文件"));
+                return new TransferSummary(safeTargets.size(), 0, safeTargets.isEmpty() ? 0 : safeTargets.size(), 0,
+                        elapsed(started), logs, List.of());
             }
+            int pairTasks = sources.size() * sendableCount;
+            if (pairTasks > 1) {
+                logs.add(stamp("⇄ 文件目标并发：" + pairTasks + " 个任务"));
+            }
+            publishStart(safeProgress, safeTargets.size(), sources, safeTargets, started, logs);
+            for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, codeHash, safeProgress)) {
+                tasks.addAll(sent.tasks());
+                logs.addAll(sent.logs());
+                retries += sent.retries();
+                if (sent.success()) {
+                    success++;
+                } else {
+                    failed++;
+                }
+            }
+            logs.add(stamp("任务结束：成功 " + success + "，失败 " + failed + "，重试 " + retries));
+            return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(started), logs, tasks);
+        } finally {
+            deleteTemps(sources);
         }
-        logs.add(stamp("任务结束：成功 " + success + "，失败 " + failed + "，重试 " + retries));
-        return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(started), logs, tasks);
     }
 
     // 并发发送每个目标和文件组合并按原目标顺序返回结果
@@ -395,6 +403,27 @@ final class UdpTx {
         }
     }
 
+    // 推送整批任务的初始传输中快照
+    private void publishStart(Consumer<TransferSummary> progress, int targetCount, List<SourceFile> sources,
+                              List<UserDevice> targets, long started, List<String> logs) {
+        try {
+            List<TransferTask> tasks = new ArrayList<>();
+            for (UserDevice target : targets) {
+                if (!sendable(target)) {
+                    continue;
+                }
+                for (SourceFile source : sources) {
+                    tasks.add(new TransferTask(source.name(), target, 0, readable(source.bytes()), "-",
+                            elapsed(started), "传输中", 0));
+                }
+            }
+            if (!tasks.isEmpty()) {
+                progress.accept(new TransferSummary(targetCount, 0, 0, 0, elapsed(started), logSnapshot(logs), tasks));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     // 发送文本协议包并等待确认
     private AckResult sendText(DatagramSocket socket, String message, String jobId, int fileIndex, int chunkIndex, int maxRetries) {
         return sendText(socket, message, jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
@@ -491,7 +520,7 @@ final class UdpTx {
     private String beginMessage(SourceFile source, String jobId, int fileIndex, int chunkCount, String codeHash) {
         return UdpRx.BEGIN + "\t" + jobId + "\t" + fileIndex + "\t" + encodeName(source.name())
                 + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes + "\t" + source.sha256()
-                + "\t" + codeHash;
+                + "\t" + codeHash + "\t" + (source.folderZip() ? "DIRZIP" : "FILE");
     }
 
     // 读取一个固定大小文件分片
@@ -574,23 +603,73 @@ final class UdpTx {
                 continue;
             }
             if (Files.isDirectory(file.path())) {
-                addDirectory(sources, file);
+                SourceFile zipped = zipDir(file);
+                if (zipped != null) {
+                    sources.add(zipped);
+                }
             } else if (Files.isRegularFile(file.path()) && FileIcons.supported(file.path())) {
-                sources.add(new SourceFile(file.fileName(), file.path(), sizeOf(file.path()), sha256(file.path())));
+                sources.add(new SourceFile(file.fileName(), file.path(), sizeOf(file.path()), sha256(file.path()),
+                        false, false));
             }
         }
         return sources;
     }
 
-    // 把文件夹展开为多个真实文件
-    private void addDirectory(List<SourceFile> sources, TransferFile file) {
+    // 把文件夹打包成临时zip文件
+    private SourceFile zipDir(TransferFile file) {
         Path root = file.path();
-        try (var paths = Files.walk(root)) {
-            paths.filter(path -> Files.isRegularFile(path) && FileIcons.supported(path)).forEach(path -> {
-                String relative = root.relativize(path).toString().replace('\\', '/');
-                sources.add(new SourceFile(file.fileName() + "/" + relative, path, sizeOf(path), sha256(path)));
-            });
+        Path zip = null;
+        try {
+            zip = Files.createTempFile("ltx", ".zip");
+            try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip));
+                 var paths = Files.walk(root)) {
+                for (Path path : paths.filter(path -> !path.equals(root)).toList()) {
+                    zipEntry(root, path, out);
+                }
+            }
+            return new SourceFile(zipName(file.fileName()), zip, sizeOf(zip), sha256(zip), true, true);
         } catch (Exception ignored) {
+            if (zip != null) {
+                try {
+                    Files.deleteIfExists(zip);
+                } catch (Exception ignoredDelete) {
+                }
+            }
+            return null;
+        }
+    }
+
+    // 写入单个zip条目
+    private void zipEntry(Path root, Path path, ZipOutputStream out) throws IOException {
+        String name = root.relativize(path).toString().replace('\\', '/');
+        if (name.isBlank()) {
+            return;
+        }
+        if (Files.isDirectory(path)) {
+            out.putNextEntry(new ZipEntry(name.endsWith("/") ? name : name + "/"));
+            out.closeEntry();
+            return;
+        }
+        out.putNextEntry(new ZipEntry(name));
+        Files.copy(path, out);
+        out.closeEntry();
+    }
+
+    // 生成文件夹压缩包文件名
+    private String zipName(String name) {
+        String clean = name == null || name.isBlank() ? "folder" : name.trim();
+        return clean.toLowerCase(Locale.ROOT).endsWith(".zip") ? clean : clean + ".zip";
+    }
+
+    // 删除发送完成后的临时压缩包
+    private void deleteTemps(List<SourceFile> sources) {
+        for (SourceFile source : sources) {
+            if (source.temporary()) {
+                try {
+                    Files.deleteIfExists(source.path());
+                } catch (Exception ignored) {
+                }
+            }
         }
     }
 
@@ -779,7 +858,7 @@ final class UdpTx {
     }
 
     // 待发送的真实文件
-    private record SourceFile(String name, Path path, long bytes, String sha256) {
+    private record SourceFile(String name, Path path, long bytes, String sha256, boolean folderZip, boolean temporary) {
     }
 
     // 单个文件发送结果
