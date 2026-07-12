@@ -47,13 +47,20 @@ final class UdpTx {
     private final int chunkBytes;
     private final Object pauseLock = new Object();
     private volatile boolean paused;
+
+    // 使用默认分片大小初始化发送服务
     UdpTx() {
         this(DEFAULT_CHUNK_BYTES);
     }
+
+    // 使用指定分片大小初始化发送服务，供测试复用
     UdpTx(int chunkBytes) {
         this.chunkBytes = Math.max(512, chunkBytes);
     }
+
+    // 暂停或继续后续UDP包发送
     void setPaused(boolean paused) {
+        // 暂停状态同步
         synchronized (pauseLock) {
             this.paused = paused;
             if (!paused) {
@@ -61,14 +68,20 @@ final class UdpTx {
             }
         }
     }
+
+    // 发送文件到目标设备并返回传输汇总
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings) {
         return run(files, targets, settings, "", summary -> {
         });
     }
+
+    // 发送文件到目标设备并在传输中推送进度快照
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings,
                         Consumer<TransferSummary> progress) {
         return run(files, targets, settings, "", progress);
     }
+
+    // 按本次传输口令发送文件并推送进度快照
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings, String code,
                         Consumer<TransferSummary> progress) {
         long started = System.nanoTime();
@@ -85,6 +98,8 @@ final class UdpTx {
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
+
+        // 空文件拦截
         if (sources.isEmpty()) {
             logs.add(stamp("⚠ 没有可传输文件"));
             return new TransferSummary(safeTargets.size(), 0, safeTargets.isEmpty() ? 0 : safeTargets.size(), 0,
@@ -103,6 +118,8 @@ final class UdpTx {
         logs.add(stamp("任务结束：成功 " + success + "，失败 " + failed + "，重试 " + retries));
         return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(started), logs, tasks);
     }
+
+    // 并发发送到多个目标并按原目标顺序返回结果
     private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries,
                                          long bytesPerSecond, String codeHash, Consumer<TransferSummary> progress) {
         if (targets.size() <= 1) {
@@ -133,6 +150,8 @@ final class UdpTx {
             pool.shutdownNow();
         }
     }
+
+    // 发送所有文件到单个目标
     private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond, String codeHash,
                                   Consumer<TransferSummary> progress, int targetCount) {
         List<TransferTask> tasks = new ArrayList<>();
@@ -172,6 +191,8 @@ final class UdpTx {
         }
         return new TargetSend(success, retries, tasks, logs);
     }
+
+    // 构造目标级异常失败结果
     private TargetSend failedTarget(List<SourceFile> sources, UserDevice target, int retries, String reason) {
         List<TransferTask> tasks = new ArrayList<>();
         for (SourceFile source : sources) {
@@ -179,6 +200,8 @@ final class UdpTx {
         }
         return new TargetSend(false, retries, tasks, List.of(stamp("⚠ [" + targetLabel(target) + "] " + reason)));
     }
+
+    // 发送单个文件
     private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex,
                               int maxRetries, RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount) {
         long started = System.nanoTime();
@@ -213,6 +236,8 @@ final class UdpTx {
             return new FileSend(false, retries, failedTask(source, target, retries), logs);
         }
     }
+
+    // 并发发送单个文件的分片并汇总分片确认结果
     private ChunkBatch sendChunks(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
                                   String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
                                   Consumer<TransferSummary> progress, int targetCount, long started, int retriesBefore,
@@ -253,6 +278,8 @@ final class UdpTx {
             pool.shutdownNow();
         }
     }
+
+    // 单个worker使用自己的UDP socket发送多个分片
     private WorkerSend sendWorker(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
                                   String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
                                   Consumer<TransferSummary> progress, int targetCount, long started, List<String> logs,
@@ -286,6 +313,8 @@ final class UdpTx {
             return new WorkerSend(false, localRetries, -2);
         }
     }
+
+    // 读取并发送一个分片
     private ChunkSend sendChunk(DatagramSocket socket, FileChannel input, String jobId, int fileIndex, int chunkIndex,
                                 int maxRetries) throws Exception {
         byte[] buffer = new byte[chunkBytes];
@@ -293,6 +322,8 @@ final class UdpTx {
         AckResult data = sendData(socket, buffer, read, jobId, fileIndex, chunkIndex, maxRetries);
         return new ChunkSend(data.success(), data.retries(), read);
     }
+
+    // 根据已确认字节推送发送进度
     private void publishChunkProgress(Consumer<TransferSummary> progress, int targetCount, SourceFile source,
                                       UserDevice target, long started, long sentBytes, int retries, List<String> logs,
                                       AtomicInteger nextProgressLog) {
@@ -309,6 +340,8 @@ final class UdpTx {
             }
         }
     }
+
+    // 推送当前文件的传输中快照给界面
     private void publishProgress(Consumer<TransferSummary> progress, int targetCount, SourceFile source,
                                  UserDevice target, long started, long sentBytes, int percent, int retries,
                                  List<String> logs) {
@@ -321,14 +354,20 @@ final class UdpTx {
         } catch (Exception ignored) {
         }
     }
+
+    // 发送文本协议包并等待确认
     private AckResult sendText(DatagramSocket socket, String message, String jobId, int fileIndex, int chunkIndex, int maxRetries) {
         return sendText(socket, message, jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
     }
+
+    // 发送文本协议包并按指定超时等待确认
     private AckResult sendText(DatagramSocket socket, String message, String jobId, int fileIndex, int chunkIndex,
                                int maxRetries, int timeoutMillis) {
         return sendWithAck(socket, message.getBytes(StandardCharsets.UTF_8), jobId, fileIndex, chunkIndex, maxRetries,
                 timeoutMillis);
     }
+
+    // 发送二进制分片包并等待确认
     private AckResult sendData(DatagramSocket socket, byte[] chunk, int length, String jobId, int fileIndex, int chunkIndex, int maxRetries) {
         byte[] head = (UdpRx.DATA + "\t" + jobId + "\t" + fileIndex + "\t" + chunkIndex + "\t").getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(head.length + length);
@@ -336,6 +375,8 @@ final class UdpTx {
         out.write(chunk, 0, length);
         return sendWithAck(socket, out.toByteArray(), jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
     }
+
+    // 发送数据包并按最大重试次数等待ACK
     private AckResult sendWithAck(DatagramSocket socket, byte[] data, String jobId, int fileIndex, int chunkIndex,
                                   int maxRetries, int timeoutMillis) {
         int retries = 0;
@@ -370,6 +411,8 @@ final class UdpTx {
             }
         }
     }
+
+    // 等待并校验接收端ACK
     private AckResult awaitAck(DatagramSocket socket, String jobId, int fileIndex, int chunkIndex) {
         try {
             byte[] buffer = new byte[256];
@@ -387,7 +430,10 @@ final class UdpTx {
             return new AckResult(false, 0, "");
         }
     }
+
+    // 暂停状态下阻塞发送线程直到继续
     private boolean waitIfPaused() {
+        // 暂停等待同步
         synchronized (pauseLock) {
             while (paused) {
                 try {
@@ -400,11 +446,15 @@ final class UdpTx {
             return true;
         }
     }
+
+    // 构造文件开始协议包
     private String beginMessage(SourceFile source, String jobId, int fileIndex, int chunkCount, String codeHash) {
         return UdpRx.BEGIN + "\t" + jobId + "\t" + fileIndex + "\t" + encodeName(source.name())
                 + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes + "\t" + source.sha256()
                 + "\t" + codeHash;
     }
+
+    // 读取一个固定大小文件分片
     private int readChunk(FileChannel input, int chunkIndex, byte[] buffer) throws Exception {
         long offset = (long) chunkIndex * chunkBytes;
         ByteBuffer chunk = ByteBuffer.wrap(buffer);
@@ -419,27 +469,37 @@ final class UdpTx {
         }
         return chunk.position();
     }
+
+    // 计算单文件分片并发worker数量
     private int chunkWorkers(int chunks) {
         if (chunks <= 1) {
             return 1;
         }
         return Math.min(chunks, Math.min(MAX_CHUNK_WORKERS, Math.max(2, Runtime.getRuntime().availableProcessors())));
     }
+
+    // 生成分片失败展示文本
     private String failedChunkLabel(int chunkIndex) {
         return chunkIndex < 0 ? "未知分片" : "第 " + chunkIndex + " 个分片";
     }
+
+    // 添加一条线程安全日志
     private void addLog(List<String> logs, String line) {
         // 日志写入同步
         synchronized (logs) {
             logs.add(line);
         }
     }
+
+    // 复制当前日志快照
     private List<String> logSnapshot(List<String> logs) {
         // 日志快照同步
         synchronized (logs) {
             return List.copyOf(logs);
         }
     }
+
+    // 解析接收端返回的缺失分片列表
     private List<Integer> chunksToSend(String missing, int chunkCount) {
         if (missing == null || missing.isBlank()) {
             return range(chunkCount);
@@ -456,6 +516,8 @@ final class UdpTx {
         }
         return chunks.isEmpty() ? range(chunkCount) : chunks;
     }
+
+    // 返回从零开始的分片索引列表
     private List<Integer> range(int count) {
         List<Integer> chunks = new ArrayList<>();
         for (int index = 0; index < count; index++) {
@@ -463,6 +525,8 @@ final class UdpTx {
         }
         return chunks;
     }
+
+    // 收集待发送的真实文件
     private List<SourceFile> sources(List<TransferFile> files) {
         List<SourceFile> sources = new ArrayList<>();
         for (TransferFile file : files) {
@@ -477,6 +541,8 @@ final class UdpTx {
         }
         return sources;
     }
+
+    // 把文件夹展开为多个真实文件
     private void addDirectory(List<SourceFile> sources, TransferFile file) {
         Path root = file.path();
         try (var paths = Files.walk(root)) {
@@ -487,27 +553,41 @@ final class UdpTx {
         } catch (Exception ignored) {
         }
     }
+
+    // 构造成功任务行
     private TransferTask successTask(SourceFile source, UserDevice target, long started, int retries) {
         return new TransferTask(source.name(), target, 100, readable(source.bytes()), speed(source.bytes(), started),
                 DONE_TIME.format(LocalDateTime.now()), "已完成", retries);
     }
+
+    // 构造失败任务行
     private TransferTask failedTask(SourceFile source, UserDevice target, int retries) {
         return new TransferTask(source.name(), target, 0, readable(source.bytes()), "-",
                 DONE_TIME.format(LocalDateTime.now()), "传输失败", retries);
     }
+
+    // 判断目标是否在线
     private boolean online(UserDevice target) {
         return target != null && target.status() == DeviceStatus.ONLINE;
     }
+
+    // 判断目标是否允许直接发送
     private boolean sendable(UserDevice target) {
         return online(target) && target.reachable() && allowedStatus(target.userStatus());
     }
+
+    // 判断用户状态是否允许直接发送
     private boolean allowedStatus(UserStatus status) {
         UserStatus value = status == null ? UserStatus.DEFAULT : status;
         return value == UserStatus.DEFAULT || value == UserStatus.ONLINE || value == UserStatus.BUSY;
     }
+
+    // 返回文件开始包确认等待时间
     private int beginTimeout(UserDevice target) {
         return BEGIN_ACK_TIMEOUT_MILLIS;
     }
+
+    // 生成目标拦截原因
     private String blockReason(UserDevice target) {
         if (target == null) {
             return "目标为空，未执行 UDP 发送";
@@ -524,6 +604,8 @@ final class UdpTx {
         }
         return "目标不满足传输条件，未执行 UDP 发送";
     }
+
+    // 统计可真实发送的目标数量
     private int sendableTargets(List<UserDevice> targets) {
         int count = 0;
         for (UserDevice target : targets) {
@@ -533,6 +615,8 @@ final class UdpTx {
         }
         return Math.max(1, count);
     }
+
+    // 计算每个目标分到的上传限速字节数
     long perTargetBytesPerSecond(SystemSettings settings, int targetCount) {
         int limit = settings == null ? 0 : settings.uploadLimit();
         if (limit <= 0) {
@@ -540,15 +624,21 @@ final class UdpTx {
         }
         return Math.max(1L, limit * 1024L * 1024L / Math.max(1, targetCount));
     }
+
+    // 生成目标展示名
     private String targetLabel(UserDevice target) {
         if (target == null) {
             return "未知设备";
         }
         return target.nickname() + "(" + target.deviceName() + ")";
     }
+
+    // 计算分片数量
     private int chunkCount(long bytes) {
         return bytes == 0 ? 0 : (int) Math.ceil(bytes / (double) chunkBytes);
     }
+
+    // 读取文件大小
     private long sizeOf(Path path) {
         try {
             return Files.size(path);
@@ -556,6 +646,8 @@ final class UdpTx {
             return 0;
         }
     }
+
+    // 计算文件SHA-256
     private String sha256(Path path) {
         try (InputStream input = Files.newInputStream(path)) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -568,6 +660,8 @@ final class UdpTx {
             return "";
         }
     }
+
+    // 汇总待发送字节数
     private long totalBytes(List<SourceFile> sources) {
         long total = 0;
         for (SourceFile source : sources) {
@@ -575,11 +669,15 @@ final class UdpTx {
         }
         return total;
     }
+
+    // 格式化整体耗时
     private String elapsed(long started) {
         long millis = Math.max(1, (System.nanoTime() - started) / 1_000_000);
         long seconds = Math.max(1, (long) Math.ceil(millis / 1000.0));
         return formatSeconds(seconds);
     }
+
+    // 按已发送字节估算剩余时间
     private String eta(long started, long sent, long total) {
         if (sent <= 0 || total <= sent) {
             return "00:00:00";
@@ -588,16 +686,24 @@ final class UdpTx {
         long remainingMillis = Math.max(0, (total - sent) * elapsedMillis / sent);
         return formatSeconds((long) Math.ceil(remainingMillis / 1000.0));
     }
+
+    // 计算发送进度百分比
     private int progress(long sent, long total) {
         return total <= 0 ? 100 : (int) Math.min(100, sent * 100 / total);
     }
+
+    // 格式化秒数为时间文本
     private String formatSeconds(long seconds) {
         return String.format(Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
     }
+
+    // 格式化单文件速度
     private String speed(long bytes, long started) {
         long millis = Math.max(1, (System.nanoTime() - started) / 1_000_000);
         return readable(bytes * 1000 / millis) + "/s";
     }
+
+    // 格式化字节大小
     private String readable(long bytes) {
         if (bytes >= 1024 * 1024) {
             return String.format(Locale.ROOT, "%.2f MB", bytes / 1024.0 / 1024.0);
@@ -607,9 +713,13 @@ final class UdpTx {
         }
         return bytes + " B";
     }
+
+    // 编码文件名
     private String encodeName(String value) {
         return Base64.getUrlEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 计算本次传输口令摘要
     private String codeHash(String code) {
         String value = code == null ? "" : code.trim();
         if (value.isBlank()) {
@@ -622,27 +732,47 @@ final class UdpTx {
             return "";
         }
     }
+
+    // 给日志加时间戳
     private String stamp(String message) {
         return "[" + LOG_TIME.format(LocalTime.now()) + "]  " + message;
     }
+
+    // 待发送的真实文件
     private record SourceFile(String name, Path path, long bytes, String sha256) {
     }
+
+    // 单个文件发送结果
     private record FileSend(boolean success, int retries, TransferTask task, List<String> logs) {
     }
+
+    // 单个目标发送结果
     private record TargetSend(boolean success, int retries, List<TransferTask> tasks, List<String> logs) {
     }
+
+    // 单个数据包确认结果
     private record AckResult(boolean success, int retries, String detail) {
     }
+
+    // 单个分片发送结果
     private record ChunkSend(boolean success, int retries, int bytes) {
     }
+
+    // 单个worker发送结果
     private record WorkerSend(boolean success, int retries, int failedChunk) {
     }
+
+    // 单个文件所有分片发送结果
     private record ChunkBatch(boolean success, int retries, int failedChunk) {
     }
+
+    // 简单目标级限速器，按已发送字节和目标速率短暂休眠
     private static final class RateLimit {
         private final long bytesPerSecond;
         private final long started = System.nanoTime();
         private long sent;
+
+        // 初始化目标级限速器
         private RateLimit(long bytesPerSecond) {
             this.bytesPerSecond = bytesPerSecond;
         }

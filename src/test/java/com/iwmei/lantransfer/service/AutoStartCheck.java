@@ -3,9 +3,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+
+// AutoStart的无框架自检入口
 public final class AutoStartCheck {
+    // 阻止自检类被实例化
     private AutoStartCheck() {
     }
+
+    // 运行启动脚本创建和删除检查
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-autostart-check");
         try {
@@ -20,11 +25,15 @@ public final class AutoStartCheck {
             delete(dir);
         }
     }
+
+    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
         }
     }
+
+    // 删除临时自检目录
     private static void delete(Path dir) throws Exception {
         if (!Files.exists(dir)) {
             return;

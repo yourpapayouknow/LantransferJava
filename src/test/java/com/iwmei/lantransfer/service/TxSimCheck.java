@@ -6,9 +6,14 @@ import com.iwmei.lantransfer.model.UserDevice;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+
+// TxSim的无框架自检入口
 public final class TxSimCheck {
+    // 阻止自检类被实例化
     private TxSimCheck() {
     }
+
+    // 运行在线成功、离线失败和三次重试统计检查
     public static void main(String[] args) throws Exception {
         Path file = Files.createTempFile("lantransfer-tx-check", ".txt");
         try {
@@ -30,6 +35,8 @@ public final class TxSimCheck {
             Files.deleteIfExists(file);
         }
     }
+
+    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

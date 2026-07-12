@@ -18,11 +18,17 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
+
+// 登录注册页面逻辑
 final class Auth {
     private final MainWindow app;
+
+    // 初始化登录注册页面对象
     Auth(MainWindow app) {
         this.app = app;
     }
+
+    // 显示登录或注册页面
     void show(boolean registerMode) {
         VBox body = new VBox(24);
         body.getStyleClass().add("auth-body");
@@ -36,6 +42,8 @@ final class Auth {
         body.getChildren().addAll(brand, form);
         app.setAuthPage(body);
     }
+
+    // 显示注册审核等待页面
     void showReviewPending() {
         VBox page = new VBox(20);
         page.getStyleClass().add("page-content");
@@ -61,6 +69,8 @@ final class Auth {
         page.getChildren().addAll(breadcrumb, card);
         app.setMainPage("文件传输", page, false, false);
     }
+
+    // 构建登录表单区域
     private Node loginForm() {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");
@@ -93,6 +103,8 @@ final class Auth {
         form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), rememberMe, loginButton, divider, registerButton);
         return form;
     }
+
+    // 构建注册表单区域
     private Node registerForm() {
         VBox form = new VBox(14);
         form.getStyleClass().add("auth-form");
@@ -138,6 +150,8 @@ final class Auth {
         form.getChildren().addAll(app.labeledField("账号", account), labeledPassword("密码", password), app.labeledField("设备名称", device), submitBox, backLogin);
         return form;
     }
+
+    // 构建可显示或隐藏内容的密码输入控件
     private PasswordBox passwordBox(String prompt) {
         PasswordField hidden = app.passwordField(prompt);
         TextField shown = app.textField(prompt);
@@ -163,10 +177,15 @@ final class Auth {
         });
         return new PasswordBox(new HBox(8, fields, eye), hidden, shown);
     }
+
+    // 构建密码字段标签和控件
     private Node labeledPassword(String label, PasswordBox box) {
         return new VBox(8, app.mutedLabel(label, 16), box.node());
     }
+
+    // 登录注册页密码输入组合
     private record PasswordBox(Node node, PasswordField hidden, TextField shown) {
+        // 返回当前密码文本
         private String getText() {
             return hidden.getText();
         }
@@ -175,6 +194,8 @@ final class Auth {
         private void clear() {
             hidden.clear();
         }
+
+        // 切换密码控件禁用状态
         private void setDisable(boolean value) {
             hidden.setDisable(value);
             shown.setDisable(value);

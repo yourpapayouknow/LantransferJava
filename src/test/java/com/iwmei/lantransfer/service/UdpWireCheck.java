@@ -18,9 +18,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+
+// UdpTx和UdpRx的本机真实UDP自检入口
 public final class UdpWireCheck {
+    // 阻止自检类被实例化
     private UdpWireCheck() {
     }
+
+    // 运行本机UDP发送、确认和接收落盘检查
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("lantransfer-udp-check");
         Path receiveDir = root.resolve("rx");
@@ -171,16 +176,22 @@ public final class UdpWireCheck {
             deleteTree(root);
         }
     }
+
+    // 发送一个不支持类型的开始包并返回接收端确认
     private static String sendUnsupportedBegin(int port) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("bad.exe".getBytes(StandardCharsets.UTF_8));
         String message = UdpRx.BEGIN + "\tunsupported-job\t0\t" + name + "\t0\t0\t1024\t" + sha256("");
         return sendAndReceive(port, message.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 发送一个SHA-256错误的开始包并返回接收端确认
     private static String sendBadChecksumBegin(int port) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("bad.txt".getBytes(StandardCharsets.UTF_8));
         String message = UdpRx.BEGIN + "\tbad-job\t0\t" + name + "\t0\t0\t1024\tbad-sha";
         return sendAndReceive(port, message.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 发送一个未完成文件的首个分片并返回接收端确认
     private static String sendPartial(int port) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("partial.bin".getBytes(StandardCharsets.UTF_8));
         String begin = UdpRx.BEGIN + "\tpartial-job\t0\t" + name + "\t8\t2\t4\t" + sha256("abcdefgh");
@@ -188,17 +199,23 @@ public final class UdpWireCheck {
         String data = UdpRx.DATA + "\tpartial-job\t0\t0\tabcd";
         return sendAndReceive(port, data.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 发送一个已完成首片的续传种子文件并返回分片确认
     private static String sendResumePartial(int port, String content) throws Exception {
         require(sendResumeBegin(port, "resume-seed", content).endsWith("\tOK"), "resume begin should ack");
         String data = UdpRx.DATA + "\tresume-seed\t0\t0\t" + content.substring(0, 512);
         return sendAndReceive(port, data.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 发送续传文件开始包并返回接收端确认
     private static String sendResumeBegin(int port, String jobId, String content) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("resume.bin".getBytes(StandardCharsets.UTF_8));
         String begin = UdpRx.BEGIN + "\t" + jobId + "\t0\t" + name + "\t" + content.length() + "\t2\t512\t"
                 + sha256(content);
         return sendAndReceive(port, begin.getBytes(StandardCharsets.UTF_8));
     }
+
+    // 发送一个UDP包并返回接收端确认
     private static String sendAndReceive(int port, byte[] data) throws Exception {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(1000);
@@ -209,15 +226,21 @@ public final class UdpWireCheck {
             return new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
         }
     }
+
+    // 计算测试内容SHA-256
     private static String sha256(String value) throws Exception {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(digest);
     }
+
+    // 获取一个临时可用UDP端口
     private static int freePort() throws Exception {
         try (DatagramSocket socket = new DatagramSocket(0)) {
             return socket.getLocalPort();
         }
     }
+
+    // 删除临时目录树
     private static void deleteTree(Path root) throws Exception {
         if (!Files.exists(root)) {
             return;
@@ -228,6 +251,8 @@ public final class UdpWireCheck {
             }
         }
     }
+
+    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

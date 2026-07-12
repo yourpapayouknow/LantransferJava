@@ -10,19 +10,29 @@ final class AutoStart {
     private static final String SCRIPT_NAME = "极速互传.cmd";
     private final Path startupDir;
     private final boolean active;
+
+    // 使用当前系统启动目录初始化自启动管理器
     AutoStart() {
         this(defaultStartupDir(), isWindows());
     }
+
+    // 使用指定启动目录初始化自启动管理器，供自检使用
     AutoStart(Path startupDir) {
         this(startupDir, true);
     }
+
+    // 使用指定目录和启用状态初始化自启动管理器
     private AutoStart(Path startupDir, boolean active) {
         this.startupDir = startupDir;
         this.active = active;
     }
+
+    // 构造不产生系统副作用的自启动管理器
     static AutoStart none() {
         return new AutoStart(null, false);
     }
+
+    // 按设置同步系统启动项
     void sync(boolean enabled) {
         if (!active || startupDir == null) {
             return;
@@ -38,9 +48,13 @@ final class AutoStart {
             throw new IllegalStateException("同步开机自启动失败：" + startupDir, ex);
         }
     }
+
+    // 返回启动脚本路径
     Path scriptPath() {
         return startupDir.resolve(SCRIPT_NAME);
     }
+
+    // 构造启动脚本内容
     private String scriptBody() {
         String root = Path.of("").toAbsolutePath().normalize().toString();
         return String.join(System.lineSeparator(),
@@ -53,9 +67,13 @@ final class AutoStart {
                 ")",
                 "");
     }
+
+    // 判断当前系统是否为Windows
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
+
+    // 返回Windows当前用户启动目录
     private static Path defaultStartupDir() {
         String appData = System.getenv("APPDATA");
         Path base = appData == null || appData.isBlank()

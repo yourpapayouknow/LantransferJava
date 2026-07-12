@@ -11,7 +11,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+// UDP暂停发送无框架自检
 public final class UdpPauseCheck {
+    // 执行暂停阻塞和继续完成检查
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-pause-check");
         try {
@@ -40,16 +43,22 @@ public final class UdpPauseCheck {
             deleteTree(dir);
         }
     }
+
+    // 获取一个临时可用UDP端口
     private static int freePort() throws Exception {
         try (DatagramSocket socket = new DatagramSocket(0)) {
             return socket.getLocalPort();
         }
     }
+
+    // 检查条件，失败时抛出AssertionError
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
         }
     }
+
+    // 删除临时目录树
     private static void deleteTree(Path root) throws Exception {
         if (Files.notExists(root)) {
             return;

@@ -12,19 +12,29 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.Properties;
+
+// 本地设置仓库，负责系统设置的读取和保存
 final class SettingsStore {
     private final Path store;
     private final AutoStart autoStart;
+
+    // 使用默认用户目录设置文件初始化仓库
     SettingsStore() {
         this(AppFiles.dataDir().resolve("settings.properties"), new AutoStart());
     }
+
+    // 使用指定设置文件初始化仓库，供测试复用
     SettingsStore(Path store) {
         this(store, AutoStart.none());
     }
+
+    // 使用指定设置文件和自启动管理器初始化仓库，供测试复用
     SettingsStore(Path store, AutoStart autoStart) {
         this.store = store;
         this.autoStart = autoStart;
     }
+
+    // 加载系统设置
     synchronized SystemSettings load() {
         SystemSettings defaults = defaults();
         if (!Files.exists(store)) {
@@ -54,6 +64,8 @@ final class SettingsStore {
                 boolValue(props, "soundOnComplete", defaults.soundOnComplete())
         );
     }
+
+    // 保存系统设置
     synchronized void save(SystemSettings settings) {
         SystemSettings value = settings == null ? defaults() : settings;
         Properties props = new Properties();
@@ -83,9 +95,13 @@ final class SettingsStore {
             throw new IllegalStateException("保存设置文件失败：" + store, ex);
         }
     }
+
+    // 构造默认系统设置
     private SystemSettings defaults() {
         return new SystemSettings(localIp(false), localIp(true), 10, 20, 3, "#ff8500", "Microsoft YaHei", 14, 100);
     }
+
+    // 读取整数设置
     private int intValue(Properties props, String key, int fallback) {
         try {
             return Integer.parseInt(props.getProperty(key, String.valueOf(fallback)).trim());
@@ -93,9 +109,13 @@ final class SettingsStore {
             return fallback;
         }
     }
+
+    // 读取布尔设置
     private boolean boolValue(Properties props, String key, boolean fallback) {
         return Boolean.parseBoolean(props.getProperty(key, String.valueOf(fallback)));
     }
+
+    // 获取本机IP地址
     private String localIp(boolean ipv6) {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
