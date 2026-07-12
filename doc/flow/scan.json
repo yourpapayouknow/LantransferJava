@@ -1,0 +1,34 @@
+{
+  "page": {"width_mm": 297, "height_mm": 225, "unit": "mm", "title": "局域网扫描流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n用户列表页", "shape": "ellipse", "x_mm": 18, "y_mm": 34, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "load", "label": "loadAllDevices\nloadGroups", "shape": "rounded_rectangle", "x_mm": 100, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "render", "label": "renderPage\n搜索/矩阵/列表", "shape": "rounded_rectangle", "x_mm": 198, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "click", "label": "点击扫描\nscanUsers", "shape": "rounded_rectangle", "x_mm": 198, "y_mm": 84, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "lan", "label": "LanPeer.scan\nremember(self)", "shape": "rounded_rectangle", "x_mm": 100, "y_mm": 84, "width_mm": 74, "height_mm": 32, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "broadcast", "label": "广播DISCOVER\n回环/全网/网卡广播", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 84, "width_mm": 62, "height_mm": 36, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "remote", "label": "远端replyLoop\n组匹配且可发现才回复", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 146, "width_mm": 62, "height_mm": 38, "fill": "#F4F4F4", "layer": "peer"},
+    {"id": "receive", "label": "receiveReply\n解析HERE", "shape": "rounded_rectangle", "x_mm": 100, "y_mm": 148, "width_mm": 74, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "match", "label": "groupHash\n匹配?", "shape": "diamond", "x_mm": 204, "y_mm": 142, "width_mm": 62, "height_mm": 44, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "remember", "label": "remember设备\nseen/seenAt", "shape": "rounded_rectangle", "x_mm": 198, "y_mm": 194, "width_mm": 74, "height_mm": 28, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "sorted", "label": "sorted\n在线/离线状态", "shape": "rounded_rectangle", "x_mm": 100, "y_mm": 194, "width_mm": 74, "height_mm": 28, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "end", "label": "toast扫描完成\n刷新列表", "shape": "ellipse", "x_mm": 18, "y_mm": 194, "width_mm": 62, "height_mm": 28, "fill": "#F4F4F4", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "load", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "load", "to": "render", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "render", "to": "click", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "click", "to": "lan", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "lan", "to": "broadcast", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "broadcast", "to": "remote", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "remote", "to": "receive", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "receive", "to": "match", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "match", "to": "remember", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e10", "from": "remember", "to": "sorted", "arrow": "end", "layer": "flow"},
+    {"id": "e11", "from": "sorted", "to": "end", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "局域网扫描流程：UserList.scanUsers -> LocalBackend.scanLanDevices -> LanPeer.scan", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

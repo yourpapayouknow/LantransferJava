@@ -1,0 +1,26 @@
+{
+  "page": {"width_mm": 297, "height_mm": 210, "unit": "mm", "title": "用户分组流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n用户列表页", "shape": "ellipse", "x_mm": 18, "y_mm": 36, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "action", "label": "新建或编辑分组\nenterGrouping/组卡编辑", "shape": "rounded_rectangle", "x_mm": 100, "y_mm": 30, "width_mm": 86, "height_mm": 36, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "pick", "label": "选择真实用户\n输入组名/默认口令", "shape": "parallelogram", "x_mm": 210, "y_mm": 30, "width_mm": 76, "height_mm": 36, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "valid", "label": "组名非空且\n成员非空?", "shape": "diamond", "x_mm": 218, "y_mm": 86, "width_mm": 60, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "fail", "label": "toast提示\n留在当前页", "shape": "rounded_rectangle", "x_mm": 220, "y_mm": 154, "width_mm": 62, "height_mm": 32, "fill": "#FCE8E6", "layer": "ui"},
+    {"id": "call", "label": "controller.saveGroup\n或updateGroup", "shape": "rounded_rectangle", "x_mm": 110, "y_mm": 94, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "store", "label": "GroupStore\nsave/update", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 94, "width_mm": 62, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "end", "label": "返回组目标\n切到列表视图", "shape": "ellipse", "x_mm": 58, "y_mm": 158, "width_mm": 72, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "action", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "action", "to": "pick", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "pick", "to": "valid", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "valid", "to": "fail", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "valid", "to": "call", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "call", "to": "store", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "store", "to": "end", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "用户分组流程：UserList -> AppController -> GroupStore", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

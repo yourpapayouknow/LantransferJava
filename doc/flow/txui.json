@@ -1,0 +1,29 @@
+{
+  "page": {"width_mm": 297, "height_mm": 210, "unit": "mm", "title": "发送页面提交流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n文件传输页", "shape": "ellipse", "x_mm": 18, "y_mm": 36, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "files", "label": "选择/拖入文件\nFileIcons.supported过滤", "shape": "parallelogram", "x_mm": 100, "y_mm": 30, "width_mm": 80, "height_mm": 36, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "targets", "label": "选择近期对象\n或用户/分组目标", "shape": "parallelogram", "x_mm": 204, "y_mm": 30, "width_mm": 78, "height_mm": 36, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "valid", "label": "文件和目标\n可发送?", "shape": "diamond", "x_mm": 216, "y_mm": 88, "width_mm": 58, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "fail", "label": "toast提示\n不启动任务", "shape": "rounded_rectangle", "x_mm": 220, "y_mm": 154, "width_mm": 62, "height_mm": 32, "fill": "#FCE8E6", "layer": "ui"},
+    {"id": "code", "label": "askTransferCode\n默认取分组口令", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 94, "width_mm": 76, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "cancel", "label": "用户取消?", "shape": "diamond", "x_mm": 116, "y_mm": 144, "width_mm": 58, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "run", "label": "进入结果页\nstartTransfer", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 154, "width_mm": 66, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "progress", "label": "进度回调\nPlatform.runLater刷新", "shape": "ellipse", "x_mm": 108, "y_mm": 192, "width_mm": 76, "height_mm": 18, "fill": "#F4F4F4", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "files", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "files", "to": "targets", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "targets", "to": "valid", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "valid", "to": "fail", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "valid", "to": "code", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "code", "to": "cancel", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "cancel", "to": "fail", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "cancel", "to": "run", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "run", "to": "progress", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "发送页面提交流程：FileTransfer.startTransfer", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

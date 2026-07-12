@@ -1,0 +1,38 @@
+{
+  "page": {"width_mm": 297, "height_mm": 285, "unit": "mm", "title": "App生命周期流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\nJVM进程创建", "shape": "ellipse", "x_mm": 18, "y_mm": 34, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "life"},
+    {"id": "main", "label": "App.main\nApplication.launch", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
+    {"id": "stage", "label": "MainWindow.start\n初始化Stage", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 30, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
+    {"id": "callbacks", "label": "注册Rx回调\n确认/进度", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 82, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "life"},
+    {"id": "backend", "label": "LocalBackend构造\n启动UdpRx", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 82, "width_mm": 74, "height_mm": 32, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "settings", "label": "loadSettings\n失败也进登录页", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 82, "width_mm": 62, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "auth", "label": "Auth.show\n登录/注册", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 142, "width_mm": 62, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "login", "label": "登录\n成功?", "shape": "diamond", "x_mm": 112, "y_mm": 132, "width_mm": 58, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "shell", "label": "文件传输页\n主窗口壳", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 142, "width_mm": 74, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "route", "label": "侧边栏路由\n传输/用户/我的/设置", "shape": "rounded_rectangle", "x_mm": 202, "y_mm": 194, "width_mm": 74, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "control", "label": "窗口控制", "shape": "diamond", "x_mm": 112, "y_mm": 190, "width_mm": 58, "height_mm": 42, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "min", "label": "hideToTray\n或普通最小化", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 190, "width_mm": 62, "height_mm": 34, "fill": "#F4F4F4", "layer": "life"},
+    {"id": "close", "label": "stage.close\n或托盘退出", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 248, "width_mm": 74, "height_mm": 28, "fill": "#FCE8E6", "layer": "life"},
+    {"id": "end", "label": "结束\n窗口/进程销毁", "shape": "ellipse", "x_mm": 202, "y_mm": 250, "width_mm": 74, "height_mm": 24, "fill": "#F4F4F4", "layer": "life"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "main", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "main", "to": "stage", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "stage", "to": "callbacks", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "callbacks", "to": "backend", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "backend", "to": "settings", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "settings", "to": "auth", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "auth", "to": "login", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "login", "to": "shell", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "shell", "to": "route", "arrow": "end", "layer": "flow"},
+    {"id": "e10", "from": "route", "to": "control", "arrow": "end", "layer": "flow"},
+    {"id": "e11", "from": "control", "to": "min", "label": "最小化", "arrow": "end", "layer": "flow"},
+    {"id": "e12", "from": "control", "to": "close", "label": "关闭/退出", "arrow": "end", "layer": "flow"},
+    {"id": "e13", "from": "close", "to": "end", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "App生命周期流程：App.main -> MainWindow.start -> LocalBackend -> 页面路由 -> 销毁", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

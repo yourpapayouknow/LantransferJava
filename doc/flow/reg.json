@@ -1,0 +1,34 @@
+{
+  "page": {"width_mm": 297, "height_mm": 250, "unit": "mm", "title": "注册流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\nAuth.registerForm", "shape": "ellipse", "x_mm": 18, "y_mm": 36, "width_mm": 68, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "input", "label": "输入账号密码\n设备名称", "shape": "parallelogram", "x_mm": 108, "y_mm": 32, "width_mm": 76, "height_mm": 32, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "call", "label": "controller.register\nAuthStore.register", "shape": "rounded_rectangle", "x_mm": 206, "y_mm": 32, "width_mm": 76, "height_mm": 32, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "valid", "label": "格式合法且\n账号未存在?", "shape": "diamond", "x_mm": 214, "y_mm": 82, "width_mm": 60, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "fail", "label": "toast失败原因\n恢复表单", "shape": "rounded_rectangle", "x_mm": 216, "y_mm": 136, "width_mm": 62, "height_mm": 32, "fill": "#FCE8E6", "layer": "ui"},
+    {"id": "account", "label": "生成盐/PBKDF2摘要\napproveRegistration", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 92, "width_mm": 76, "height_mm": 38, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "req", "label": "saveReq\n写req/账号", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 96, "width_mm": 68, "height_mm": 32, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "push", "label": "pushPath\nACCO_T临时推送", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 150, "width_mm": 68, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "wait", "label": "waitForAction\n轮询acco", "shape": "rounded_rectangle", "x_mm": 108, "y_mm": 150, "width_mm": 76, "height_mm": 34, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "merged", "label": "账号合入?", "shape": "diamond", "x_mm": 208, "y_mm": 174, "width_mm": 60, "height_mm": 44, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "done", "label": "提示成功\n返回登录", "shape": "ellipse", "x_mm": 108, "y_mm": 226, "width_mm": 76, "height_mm": 18, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "pending", "label": "pendingReview\n审核等待页", "shape": "ellipse", "x_mm": 208, "y_mm": 226, "width_mm": 70, "height_mm": 18, "fill": "#FFF3D6", "layer": "ui"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "input", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "input", "to": "call", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "call", "to": "valid", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "valid", "to": "fail", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "valid", "to": "account", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "account", "to": "req", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "req", "to": "push", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "push", "to": "wait", "arrow": "end", "layer": "flow"},
+    {"id": "e9", "from": "wait", "to": "merged", "arrow": "end", "layer": "flow"},
+    {"id": "e10", "from": "merged", "to": "done", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e11", "from": "merged", "to": "pending", "label": "否", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "注册流程：无服务器账号请求写入req/，由GitHub Actions合入acco", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}

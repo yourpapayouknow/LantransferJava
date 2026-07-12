@@ -1,0 +1,27 @@
+{
+  "page": {"width_mm": 297, "height_mm": 220, "unit": "mm", "title": "我的资料流程"},
+  "style": {"font": "Microsoft YaHei UI", "font_size_pt": 14, "theme": "classic_flow", "fill": "#FFFFFF", "line": "#202020", "line_width_pt": 1.2, "text_color": "#111111", "corner_radius_mm": 1.5},
+  "nodes": [
+    {"id": "start", "label": "开始\n我的页", "shape": "ellipse", "x_mm": 18, "y_mm": 36, "width_mm": 62, "height_mm": 24, "fill": "#F4F4F4", "layer": "ui"},
+    {"id": "check", "label": "app.profile\n存在?", "shape": "diamond", "x_mm": 108, "y_mm": 28, "width_mm": 62, "height_mm": 46, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "auth", "label": "未登录\nshowAuth(false)", "shape": "rounded_rectangle", "x_mm": 216, "y_mm": 34, "width_mm": 62, "height_mm": 32, "fill": "#FCE8E6", "layer": "ui"},
+    {"id": "render", "label": "渲染资料/状态\n更多信息", "shape": "rounded_rectangle", "x_mm": 104, "y_mm": 92, "width_mm": 74, "height_mm": 34, "fill": "#EAF2FF", "layer": "ui"},
+    {"id": "choose", "label": "用户操作", "shape": "diamond", "x_mm": 112, "y_mm": 144, "width_mm": 58, "height_mm": 42, "fill": "#FFF3D6", "layer": "decision"},
+    {"id": "profile", "label": "保存资料/头像\nAuthStore写acco", "shape": "rounded_rectangle", "x_mm": 18, "y_mm": 150, "width_mm": 62, "height_mm": 36, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "status", "label": "updateStatus异步\n保存状态/签名", "shape": "rounded_rectangle", "x_mm": 216, "y_mm": 150, "width_mm": 62, "height_mm": 36, "fill": "#E8F3E8", "layer": "backend"},
+    {"id": "sync", "label": "lan同步广播\nrx同步接收门禁", "shape": "ellipse", "x_mm": 104, "y_mm": 194, "width_mm": 74, "height_mm": 18, "fill": "#F4F4F4", "layer": "backend"}
+  ],
+  "edges": [
+    {"id": "e1", "from": "start", "to": "check", "arrow": "end", "layer": "flow"},
+    {"id": "e2", "from": "check", "to": "auth", "label": "否", "arrow": "end", "layer": "flow"},
+    {"id": "e3", "from": "check", "to": "render", "label": "是", "arrow": "end", "layer": "flow"},
+    {"id": "e4", "from": "render", "to": "choose", "arrow": "end", "layer": "flow"},
+    {"id": "e5", "from": "choose", "to": "profile", "label": "资料", "arrow": "end", "layer": "flow"},
+    {"id": "e6", "from": "choose", "to": "status", "label": "状态", "arrow": "end", "layer": "flow"},
+    {"id": "e7", "from": "profile", "to": "sync", "arrow": "end", "layer": "flow"},
+    {"id": "e8", "from": "status", "to": "sync", "arrow": "end", "layer": "flow"}
+  ],
+  "groups": [],
+  "annotations": [{"id": "title", "text": "我的资料流程：Mine -> AuthStore.updateProfile/updateStatus -> LanPeer/UdpRx", "x_mm": 8, "y_mm": 8, "width_mm": 281, "height_mm": 10, "font_size_pt": 16, "layer": "title"}],
+  "exports": {"png": true, "pdf": false, "svg": false}
+}
