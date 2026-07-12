@@ -81,3 +81,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
   - `src/main/java/com/iwmei/lantransfer/App.java`（仅启动入口）
   - `pom.xml`（仅构建/运行 JavaFX 需要时）
 - `src/main/java/com/iwmei/lantransfer/service/` 不是前端目录；前端线程只在接口对接需要时改 `BackendFacade`。
+
+## Report Writing Rules
+
+- 报告中 `功能：` 后只描述功能本身，不追加功能目的、动机、好处或解释性尾巴；例如不要在功能描述后写“便于……”“避免……”“减少……”等目的语。
