@@ -57,6 +57,12 @@ public final class UdpWireCheck {
                 Files.writeString(path, "parallel " + i);
                 parallelFiles.add(new TransferFile(path.getFileName().toString(), "10 B", path));
             }
+            List<TransferFile> largeParallelFiles = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                Path path = root.resolve("parallel-large-" + i + ".bin");
+                Files.write(path, ("P" + i).repeat(32 * 1024).getBytes(StandardCharsets.UTF_8));
+                largeParallelFiles.add(new TransferFile(path.getFileName().toString(), "64.00 KB", path));
+            }
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -105,6 +111,11 @@ public final class UdpWireCheck {
             require(parallel.tasks().size() == 20, "five files times four targets should create twenty file-target tasks");
             require(parallel.logs().stream().anyMatch(log -> log.contains("文件目标并发：20 个任务")),
                     "file-target parallelism should be logged: " + parallel.logs());
+            TransferSummary largeParallel = new UdpTx(1024).run(largeParallelFiles, List.of(first, second), store.load());
+            require(largeParallel.successCount() == 2, "large parallel targets should succeed: " + largeParallel.logs());
+            require(largeParallel.tasks().size() == 4, "two large files times two targets should create four tasks");
+            require(largeParallel.logs().stream().noneMatch(log -> log.contains("分片并发")),
+                    "multi-object transfer should not stack chunk workers: " + largeParallel.logs());
             int busyAcceptPort = freePort();
             UdpRx busyAcceptRx = new UdpRx(store, busyAcceptPort);
             busyAcceptRx.updateStatus(UserStatus.BUSY);

@@ -156,6 +156,7 @@ final class UdpTx {
         if (taskCount == 0) {
             return failedJobs(sources, jobs);
         }
+        int activeTasks = taskCount;
         ExecutorService pool = Executors.newFixedThreadPool(taskCount);
         try {
             List<FileFuture> futures = new ArrayList<>();
@@ -167,7 +168,7 @@ final class UdpTx {
                     SourceFile source = sources.get(fileIndex);
                     int index = fileIndex;
                     futures.add(new FileFuture(job, index, source, pool.submit(() -> sendFileTask(source, job.target(),
-                            job.jobId(), index, maxRetries, job.rate(), codeHash, progress, targets.size()))));
+                            job.jobId(), index, maxRetries, job.rate(), codeHash, progress, targets.size(), activeTasks))));
                 }
             }
             for (FileFuture item : futures) {
@@ -229,11 +230,13 @@ final class UdpTx {
 
     // 使用独立UDP socket发送一个目标文件任务
     private FileSend sendFileTask(SourceFile source, UserDevice target, String jobId, int fileIndex, int maxRetries,
-                                  RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount) {
+                                  RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount,
+                                  int activeTasks) {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.connect(InetAddress.getByName(target.host()), target.port());
             socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
-            return sendFile(socket, source, target, jobId, fileIndex, maxRetries, rate, codeHash, progress, targetCount);
+            return sendFile(socket, source, target, jobId, fileIndex, maxRetries, rate, codeHash, progress, targetCount,
+                    activeTasks);
         } catch (Exception ex) {
             return new FileSend(false, maxRetries, failedTask(source, target, maxRetries),
                     List.of(stamp("⚠ [" + targetLabel(target) + "] UDP 发送初始化失败：" + ex.getMessage())));
@@ -251,7 +254,8 @@ final class UdpTx {
 
     // 发送单个文件
     private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex,
-                              int maxRetries, RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount) {
+                              int maxRetries, RateLimit rate, String codeHash, Consumer<TransferSummary> progress,
+                              int targetCount, int activeTasks) {
         long started = System.nanoTime();
         List<String> logs = new ArrayList<>();
         int chunkCount = chunkCount(source.bytes());
@@ -270,7 +274,7 @@ final class UdpTx {
         publishProgress(progress, targetCount, source, target, started, 0, 0, retries, logs);
         try (FileChannel input = FileChannel.open(source.path(), StandardOpenOption.READ)) {
             ChunkBatch batch = sendChunks(input, socket.getInetAddress(), socket.getPort(), source, target, jobId,
-                    fileIndex, chunks, maxRetries, rate, progress, targetCount, started, retries, logs);
+                    fileIndex, chunks, maxRetries, rate, progress, targetCount, started, retries, logs, activeTasks);
             retries += batch.retries();
             if (!batch.success()) {
                 logs.add(stamp("⚠ [" + targetLabel(target) + "] " + source.name() + " "
@@ -289,8 +293,8 @@ final class UdpTx {
     private ChunkBatch sendChunks(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
                                   String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
                                   Consumer<TransferSummary> progress, int targetCount, long started, int retriesBefore,
-                                  List<String> logs) {
-        int workers = chunkWorkers(chunks.size());
+                                  List<String> logs, int activeTasks) {
+        int workers = chunkWorkers(chunks.size(), activeTasks);
         if (workers > 1) {
             addLog(logs, stamp("⇄ [" + targetLabel(target) + "] " + source.name() + " 分片并发："
                     + workers + " 个 worker"));
@@ -540,8 +544,8 @@ final class UdpTx {
     }
 
     // 计算单文件分片并发worker数量
-    private int chunkWorkers(int chunks) {
-        if (chunks <= 1) {
+    private int chunkWorkers(int chunks, int activeTasks) {
+        if (chunks <= 1 || activeTasks > 1) {
             return 1;
         }
         return Math.min(chunks, Math.min(MAX_CHUNK_WORKERS, Math.max(2, Runtime.getRuntime().availableProcessors())));
