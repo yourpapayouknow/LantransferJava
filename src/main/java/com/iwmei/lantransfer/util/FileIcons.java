@@ -7,8 +7,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Set;
-
-// 文件显示工具类，负责大小、日期和图标判断
 public final class FileIcons {
     private static final DateTimeFormatter DATE_MINUTE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final Set<String> SUPPORTED = Set.of("pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg",
@@ -16,12 +14,8 @@ public final class FileIcons {
             "tar", "gz", "doc", "docx", "rtf", "txt", "md", "xls", "xlsx", "csv", "ppt", "pptx", "key",
             "java", "kt", "js", "ts", "jsx", "tsx", "py", "c", "cpp", "cs", "go", "rs", "html", "css",
             "xml", "json", "yml", "yaml", "bin", "prproj", "aep", "aepx", "psd", "ai", "xd", "indd");
-
-    // 阻止工具类被外部实例化
     private FileIcons() {
     }
-
-    // 生成文件修改日期显示文本
     public static String modifiedAtLabel(Path path) {
         if (path == null) {
             return "修改日期：-";
@@ -33,8 +27,6 @@ public final class FileIcons {
             return "修改日期：-";
         }
     }
-
-    // 根据文件或文件夹类型选择图标
     public static String iconLiteral(Path path) {
         if (path != null && Files.isDirectory(path)) {
             // 根据文件夹内容判断项目类型图标
@@ -56,19 +48,13 @@ public final class FileIcons {
             default -> "fltral-document-24";
         };
     }
-
-    // 判断路径是否属于当前允许传输的文件类型
     public static boolean supported(Path path) {
         return path != null && (Files.isDirectory(path) || supportedName(path.getFileName().toString()));
     }
-
-    // 判断文件名是否属于当前允许传输的文件类型
     public static boolean supportedName(String name) {
         String ext = extension(name == null ? "" : name);
         return ext.isBlank() || SUPPORTED.contains(ext);
     }
-
-    // 返回文件类型展示文本
     public static String typeLabel(Path path) {
         if (path != null && Files.isDirectory(path)) {
             return "文件夹";
@@ -92,8 +78,6 @@ public final class FileIcons {
             default -> "未知类型";
         };
     }
-
-    // 把文件大小转换成界面可读文本
     public static String readableSize(File file) {
         if (file.isDirectory()) {
             return "文件夹";
@@ -107,8 +91,6 @@ public final class FileIcons {
         }
         return bytes + " B";
     }
-
-    // 根据文件夹内容判断项目类型图标
     private static String folderIcon(Path folder) {
         // ponytail: direct children only; recurse later if folder icon accuracy matters more than drag speed.
         try (DirectoryStream<Path> children = Files.newDirectoryStream(folder)) {
@@ -129,26 +111,18 @@ public final class FileIcons {
         }
         return "fltral-folder-24";
     }
-
-    // 判断是否为Adobe视频工程文件
     private static boolean isAdobeVideoProject(String name) {
         return name.endsWith(".prproj") || name.endsWith(".aep") || name.endsWith(".aepx");
     }
-
-    // 判断是否为Adobe设计工程文件
     private static boolean isAdobeDesignProject(String name) {
         return name.endsWith(".psd") || name.endsWith(".ai") || name.endsWith(".xd") || name.endsWith(".indd");
     }
-
-    // 判断是否为常见IDE项目标记
     private static boolean isIdeProjectMarker(String name) {
         return name.equals(".idea") || name.equals(".vscode") || name.equals("pom.xml") || name.equals("build.gradle")
                 || name.equals("settings.gradle") || name.equals("package.json") || name.equals("pyproject.toml")
                 || name.equals("cargo.toml") || name.equals("go.mod") || name.endsWith(".sln")
                 || name.endsWith(".csproj") || name.endsWith(".vcxproj") || name.endsWith(".xcodeproj");
     }
-
-    // 提取文件扩展名用于类型判断
     private static String extension(String name) {
         int dot = name.lastIndexOf('.');
         return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);

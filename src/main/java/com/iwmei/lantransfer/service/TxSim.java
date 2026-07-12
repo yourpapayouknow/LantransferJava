@@ -18,8 +18,6 @@ final class TxSim {
     private static final long SPEED_BYTES = 12L * 1024 * 1024;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final DateTimeFormatter DONE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    // 根据待传输文件和目标设备生成传输汇总
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets) {
         List<TransferFile> safeFiles = files == null ? List.of() : files;
         List<UserDevice> safeTargets = targets == null ? List.of() : targets;
@@ -31,8 +29,6 @@ final class TxSim {
         return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(totalBytes),
                 logs(safeFiles, safeTargets, totalBytes, success, failed, retries), tasks);
     }
-
-    // 构造传输任务列表
     private List<TransferTask> tasks(List<TransferFile> files, List<UserDevice> targets) {
         List<TransferTask> tasks = new ArrayList<>();
         String doneAt = DONE_TIME.format(LocalDateTime.now());
@@ -48,8 +44,6 @@ final class TxSim {
         }
         return tasks;
     }
-
-    // 构造传输日志
     private List<String> logs(List<TransferFile> files, List<UserDevice> targets, long totalBytes, int success, int failed, int retries) {
         List<String> logs = new ArrayList<>();
         logs.add(stamp("任务开始：共 " + targets.size() + " 个目标，文件总数 " + files.size() + " 个，大小 " + readable(totalBytes)));
@@ -65,13 +59,9 @@ final class TxSim {
         // ponytail: local simulation until the UDP sender exists; replace this class when wire transfer is implemented.
         return logs;
     }
-
-    // 判断目标是否在线可发送
     private boolean online(UserDevice target) {
         return target != null && target.status() == DeviceStatus.ONLINE;
     }
-
-    // 汇总所有待传输文件大小
     private long totalBytes(List<TransferFile> files) {
         long total = 0;
         for (TransferFile file : files) {
@@ -79,8 +69,6 @@ final class TxSim {
         }
         return total;
     }
-
-    // 读取文件或文件夹大小
     private long sizeOf(Path path) {
         if (path == null || !Files.exists(path)) {
             return 0;
@@ -94,8 +82,6 @@ final class TxSim {
             return 0;
         }
     }
-
-    // 读取单个文件大小
     private long fileSize(Path path) {
         try {
             return Files.size(path);
@@ -103,19 +89,13 @@ final class TxSim {
             return 0;
         }
     }
-
-    // 格式化传输耗时
     private String elapsed(long bytes) {
         long seconds = Math.max(1, (long) Math.ceil(bytes / (double) SPEED_BYTES));
         return String.format(Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
     }
-
-    // 格式化传输速度
     private String speed() {
         return readable(SPEED_BYTES) + "/s";
     }
-
-    // 格式化字节大小
     private String readable(long bytes) {
         if (bytes >= 1024 * 1024) {
             return String.format(Locale.ROOT, "%.2f MB", bytes / 1024.0 / 1024.0);
@@ -125,8 +105,6 @@ final class TxSim {
         }
         return bytes + " B";
     }
-
-    // 给日志加时间戳
     private String stamp(String message) {
         return "[" + LOG_TIME.format(LocalTime.now()) + "]  " + message;
     }

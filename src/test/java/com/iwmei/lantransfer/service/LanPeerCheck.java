@@ -2,14 +2,9 @@ package com.iwmei.lantransfer.service;
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
-// LanPeer的无框架自检入口
 public final class LanPeerCheck {
-    // 阻止自检类被实例化
     private LanPeerCheck() {
     }
-
-    // 运行协议编码、解析和本机设备兜底检查
     public static void main(String[] args) throws Exception {
         System.setProperty("lantransfer.transferPort", "45432");
         LanPeer peer = new LanPeer(false, 1);
@@ -37,13 +32,9 @@ public final class LanPeerCheck {
         Thread.sleep(5);
         require(device(peer, "D-1").status() == DeviceStatus.OFFLINE, "expired peer should become offline");
     }
-
-    // 按ID读取已发现设备
     private static UserDevice device(LanPeer peer, String id) {
         return peer.knownDevices().stream().filter(item -> id.equals(item.id())).findFirst().orElseThrow();
     }
-
-    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

@@ -8,14 +8,9 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-
-// AuthStore的无框架自检入口
 public final class AuthStoreCheck {
-    // 阻止自检类被实例化
     private AuthStoreCheck() {
     }
-
-    // 运行账号表注册、重复注册、错误密码和正确登录检查
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-auth-check");
         try {
@@ -68,15 +63,11 @@ public final class AuthStoreCheck {
             delete(dir);
         }
     }
-
-    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
         }
     }
-
-    // 删除临时自检目录
     private static void delete(Path dir) throws Exception {
         if (!Files.exists(dir)) {
             return;

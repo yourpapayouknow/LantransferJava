@@ -72,8 +72,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-// 主窗口壳，负责窗口、导航和共享控件构建
 public class MainWindow extends Application {
     static final String APP_TITLE = "极速互传 v1.0.0";
     static final String ACCENT_ORANGE = "#ff8500";
@@ -111,8 +109,6 @@ public class MainWindow extends Application {
     final UserList userList = new UserList(this);
     final Mine mine = new Mine(this);
     final Settings settings = new Settings(this);
-
-    // JavaFX启动后初始化主窗口
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
@@ -129,43 +125,27 @@ public class MainWindow extends Application {
             return null;
         });
     }
-
-    // 显示登录或注册入口页面
     void showAuth(boolean registerMode) {
         auth.show(registerMode);
     }
-
-    // 显示注册审核等待页面
     void showReviewPending() {
         auth.showReviewPending();
     }
-
-    // 显示文件传输主页面
     void showFileTransferPage() {
         fileTransfer.showFileTransferPage();
     }
-
-    // 显示传输结果页面
     void showTransferResultPage() {
         fileTransfer.showTransferResultPage();
     }
-
-    // 显示用户列表页面
     void showUserListPage() {
         userList.showUserListPage();
     }
-
-    // 显示我的资料页面
     void showProfilePage() {
         mine.showProfilePage();
     }
-
-    // 显示系统设置页面
     void showSettingsPage() {
         settings.showSettingsPage();
     }
-
-    // 在忙碌状态下询问用户是否接收文件
     private boolean confirmReceive(String fileName, long bytes, String codeHash) {
         if (Platform.isFxApplicationThread()) {
             return showReceiveConfirm(fileName, bytes, codeHash);
@@ -178,8 +158,6 @@ public class MainWindow extends Application {
             return false;
         }
     }
-
-    // 显示接收确认对话框
     private boolean showReceiveConfirm(String fileName, long bytes, String codeHash) {
         if (codeHash != null && !codeHash.isBlank()) {
             return showCodeConfirm(fileName, bytes, codeHash);
@@ -191,8 +169,6 @@ public class MainWindow extends Application {
         alert.setContentText("当前状态为忙碌，是否接收 " + bytes + " B？");
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
-
-    // 显示传输口令校验对话框
     private boolean showCodeConfirm(String fileName, long bytes, String codeHash) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(stage);
@@ -206,8 +182,6 @@ public class MainWindow extends Application {
         code.textProperty().addListener((unused, oldValue, newValue) -> ok.setDisable(!codeMatches(newValue, codeHash)));
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent() && codeMatches(code.getText(), codeHash);
     }
-
-    // 展示接收端进度提示
     private void showRxProgress(String fileName, int percent) {
         if (percent >= 100) {
             playDoneSound();
@@ -218,18 +192,12 @@ public class MainWindow extends Application {
         }
         Platform.runLater(() -> toast("接收 " + fileName + " " + percent + "%"));
     }
-
-    // 把登录注册内容放入认证窗口壳
     void setAuthPage(Node body) {
         setWindow(windowShell(body), AUTH_WIDTH, AUTH_HEIGHT, AUTH_WIDTH, AUTH_HEIGHT);
     }
-
-    // 把页面内容放入主窗口壳
     void setMainPage(String activeNav, Node page, boolean topActions, boolean footer) {
         setWindow(mainWindowShell(activeNav, page, topActions, footer), MAIN_WIDTH, MAIN_HEIGHT, MAIN_MIN_WIDTH, MAIN_MIN_HEIGHT);
     }
-
-    // 创建等宽卡片网格布局
     GridPane cardGrid(int columns, double hgap, double vgap) {
         GridPane grid = new GridPane();
         grid.setMinWidth(0);
@@ -244,27 +212,19 @@ public class MainWindow extends Application {
         }
         return grid;
     }
-
-    // 按索引把卡片放入网格
     void addCard(GridPane grid, Node card, int index, int columns) {
         GridPane.setHgrow(card, Priority.ALWAYS);
         GridPane.setFillWidth(card, true);
         grid.add(card, index % columns, index / columns);
     }
-
-    // 构建登录注册窗口外壳
     Parent windowShell(Node body) {
         VBox shell = new VBox();
         shell.getStyleClass().add("window-shell");
         shell.setMinSize(0, 0);
         shell.getChildren().addAll(titleBar(), body);
         VBox.setVgrow(body, Priority.ALWAYS);
-
-        // 构建带主题色和圆角裁剪的根节点
         return appRoot(shell);
     }
-
-    // 构建主界面窗口外壳
     Parent mainWindowShell(String activeNav, Node page, boolean topActions, boolean footer) {
         VBox shell = new VBox();
         shell.getStyleClass().add("window-shell");
@@ -296,12 +256,8 @@ public class MainWindow extends Application {
         HBox.setHgrow(center, Priority.ALWAYS);
         shell.getChildren().add(main);
         VBox.setVgrow(main, Priority.ALWAYS);
-
-        // 构建带主题色和圆角裁剪的根节点
         return appRoot(shell);
     }
-
-    // 构建带主题色和圆角裁剪的根节点
     Parent appRoot(Node shell) {
         StackPane root = new StackPane(shell);
         root.getStyleClass().add("app-root");
@@ -313,8 +269,6 @@ public class MainWindow extends Application {
         }
         return root;
     }
-
-    // 构建根节点主题、字体和缩放样式
     static String rootStyle(String accentColor, SystemSettings settings) {
         StringBuilder style = new StringBuilder("-color-accent: ").append(accentColor).append(";");
         if (settings != null) {
@@ -326,13 +280,9 @@ public class MainWindow extends Application {
         }
         return style.toString();
     }
-
-    // 转义CSS字符串
     private static String css(String value) {
         return (value == null || value.isBlank() ? "Microsoft YaHei" : value).replace("\\", "\\\\").replace("\"", "\\\"");
     }
-
-    // 把内容裁剪到圆角窗口范围内
     void clipToRoundedWindow(Region region) {
         Rectangle clip = new Rectangle();
         clip.widthProperty().bind(region.widthProperty());
@@ -341,8 +291,6 @@ public class MainWindow extends Application {
         clip.setArcHeight(12);
         region.setClip(clip);
     }
-
-    // 设置窗口场景尺寸和显示状态
     void setWindow(Parent root, double width, double height, double minWidth, double minHeight) {
         boolean firstShow = !stage.isShowing();
         boolean requestedSizeChanged = Math.abs(requestedWindowWidth - width) > 0.5
@@ -370,8 +318,6 @@ public class MainWindow extends Application {
         }
         applyStartupTray();
     }
-
-    // 按启动设置隐藏到系统托盘
     private void applyStartupTray() {
         if (startupTrayApplied || profile == null || currentSettings == null) {
             return;
@@ -381,8 +327,6 @@ public class MainWindow extends Application {
             hideToTray();
         }
     }
-
-    // 构建自定义窗口标题栏
     HBox titleBar() {
         HBox bar = new HBox(10);
         bar.getStyleClass().add("title-bar");
@@ -398,8 +342,6 @@ public class MainWindow extends Application {
         enableDrag(bar);
         return bar;
     }
-
-    // 执行窗口最小化或托盘隐藏
     private void minimizeWindow() {
         if (currentSettings != null && currentSettings.startMinimized()) {
             hideToTray();
@@ -407,8 +349,6 @@ public class MainWindow extends Application {
             stage.setIconified(true);
         }
     }
-
-    // 隐藏窗口到系统托盘
     private void hideToTray() {
         if (ensureTray()) {
             stage.hide();
@@ -416,8 +356,6 @@ public class MainWindow extends Application {
             stage.setIconified(true);
         }
     }
-
-    // 创建系统托盘图标
     private boolean ensureTray() {
         if (trayIcon != null) {
             return true;
@@ -442,8 +380,6 @@ public class MainWindow extends Application {
             return false;
         }
     }
-
-    // 从系统托盘恢复窗口
     private void restoreFromTray() {
         Platform.runLater(() -> {
             stage.show();
@@ -451,14 +387,10 @@ public class MainWindow extends Application {
             stage.toFront();
         });
     }
-
-    // 从系统托盘退出应用
     private void exitFromTray() {
         java.awt.SystemTray.getSystemTray().remove(trayIcon);
         Platform.exit();
     }
-
-    // 生成系统托盘图标图片
     private java.awt.Image trayImage() {
         java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         java.awt.Graphics2D graphics = image.createGraphics();
@@ -472,8 +404,6 @@ public class MainWindow extends Application {
             graphics.dispose();
         }
     }
-
-    // 转换主题色为AWT颜色
     private java.awt.Color awtAccent() {
         try {
             return java.awt.Color.decode(accentColor);
@@ -481,8 +411,6 @@ public class MainWindow extends Application {
             return java.awt.Color.ORANGE;
         }
     }
-
-    // 构建左侧导航栏
     VBox sidebar(String activeNav) {
         VBox sidebar = new VBox(20);
         sidebar.getStyleClass().add("sidebar");
@@ -496,8 +424,6 @@ public class MainWindow extends Application {
         sidebar.getChildren().add(connectionInfo());
         return sidebar;
     }
-
-    // 构建单个导航按钮
     Node navItem(String text, String activeNav, Runnable action) {
         HBox item = new HBox(new Label(text));
         item.getStyleClass().addAll("nav-control", "nav-item");
@@ -509,8 +435,6 @@ public class MainWindow extends Application {
         item.setCursor(Cursor.HAND);
         return item;
     }
-
-    // 构建主界面顶部状态栏
     HBox mainTopbar() {
         HBox topbar = new HBox(14);
         topbar.getStyleClass().add("content-topbar");
@@ -522,8 +446,6 @@ public class MainWindow extends Application {
                 avatar(displayInitial(), "#c8d1dc", 34, profile == null ? "" : profile.avatar()), name);
         return topbar;
     }
-
-    // 构建底部传输状态栏
     HBox statusFooter() {
         HBox footer = new HBox(18);
         footer.getStyleClass().add("status-footer");
@@ -535,13 +457,9 @@ public class MainWindow extends Application {
                 spacer(), mutedLabel("存储位置： " + currentSettings.receiveDir(), 14), changePath);
         return footer;
     }
-
-    // 返回当前传输模式文案
     private String transferMode() {
         return currentSettings.groupCode().isBlank() ? "公开局域网" : "口令组";
     }
-
-    // 返回当前正在传输任务的总速度
     private String currentSpeed() {
         if (currentSummary == null || currentSummary.tasks().isEmpty()) {
             return "0 B/s";
@@ -552,8 +470,6 @@ public class MainWindow extends Application {
                 .sum();
         return speedText(total);
     }
-
-    // 把速度文案转成字节每秒
     private double speedBytes(String value) {
         String text = value.trim().replace("/s", "").trim();
         String[] parts = text.split(" ");
@@ -569,8 +485,6 @@ public class MainWindow extends Application {
         }
         return number;
     }
-
-    // 把字节每秒转成速度文案
     private String speedText(double bytes) {
         if (bytes >= 1024 * 1024) {
             return String.format(Locale.ROOT, "%.2f MB/s", bytes / 1024 / 1024);
@@ -580,13 +494,9 @@ public class MainWindow extends Application {
         }
         return String.format(Locale.ROOT, "%.0f B/s", bytes);
     }
-
-    // 构建用户或近期对象卡片
     Node userCard(UserDevice device, boolean large) {
         return userCard(device, large, false);
     }
-
-    // 构建用户或近期对象卡片，可在建组选择模式隐藏发送按钮
     Node userCard(UserDevice device, boolean large, boolean pickMode) {
         HBox card = new HBox(large ? 14 : 8);
         card.getStyleClass().add(large ? "user-card-large" : "user-card");
@@ -635,8 +545,6 @@ public class MainWindow extends Application {
         }
         return card;
     }
-
-    // 返回用户卡片第一行标题
     private String userCardTitle(UserDevice device) {
         if (device.groupTarget()) {
             return device.nickname();
@@ -644,21 +552,15 @@ public class MainWindow extends Application {
         String local = isSelfDevice(device) ? "(本机)" : "";
         return local + device.deviceName() + " | " + device.nickname();
     }
-
-    // 返回用户卡片第二行说明
     private String userCardSubTitle(UserDevice device) {
         if (device.groupTarget()) {
             return device.deviceName();
         }
         return device.signature();
     }
-
-    // 判断卡片设备是否为当前登录本机
     private boolean isSelfDevice(UserDevice device) {
         return profile != null && profile.userId().equals(device.id());
     }
-
-    // 把用户加入近期传输对象队列
     void addRecentTarget(UserDevice device) {
         recentTargetsLoaded = true;
         recentTargets.remove(device);
@@ -666,8 +568,6 @@ public class MainWindow extends Application {
         selectedTargets.remove(device);
         selectedTargets.add(device);
     }
-
-    // 向传输表格加入一行任务
     void addTransferRow(GridPane table, int row, TransferTask task) {
         table.add(fileNameCell(task.fileName()), 0, row);
         table.add(mutedLabel(task.target().nickname() + " (" + task.target().deviceName() + ")", 14), 1, row);
@@ -678,8 +578,6 @@ public class MainWindow extends Application {
         table.add(statusBadge(task.status()), 6, row);
         table.add(operationCell(task.status()), 7, row);
     }
-
-    // 构建传输列表表格骨架
     GridPane tableGrid(String... headers) {
         GridPane table = new GridPane();
         table.getStyleClass().add("dark-table");
@@ -694,8 +592,6 @@ public class MainWindow extends Application {
         }
         return table;
     }
-
-    // 构建区域标题行
     HBox sectionHeader(String title, String count) {
         HBox header = new HBox(8);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -705,32 +601,24 @@ public class MainWindow extends Application {
         }
         return header;
     }
-
-    // 构建标题文字标签
     Label titleLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("title-label");
         label.setStyle("-fx-font-size: " + compactFontSize(size) + "px; -fx-font-weight: 700;");
         return label;
     }
-
-    // 构建弱化说明文字标签
     Label mutedLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("muted-label");
         label.setStyle("-fx-font-size: " + compactFontSize(size) + "px;");
         return label;
     }
-
-    // 构建重点色文字标签
     Label accentLabel(String text, int size) {
         Label label = new Label(text);
         label.getStyleClass().add("accent-label");
         label.setStyle("-fx-font-size: " + compactFontSize(size) + "px; -fx-font-weight: 700;");
         return label;
     }
-
-    // 根据界面压缩比例调整字号
     int compactFontSize(int size) {
         if (size >= 34) {
             return size - 7;
@@ -749,61 +637,38 @@ public class MainWindow extends Application {
         }
         return size;
     }
-
-    // 构建统一样式文本输入框
     TextField textField(String prompt) {
         TextField field = new TextField();
         field.setPromptText(prompt);
         field.getStyleClass().add("dark-input");
         return field;
     }
-
-    // 构建统一样式密码输入框
     PasswordField passwordField(String prompt) {
         PasswordField field = new PasswordField();
         field.setPromptText(prompt);
         field.getStyleClass().add("dark-input");
         return field;
     }
-
-    // 构建带标签的输入项
     Node labeledField(String label, TextField field) {
         VBox box = new VBox(8, mutedLabel(label, 16), field);
         field.setPadding(new Insets(0, 14, 0, 14));
         return box;
     }
-
-    // 构建重点操作按钮
     Button primaryButton(String text) {
-        // 构建统一文本按钮基础样式
         return textButton(text, "primary-button");
     }
-
-    // 构建次级操作按钮
     Button secondaryButton(String text) {
-        // 构建统一文本按钮基础样式
         return textButton(text, "secondary-button");
     }
-
-    // 构建描边操作按钮
     Button outlineButton(String text) {
-        // 构建统一文本按钮基础样式
         return textButton(text, "outline-button");
     }
-
-    // 构建弱化文本按钮
     Button ghostTextButton(String text) {
-        // 构建统一文本按钮基础样式
         return textButton(text, "ghost-button");
     }
-
-    // 构建小型按钮
     Button compactButton(String text) {
-        // 构建统一文本按钮基础样式
         return textButton(text, "compact-button");
     }
-
-    // 构建图标切换按钮
     Button iconToggleButton(String iconLiteral, String tooltip, boolean active) {
         FontIcon icon = new FontIcon(iconLiteral);
         icon.getStyleClass().add("button-font-icon");
@@ -814,16 +679,12 @@ public class MainWindow extends Application {
         button.setTooltip(new Tooltip(tooltip));
         return button;
     }
-
-    // 构建统一文本按钮基础样式
     Button textButton(String text, String styleClass) {
         Button button = new Button(text);
         button.getStyleClass().addAll("text-button", styleClass);
         button.setCursor(Cursor.HAND);
         return button;
     }
-
-    // 构建窗口控制图标按钮
     Button windowButton(String iconLiteral, String tooltip) {
         FontIcon icon = new FontIcon(iconLiteral);
         icon.getStyleClass().add("window-button-icon");
@@ -835,15 +696,11 @@ public class MainWindow extends Application {
         button.setCursor(Cursor.HAND);
         return button;
     }
-
-    // 构建页签胶囊标签
     Label tabPill(String text, String count, boolean active) {
         Label pill = new Label(count == null ? text : text + "  " + count);
         pill.getStyleClass().addAll("ui-chip", active ? "ui-chip-active" : "ui-chip-muted", active ? "tab-pill-active" : "tab-pill");
         return pill;
     }
-
-    // 构建页面内容分区容器
     VBox glassSection(String title) {
         VBox box = new VBox(6);
         box.getStyleClass().add("glass-section");
@@ -853,38 +710,28 @@ public class MainWindow extends Application {
         }
         return box;
     }
-
-    // 构建自动撑开的空白区域
     Region spacer() {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         VBox.setVgrow(spacer, Priority.ALWAYS);
         return spacer;
     }
-
-    // 构建水平分隔线
     Separator separator() {
         Separator separator = new Separator();
         separator.getStyleClass().add("soft-separator");
         return separator;
     }
-
-    // 构建垂直分隔线
     Separator separatorVertical() {
         Separator separator = new Separator(Orientation.VERTICAL);
         separator.getStyleClass().add("soft-separator");
         return separator;
     }
-
-    // 构建登录页分隔短线
     Region line() {
         Region line = new Region();
         line.getStyleClass().add("soft-line");
         HBox.setHgrow(line, Priority.ALWAYS);
         return line;
     }
-
-    // 构建登录页品牌图标
     Node createPlaneLogo(double size) {
         StackPane logo = new StackPane();
         logo.setMinSize(size, size);
@@ -895,8 +742,6 @@ public class MainWindow extends Application {
         logo.getChildren().add(plane);
         return logo;
     }
-
-    // 构建注册审核提示图标
     Node reviewIllustration() {
         StackPane illustration = new StackPane();
         illustration.setMinSize(180, 160);
@@ -908,22 +753,15 @@ public class MainWindow extends Application {
         illustration.getChildren().addAll(clipboard, check);
         return illustration;
     }
-
-    // 构建扫描中的小进度指示器
     ProgressBar smallSpinner() {
         ProgressBar spinner = new ProgressBar();
         spinner.getStyleClass().add("small-spinner");
         spinner.setProgress(-1);
         return spinner;
     }
-
-    // 构建设备在线状态行
     HBox statusLine(DeviceStatus status, String suffix) {
-        // 构建设备在线状态行
         return statusLine(status, suffix, 13);
     }
-
-    // 构建设备在线状态行
     HBox statusLine(DeviceStatus status, String suffix, int size) {
         HBox line = new HBox(size <= 11 ? 4 : 8);
         line.setAlignment(Pos.CENTER_LEFT);
@@ -935,13 +773,9 @@ public class MainWindow extends Application {
         line.getChildren().addAll(dot, text, mutedLabel(suffix, size));
         return line;
     }
-
-    // 构建用户头像节点
     Node avatar(String text, String color, double size) {
         return avatar(text, color, size, "");
     }
-
-    // 构建用户图片或首字头像节点
     Node avatar(String text, String color, double size, String imageData) {
         if (imageData != null && !imageData.isBlank()) {
             try {
@@ -956,8 +790,6 @@ public class MainWindow extends Application {
         avatar.setMaxSize(size, size);
         return avatar;
     }
-
-    // 构建图片头像节点
     private Node imageAvatar(String imageData, double size) {
         byte[] bytes = Base64.getDecoder().decode(imageData);
         ImageView view = new ImageView(new Image(new ByteArrayInputStream(bytes), size, size, true, true));
@@ -971,8 +803,6 @@ public class MainWindow extends Application {
         avatar.setMaxSize(size, size);
         return avatar;
     }
-
-    // 构建当前连接状态信息
     Node connectionInfo() {
         VBox box = new VBox(8);
         box.getStyleClass().add("connection-info");
@@ -981,13 +811,9 @@ public class MainWindow extends Application {
                 mutedLabel("IP： " + currentSettings.ipv4(), 13));
         return box;
     }
-
-    // 把当前用户状态转成底部状态点
     private DeviceStatus userDeviceStatus() {
         return profile.status() == UserStatus.OFFLINE || profile.status() == UserStatus.INVISIBLE ? DeviceStatus.OFFLINE : DeviceStatus.ONLINE;
     }
-
-    // 返回当前用户状态文案
     private String userStatusText() {
         return switch (profile.status()) {
             case ONLINE -> "允许接收";
@@ -997,16 +823,12 @@ public class MainWindow extends Application {
             case DEFAULT -> "已连接";
         };
     }
-
-    // 构建提示胶囊信息
     Node noticePill(String icon, String text) {
         HBox pill = new HBox(12, accentLabel(icon, 19), mutedLabel(text, 16));
         pill.getStyleClass().add("notice-pill");
         pill.setAlignment(Pos.CENTER);
         return pill;
     }
-
-    // 构建统计卡片
     Node statCard(String label, String value, String color, String icon) {
         HBox card = new HBox(18);
         card.getStyleClass().add("stat-card");
@@ -1015,8 +837,6 @@ public class MainWindow extends Application {
         HBox.setHgrow(card, Priority.ALWAYS);
         return card;
     }
-
-    // 构建状态选择卡片
     Node statusCard(String title, String description, String color, boolean active) {
         HBox card = new HBox(12);
         card.getStyleClass().add(active ? "status-card-active" : "status-card");
@@ -1026,14 +846,9 @@ public class MainWindow extends Application {
         card.getChildren().addAll(dot, new VBox(6, titleLabel(title, 18), mutedLabel(description, 13)));
         return card;
     }
-
-    // 构建传输列表文件名单元格
     Node fileNameCell(String name) {
-        // 构建标题文字标签
         return titleLabel(name, 14);
     }
-
-    // 构建传输进度单元格
     Node progressCell(int percent) {
         HBox cell = new HBox(8);
         cell.setAlignment(Pos.CENTER_LEFT);
@@ -1044,8 +859,6 @@ public class MainWindow extends Application {
         cell.getChildren().addAll(value, progress);
         return cell;
     }
-
-    // 构建传输列表操作单元格
     Node operationCell(String status) {
         HBox cell = new HBox(8);
         cell.setAlignment(Pos.CENTER_LEFT);
@@ -1058,8 +871,6 @@ public class MainWindow extends Application {
         }
         return cell;
     }
-
-    // 构建传输状态徽标
     Label statusBadge(String status) {
         Label badge = new Label(status);
         badge.getStyleClass().add("status-badge");
@@ -1072,8 +883,6 @@ public class MainWindow extends Application {
         }
         return badge;
     }
-
-    // 构建单行传输日志
     Node logLine(String line) {
         Text text = new Text(line);
         text.getStyleClass().add("log-text");
@@ -1086,23 +895,17 @@ public class MainWindow extends Application {
         }
         return new TextFlow(text);
     }
-
-    // 构建搜索输入框
     TextField searchField(String prompt) {
         TextField field = textField(prompt);
         field.setMaxWidth(290);
         return field;
     }
-
-    // 构建统一样式复选框
     CheckBox checkBox(String text, boolean selected) {
         CheckBox checkBox = new CheckBox(text);
         checkBox.setSelected(selected);
         checkBox.getStyleClass().add("dark-check");
         return checkBox;
     }
-
-    // 构建IP地址展示列
     HBox ipColumn(String title, String value) {
         FontIcon copy = new FontIcon("mdi2c-content-copy");
         copy.getStyleClass().add("button-font-icon");
@@ -1116,15 +919,11 @@ public class MainWindow extends Application {
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }
-
-    // 构建速度限制输入行
     HBox limitRow(String title, int value) {
         TextField field = textField(String.valueOf(value));
         fixedWidth(field, 90);
         return new HBox(10, mutedLabel(title, 15), field, mutedLabel("MB/s", 14));
     }
-
-    // 构建主题色块按钮
     StackPane colorSwatch(String color, boolean selected) {
         StackPane swatch = new StackPane();
         swatch.getStyleClass().add(selected ? "color-swatch-selected" : "color-swatch");
@@ -1135,16 +934,12 @@ public class MainWindow extends Application {
         swatch.setCursor(Cursor.HAND);
         return swatch;
     }
-
-    // 构建下拉选择框
     ComboBox<String> comboBox(String value) {
         ComboBox<String> combo = new ComboBox<>();
         combo.getItems().add(value);
         combo.setValue(value);
         return combo;
     }
-
-    // 构建网格列约束
     ColumnConstraints column(double width, boolean grow) {
         ColumnConstraints column = new ColumnConstraints();
         column.setMinWidth(0);
@@ -1154,8 +949,6 @@ public class MainWindow extends Application {
         }
         return column;
     }
-
-    // 向资料表单加入一行字段
     void addProfileRow(GridPane grid, int row, String label, String value, String counter, String action) {
         grid.add(mutedLabel(label, 14), 0, row);
         Label field = titleLabel(value, 16);
@@ -1170,48 +963,34 @@ public class MainWindow extends Application {
         }
         grid.add(button, 2, row);
     }
-
-    // 构建字数统计标签
     Label counterLabel(String counter) {
         Label label = mutedLabel(counter, 12);
         StackPane.setAlignment(label, Pos.CENTER_RIGHT);
         return label;
     }
-
-    // 向信息表格加入一行内容
     void addInfoRow(GridPane grid, int row, String label, String value) {
         grid.add(mutedLabel(label, 14), 0, row);
         grid.add(titleLabel(value, 16), 1, row);
     }
-
-    // 给控件设置固定宽度
     Node fixedWidth(Region node, double width) {
         node.setMinWidth(width);
         node.setPrefWidth(width);
         node.setMaxWidth(width);
         return node;
     }
-
-    // 获取当前显示昵称
     String displayName() {
         return profile == null ? "admin" : profile.nickname();
     }
-
-    // 获取当前头像首字
     String displayInitial() {
         // 从名称中提取头像首字
         return initialOf(displayName());
     }
-
-    // 从名称中提取头像首字
     String initialOf(String name) {
         if (name == null || name.isBlank()) {
             return "A";
         }
         return name.substring(0, 1).toUpperCase();
     }
-
-    // 为自定义标题栏启用窗口拖动
     void enableDrag(Node node) {
         node.setOnMousePressed(event -> {
             dragOffsetX = event.getSceneX();
@@ -1224,16 +1003,12 @@ public class MainWindow extends Application {
             }
         });
     }
-
-    // 复制文本到系统剪贴板
     void copyToClipboard(String value, String message) {
         ClipboardContent content = new ClipboardContent();
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
         toast(message);
     }
-
-    // 播放传输完成提示音
     void playDoneSound() {
         if (currentSettings == null || !currentSettings.soundOnComplete()) {
             return;
@@ -1243,13 +1018,9 @@ public class MainWindow extends Application {
         } catch (Exception ignored) {
         }
     }
-
-    // 校验用户输入的传输口令
     private boolean codeMatches(String code, String codeHash) {
         return codeHash == null || codeHash.isBlank() || codeHash.equalsIgnoreCase(codeHash(code));
     }
-
-    // 计算用户输入口令的SHA-256
     private String codeHash(String code) {
         String value = code == null ? "" : code.trim();
         if (value.isBlank()) {
@@ -1262,8 +1033,6 @@ public class MainWindow extends Application {
             return "";
         }
     }
-
-    // 显示临时提示消息
     void toast(String message) {
         if (stage.getScene() == null || !(stage.getScene().getRoot() instanceof StackPane root)) {
             return;

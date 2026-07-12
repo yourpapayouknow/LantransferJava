@@ -18,18 +18,12 @@ import java.util.Properties;
 // 本地传输分组仓库，负责保存分组成员快照并把组目标展开成真实用户
 final class GroupStore {
     private final Path store;
-
-    // 使用默认用户目录分组文件初始化仓库
     GroupStore() {
         this(AppFiles.dataDir().resolve("groups.properties"));
     }
-
-    // 使用指定分组文件初始化仓库，供自检复用
     GroupStore(Path store) {
         this.store = store;
     }
-
-    // 保存一个分组并返回可加入近期对象的组目标
     synchronized UserDevice save(String name, String code, List<UserDevice> members) {
         String groupName = UserDevice.cleanGroupName(name);
         List<UserDevice> cleanMembers = cleanMembers(members);
@@ -41,8 +35,6 @@ final class GroupStore {
         writeGroups(groups);
         return UserDevice.group(groupName, cleanMembers.size());
     }
-
-    // 更新已有分组并返回新的组目标
     synchronized UserDevice update(String oldName, String name, String code, List<UserDevice> members) {
         String groupName = UserDevice.cleanGroupName(name);
         List<UserDevice> cleanMembers = cleanMembers(members);
@@ -55,20 +47,14 @@ final class GroupStore {
         writeGroups(groups);
         return UserDevice.group(groupName, cleanMembers.size());
     }
-
-    // 加载全部分组详情供用户列表展示
     synchronized List<Group> all() {
         return new ArrayList<>(loadGroups().values());
     }
-
-    // 加载所有可显示在近期对象中的分组目标
     synchronized List<UserDevice> targets() {
         return loadGroups().values().stream()
                 .map(Group::target)
                 .toList();
     }
-
-    // 把传输目标中的分组展开为真实成员
     synchronized List<UserDevice> expand(List<UserDevice> targets) {
         Map<String, Group> groups = loadGroups();
         Map<String, UserDevice> expanded = new LinkedHashMap<>();
@@ -91,8 +77,6 @@ final class GroupStore {
         }
         return new ArrayList<>(expanded.values());
     }
-
-    // 清洗成员列表并按用户ID去重
     private List<UserDevice> cleanMembers(List<UserDevice> members) {
         Map<String, UserDevice> clean = new LinkedHashMap<>();
         for (UserDevice member : members == null ? List.<UserDevice>of() : members) {
@@ -102,8 +86,6 @@ final class GroupStore {
         }
         return new ArrayList<>(clean.values());
     }
-
-    // 读取分组文件中的全部分组
     private Map<String, Group> loadGroups() {
         Map<String, Group> groups = new LinkedHashMap<>();
         if (!Files.exists(store)) {
@@ -133,8 +115,6 @@ final class GroupStore {
         }
         return groups;
     }
-
-    // 写回全部分组
     private void writeGroups(Map<String, Group> groups) {
         Properties props = new Properties();
         props.setProperty("repo.origin", AppFiles.repoOrigin());
@@ -158,8 +138,6 @@ final class GroupStore {
             throw new IllegalStateException("保存分组失败：" + store, ex);
         }
     }
-
-    // 保存单个成员字段
     private void put(Properties props, String prefix, UserDevice device) {
         props.setProperty(prefix + "id", device.id());
         props.setProperty(prefix + "nickname", device.nickname());
@@ -175,8 +153,6 @@ final class GroupStore {
         props.setProperty(prefix + "signature", device.signature());
         props.setProperty(prefix + "avatar", device.avatar());
     }
-
-    // 读取单个成员字段
     private UserDevice device(Properties props, String prefix) {
         String id = props.getProperty(prefix + "id", "").trim();
         if (id.isBlank()) {
@@ -196,8 +172,6 @@ final class GroupStore {
                 props.getProperty(prefix + "signature", ""),
                 props.getProperty(prefix + "avatar", ""));
     }
-
-    // 解析设备在线状态
     private DeviceStatus status(String value) {
         try {
             return DeviceStatus.valueOf(value);
@@ -205,8 +179,6 @@ final class GroupStore {
             return DeviceStatus.OFFLINE;
         }
     }
-
-    // 解析用户在线状态
     private UserStatus userStatus(String value) {
         try {
             return UserStatus.valueOf(value);
@@ -214,13 +186,9 @@ final class GroupStore {
             return UserStatus.DEFAULT;
         }
     }
-
-    // 兜底用户在线状态
     private UserStatus userStatus(UserStatus status) {
         return status == null ? UserStatus.DEFAULT : status;
     }
-
-    // 安全解析整型数值
     private int intValue(String value, int fallback) {
         try {
             return Integer.parseInt(value.trim());

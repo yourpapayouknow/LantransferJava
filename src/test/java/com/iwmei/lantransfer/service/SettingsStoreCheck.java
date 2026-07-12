@@ -2,14 +2,9 @@ package com.iwmei.lantransfer.service;
 import com.iwmei.lantransfer.model.SystemSettings;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-// SettingsStore的无框架自检入口
 public final class SettingsStoreCheck {
-    // 阻止自检类被实例化
     private SettingsStoreCheck() {
     }
-
-    // 运行默认设置和保存后读取检查
     public static void main(String[] args) throws Exception {
         Path file = Files.createTempFile("lantransfer-settings-check", ".properties");
         Files.deleteIfExists(file);
@@ -35,8 +30,6 @@ public final class SettingsStoreCheck {
             Files.deleteIfExists(file);
         }
     }
-
-    // 断言条件为真
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

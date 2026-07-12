@@ -6,10 +6,7 @@ import com.iwmei.lantransfer.model.UserStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-
-// 传输分组仓库无框架自检
 public final class GroupStoreCheck {
-    // 执行分组保存、加载和展开检查
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("lantransfer-groups-check");
         try {
@@ -36,21 +33,15 @@ public final class GroupStoreCheck {
             deleteTree(dir);
         }
     }
-
-    // 构造测试设备
     private static UserDevice device(String id, String host, int port) {
         return new UserDevice(id, id, id + "-pc", DeviceStatus.ONLINE, "刚刚", id.substring(0, 1),
                 "#4f7bd8", false, host, port, UserStatus.DEFAULT, "签名", "QUJD");
     }
-
-    // 检查条件，失败时抛出AssertionError
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);
         }
     }
-
-    // 删除临时目录树
     private static void deleteTree(Path root) throws Exception {
         if (Files.notExists(root)) {
             return;

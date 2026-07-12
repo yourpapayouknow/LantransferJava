@@ -22,8 +22,6 @@ import javafx.stage.DirectoryChooser;
 import java.io.File;
 import java.util.List;
 import java.util.Locale;
-
-// 系统设置页面逻辑
 final class Settings {
     private final MainWindow app;
     private TextField uploadLimit;
@@ -38,18 +36,12 @@ final class Settings {
     private CheckBox autoStart;
     private CheckBox startMinimized;
     private CheckBox soundOnComplete;
-
-    // 初始化系统设置页面对象
     Settings(MainWindow app) {
         this.app = app;
     }
-
-    // 显示系统设置页面
     void showSettingsPage() {
         app.controller.loadSettings().thenAccept(settings -> Platform.runLater(() -> render(settings)));
     }
-
-    // 渲染系统设置页面
     private void render(SystemSettings settings) {
         app.currentSettings = settings;
         app.accentColor = settings.accentColor();
@@ -74,13 +66,9 @@ final class Settings {
         page.getChildren().add(section);
         app.setMainPage("系统设置", page, true, true);
     }
-
-    // 构建本机局域网地址信息
     private HBox ipInfo(SystemSettings settings) {
         return uiRow(12, app.ipColumn("IPv4地址", settings.ipv4()), app.ipColumn("IPv6地址", settings.ipv6()));
     }
-
-    // 构建传输速度限制输入区域
     private HBox speedLimitControls(SystemSettings settings) {
         uploadLimit = app.textField("上传限制");
         uploadLimit.setText(String.valueOf(settings.uploadLimit()));
@@ -92,16 +80,12 @@ final class Settings {
                 uiRow(8, app.mutedLabel("上传限制", 15), uploadLimit, app.mutedLabel("MB/s", 14)),
                 uiRow(8, app.mutedLabel("下载限制", 15), downloadLimit, app.mutedLabel("MB/s", 14)));
     }
-
-    // 构建失败重试次数输入区域
     private HBox retryControls(SystemSettings settings) {
         retryCount = new Spinner<>(0, 10, settings.maxRetries());
         retryCount.getStyleClass().add("dark-spinner");
         app.fixedWidth(retryCount, 72);
         return uiRow(12, retryCount, app.mutedLabel("次", 15));
     }
-
-    // 构建主题颜色设置区域
     private HBox colorControls(SystemSettings settings) {
         HBox row = uiRow(8);
         List<String> colors = List.of("#ff8500", "#2f80ed", "#2ecc40", "#ff5353", "#8a52d8");
@@ -118,8 +102,6 @@ final class Settings {
         row.getChildren().addAll(custom, app.mutedLabel("自定义", 15), accentInput);
         return row;
     }
-
-    // 构建字体设置区域
     private HBox fontControls(SystemSettings settings) {
         fontFamily = fontBox(settings.fontFamily());
         app.fixedWidth(fontFamily, 156);
@@ -128,8 +110,6 @@ final class Settings {
         app.fixedWidth(fontSize, 76);
         return uiRow(10, fontFamily, fontSize);
     }
-
-    // 构建系统中文字体下拉框
     private ComboBox<String> fontBox(String value) {
         ComboBox<String> combo = new ComboBox<>();
         for (String family : Font.getFamilies()) {
@@ -143,8 +123,6 @@ final class Settings {
         combo.setValue(value);
         return combo;
     }
-
-    // 判断字体名称是否常见中文字体
     private boolean chineseFont(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
         return name.matches(".*[宋黑楷仿隶圆等雅].*")
@@ -159,22 +137,16 @@ final class Settings {
                 || lower.contains("lisu")
                 || lower.startsWith("st");
     }
-
-    // 构建界面缩放设置区域
     private HBox zoomControls(SystemSettings settings) {
         zoomPercent = new Spinner<>(70, 200, zoomValue(settings), 10);
         zoomPercent.getStyleClass().add("dark-spinner");
         app.fixedWidth(zoomPercent, 96);
         return uiRow(8, zoomPercent, app.mutedLabel("%", 15));
     }
-
-    // 把已有缩放值限制到设置页范围和步进
     private int zoomValue(SystemSettings settings) {
         int value = Math.max(70, Math.min(200, settings.zoomPercent()));
         return 70 + Math.round((value - 70) / 10.0f) * 10;
     }
-
-    // 构建接收目录设置区域
     private HBox receiveDirControls(SystemSettings settings) {
         receiveDir = app.textField("接收目录");
         receiveDir.setText(settings.receiveDir());
@@ -197,23 +169,17 @@ final class Settings {
         HBox.setHgrow(receiveDir, Priority.ALWAYS);
         return row;
     }
-
-    // 构建语言设置区域
     private HBox languageControls(SystemSettings settings) {
         language = app.comboBox(settings.language());
         app.fixedWidth(language, 132);
         return uiRow(10, language);
     }
-
-    // 构建启动行为设置区域
     private HBox startupControls(SystemSettings settings) {
         autoStart = app.checkBox("开机自启动", settings.autoStart());
         startMinimized = app.checkBox("启动后最小化到系统托盘", settings.startMinimized());
         soundOnComplete = app.checkBox("传输完成后播放提示音", settings.soundOnComplete());
         return uiRow(16, autoStart, startMinimized, soundOnComplete);
     }
-
-    // 构建保存设置按钮区域
     private HBox saveControls(SystemSettings base) {
         Button save = app.primaryButton("保存设置");
         save.setOnAction(event -> {
@@ -228,8 +194,6 @@ final class Settings {
         row.setPadding(new Insets(20, 0, 0, 0));
         return row;
     }
-
-    // 从控件读取系统设置
     private SystemSettings readSettings(SystemSettings base) {
         return new SystemSettings(base.ipv4(), base.ipv6(),
                 intValue(uploadLimit, base.uploadLimit()),
@@ -246,15 +210,11 @@ final class Settings {
                 startMinimized.isSelected(),
                 soundOnComplete.isSelected());
     }
-
-    // 替换主题色并保留其它设置
     private SystemSettings withAccent(SystemSettings settings, String color) {
         return new SystemSettings(settings.ipv4(), settings.ipv6(), settings.uploadLimit(), settings.downloadLimit(),
                 settings.maxRetries(), color, settings.fontFamily(), settings.fontSize(), settings.zoomPercent(),
                 settings.receiveDir(), "", settings.language(), settings.autoStart(), settings.startMinimized(), settings.soundOnComplete());
     }
-
-    // 读取整数输入框
     private int intValue(TextField field, int fallback) {
         try {
             return Integer.parseInt(field.getText().replace("%", "").trim());
@@ -262,27 +222,19 @@ final class Settings {
             return fallback;
         }
     }
-
-    // 读取主题色输入框
     private String colorValue(SystemSettings base) {
         String color = accentInput.getText().trim();
         return color.matches("#[0-9a-fA-F]{6}") ? color : base.accentColor();
     }
-
-    // 读取文本输入框
     private String textValue(TextField field, String fallback) {
         String text = field.getText().trim();
         return text.isBlank() ? fallback : text;
     }
-
-    // 构建对齐的控件行
     private HBox uiRow(double gap, Node... nodes) {
         HBox row = new HBox(gap, nodes);
         row.setAlignment(Pos.CENTER_RIGHT);
         return row;
     }
-
-    // 构建系统设置单行配置项
     private GridPane settingsRow(String title, String description, HBox controls) {
         VBox text = new VBox(4, app.titleLabel(title, 20));
         text.setAlignment(Pos.CENTER_LEFT);

@@ -7,104 +7,64 @@ import com.iwmei.lantransfer.service.RxProgress;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-// 应用控制器，承接界面事件并转发给业务服务
 public final class AppController {
     private final BackendFacade backend = new LocalBackend();
-
-    // 登录功能的后端调用入口
     public CompletableFuture<AuthResult> login(LoginRequest request) {
         return backend.login(request);
     }
-
-    // 注册功能的后端调用入口
     public CompletableFuture<AuthResult> register(RegisterRequest request) {
         return backend.register(request);
     }
-
-    // 加载本地记住的最近登录账号
     public CompletableFuture<String> loadRememberedAccount() {
         return backend.loadRememberedAccount();
     }
-
-    // 加载近期传输对象列表
     public CompletableFuture<List<UserDevice>> loadRecentDevices() {
         return backend.loadRecentDevices();
     }
-
-    // 加载全部可传输用户设备
     public CompletableFuture<List<UserDevice>> loadAllDevices() {
         return backend.loadAllDevices();
     }
-
-    // 加载全部本地传输分组
     public CompletableFuture<List<Group>> loadGroups() {
         return backend.loadGroups();
     }
-
-    // 保存本地传输分组并返回组目标
     public CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members) {
         return backend.saveGroup(name, code, members);
     }
-
-    // 更新本地传输分组并返回组目标
     public CompletableFuture<UserDevice> updateGroup(String oldName, String name, String code, List<UserDevice> members) {
         return backend.updateGroup(oldName, name, code, members);
     }
-
-    // 扫描局域网用户设备
     public CompletableFuture<List<UserDevice>> scanLanDevices() {
         return backend.scanLanDevices();
     }
-
-    // 加载系统设置参数
     public CompletableFuture<SystemSettings> loadSettings() {
         return backend.loadSettings();
     }
-
-    // 启动文件传输任务
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
         return backend.startTransfer(files, targets);
     }
-
-    // 启动文件传输任务并接收传输中进度快照
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
         return backend.startTransfer(files, targets, progress);
     }
-
-    // 使用本次传输口令启动文件传输任务并接收进度快照
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             String code, Consumer<TransferSummary> progress) {
         return backend.startTransfer(files, targets, code, progress);
     }
-
-    // 暂停或继续当前发送任务
     public void pauseTransfer(boolean paused) {
         backend.pauseTransfer(paused);
     }
-
-    // 设置接收前确认回调
     public void setRxAsk(RxAsk ask) {
         backend.setRxAsk(ask);
     }
-
-    // 设置接收进度回调
     public void setRxProgress(RxProgress progress) {
         backend.setRxProgress(progress);
     }
-
-    // 更新用户资料信息
     public void updateProfile(Profile profile) {
         backend.updateProfile(profile);
     }
-
-    // 更新用户在线状态
     public CompletableFuture<Void> updateStatus(UserStatus status, String customText) {
         return CompletableFuture.runAsync(() -> backend.updateStatus(status, customText));
     }
-
-    // 更新系统设置参数
     public void updateSettings(SystemSettings settings) {
         backend.updateSettings(settings);
     }

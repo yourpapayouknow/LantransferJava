@@ -39,19 +39,13 @@ final class UdpRx {
     private volatile RxProgress progress = (fileName, percent) -> {
     };
     private volatile boolean running;
-
-    // 使用默认传输端口初始化接收服务
     UdpRx(SettingsStore settings) {
         this(settings, LanPeer.TRANSFER_PORT);
     }
-
-    // 使用指定端口初始化接收服务，供测试复用
     UdpRx(SettingsStore settings, int port) {
         this.settings = settings;
         this.port = port;
     }
-
-    // 启动后台接收线程
     synchronized void start() {
         if (running) {
             return;
@@ -61,24 +55,16 @@ final class UdpRx {
         thread.setDaemon(true);
         thread.start();
     }
-
-    // 更新本机接收状态
     void updateStatus(UserStatus status) {
         this.status = status == null ? UserStatus.DEFAULT : status;
     }
-
-    // 设置接收前确认回调
     void setAsk(RxAsk ask) {
         this.ask = ask == null ? (fileName, bytes, codeHash) -> true : ask;
     }
-
-    // 设置接收进度回调
     void setProgress(RxProgress progress) {
         this.progress = progress == null ? (fileName, percent) -> {
         } : progress;
     }
-
-    // 持续监听UDP文件传输数据包
     private void listen() {
         try (DatagramSocket socket = new DatagramSocket(null)) {
             socket.setReuseAddress(true);
@@ -93,8 +79,6 @@ final class UdpRx {
             ex.printStackTrace();
         }
     }
-
-    // 按协议类型处理接收到的数据包
     private void handle(DatagramSocket socket, DatagramPacket packet) {
         byte[] data = packet.getData();
         int length = packet.getLength();
@@ -104,8 +88,6 @@ final class UdpRx {
             handleData(socket, packet);
         }
     }
-
-    // 处理文件开始包并创建接收状态
     private void handleBegin(DatagramSocket socket, DatagramPacket packet) {
         String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 9);
         if (parts.length < 7) {
@@ -144,8 +126,6 @@ final class UdpRx {
         }
         ack(socket, packet, jobId, fileIndex, -1, ok, detail);
     }
-
-    // 判断当前状态是否允许开始接收文件
     private boolean allowBegin(String fileName, long size, String codeHash) {
         UserStatus value = status == null ? UserStatus.DEFAULT : status;
         if (value == UserStatus.INVISIBLE || value == UserStatus.OFFLINE) {
@@ -160,8 +140,6 @@ final class UdpRx {
             return false;
         }
     }
-
-    // 处理文件内容分片并在收齐后移动到最终文件
     private void handleData(DatagramSocket socket, DatagramPacket packet) {
         byte[] data = packet.getData();
         int length = packet.getLength();
@@ -183,14 +161,10 @@ final class UdpRx {
         }
         ack(socket, packet, jobId, fileIndex, chunkIndex, ok);
     }
-
-    // 读取当前下载限速字节数
     private long downloadBytesPerSecond() {
         int limit = settings.load().downloadLimit();
         return limit <= 0 ? 0 : limit * 1024L * 1024L;
     }
-
-    // 创建单个文件的接收状态
     private RxFile createFile(String fileName, long size, int chunkCount, int chunkSize, String sha256) throws IOException {
         if (size < 0 || chunkCount < 0 || chunkSize <= 0) {
             throw new IOException("bad file metadata");
@@ -202,8 +176,6 @@ final class UdpRx {
         Path meta = target.resolveSibling(target.getFileName() + ".part.meta");
         return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), progress);
     }
-
-    // 返回不覆盖旧文件的接收路径
     private Path uniqueTarget(Path dir, String fileName) {
         Path target = dir.resolve(fileName);
         if (!Files.exists(target) && reserved.add(target)) {
@@ -219,13 +191,9 @@ final class UdpRx {
             }
         }
     }
-
-    // 发送接收确认包
     private void ack(DatagramSocket socket, DatagramPacket packet, String jobId, int fileIndex, int chunkIndex, boolean ok) {
         ack(socket, packet, jobId, fileIndex, chunkIndex, ok, "");
     }
-
-    // 发送带扩展信息的接收确认包
     private void ack(DatagramSocket socket, DatagramPacket packet, String jobId, int fileIndex, int chunkIndex, boolean ok, String detail) {
         try {
             String message = ACK + "\t" + jobId + "\t" + fileIndex + "\t" + chunkIndex + "\t" + (ok ? "OK" : "FAIL")
@@ -235,8 +203,6 @@ final class UdpRx {
         } catch (Exception ignored) {
         }
     }
-
-    // 判断数据包是否以指定协议头开头
     private boolean startsWith(byte[] data, int length, String prefix) {
         byte[] head = (prefix + "\t").getBytes(StandardCharsets.UTF_8);
         if (length < head.length) {
@@ -249,8 +215,6 @@ final class UdpRx {
         }
         return true;
     }
-
-    // 找到二进制数据包头部结束位置
     private int dataOffset(byte[] data, int length, int tabs) {
         int count = 0;
         for (int i = 0; i < length; i++) {
@@ -263,13 +227,9 @@ final class UdpRx {
         }
         return -1;
     }
-
-    // 生成传输任务和文件序号的组合键
     private String key(String jobId, int fileIndex) {
         return jobId + ":" + fileIndex;
     }
-
-    // 解码文件名
     private String decodeName(String value) {
         try {
             return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
@@ -277,8 +237,6 @@ final class UdpRx {
             return "received-file";
         }
     }
-
-    // 清理文件名中的非法字符
     private String safeName(String value) {
         String name = value == null ? "" : value.replace('\\', '_').replace('/', '_').replace(':', '_')
                 .replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_')
@@ -294,8 +252,6 @@ final class UdpRx {
             return fallback;
         }
     }
-
-    // 解析长整数
     private long longValue(String value, long fallback) {
         try {
             return Long.parseLong(value.trim());
@@ -319,8 +275,6 @@ final class UdpRx {
         private int nextProgress = 25;
         private int receivedCount;
         private boolean done;
-
-        // 初始化接收中文件状态
         private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256,
                        String fileName, RxProgress progress) throws IOException {
             this.target = target;
@@ -334,8 +288,6 @@ final class UdpRx {
             this.progress = progress;
             restoreOrReset();
         }
-
-        // 写入一个文件分片
         private synchronized boolean write(int chunkIndex, byte[] data, int offset, int length) {
             if (done) {
                 return true;
@@ -377,8 +329,6 @@ final class UdpRx {
                 nextProgress += 25;
             }
         }
-
-        // 调用接收进度回调
         private void publish(int percent) {
             try {
                 progress.update(fileName, percent);
@@ -441,8 +391,6 @@ final class UdpRx {
             }
             receivedCount = received.cardinality();
         }
-
-        // 保存当前已接收分片元数据
         private void saveMeta() throws IOException {
             Properties props = new Properties();
             props.setProperty("size", String.valueOf(size));
@@ -460,8 +408,6 @@ final class UdpRx {
                 props.store(writer, "Lantransfer partial file state");
             }
         }
-
-        // 返回当前缺失分片索引列表
         private String missing() {
             if (receivedCount == 0) {
                 return "";

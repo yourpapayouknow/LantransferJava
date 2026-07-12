@@ -21,8 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-// 用户列表页面逻辑
 final class UserList {
     private final MainWindow app;
     private final List<UserDevice> groupDraft = new ArrayList<>();
@@ -34,13 +32,9 @@ final class UserList {
     private int scanRunId;
     private boolean grouping;
     private boolean scanning;
-
-    // 初始化用户列表页面对象
     UserList(MainWindow app) {
         this.app = app;
     }
-
-    // 显示用户列表页面
     void showUserListPage() {
         app.controller.loadAllDevices()
                 .thenCombine(app.controller.loadGroups(), AbstractMap.SimpleEntry::new)
@@ -50,8 +44,6 @@ final class UserList {
                     return null;
                 });
     }
-
-    // 渲染用户列表页面主体
     private void renderPage(List<UserDevice> devices, List<Group> groups) {
         VBox page = new VBox(8);
         page.getStyleClass().add("page-content");
@@ -119,8 +111,6 @@ final class UserList {
         renderResults(devices, groups, results, total);
         app.setMainPage("用户列表", page, true, true);
     }
-
-    // 构建建组状态下的组名和默认口令输入框
     private List<Node> groupFields() {
         TextField name = app.textField("请输入分组名");
         name.setText(groupName);
@@ -132,8 +122,6 @@ final class UserList {
         code.textProperty().addListener((unused, oldValue, newValue) -> groupCode = newValue == null ? "" : newValue);
         return List.of(name, code);
     }
-
-    // 进入新建分组状态
     private void enterGrouping() {
         grouping = true;
         groupName = "";
@@ -143,8 +131,6 @@ final class UserList {
         app.userListPage = 0;
         showUserListPage();
     }
-
-    // 在用户列表页内执行局域网扫描
     private void scanUsers() {
         int runId = ++scanRunId;
         scanning = true;
@@ -158,8 +144,6 @@ final class UserList {
             showUserListPage();
         }));
     }
-
-    // 取消新建分组状态
     private void cancelGrouping() {
         grouping = false;
         groupName = "";
@@ -167,8 +151,6 @@ final class UserList {
         groupDraft.clear();
         showUserListPage();
     }
-
-    // 把当前勾选的真实用户保存为分组
     private void saveSelectedGroup(String name, String code) {
         groupName = name == null ? "" : name.trim();
         groupCode = code == null ? "" : code.trim();
@@ -195,8 +177,6 @@ final class UserList {
             return null;
         });
     }
-
-    // 按当前搜索词渲染用户或分组结果
     private void renderResults(List<UserDevice> devices, List<Group> groups, VBox results, Label total) {
         if (app.userListGridView) {
             List<UserDevice> filtered = devices.stream().filter(this::userMatches).toList();
@@ -208,8 +188,6 @@ final class UserList {
         total.setText("共 " + filtered.size() + " 个分组");
         results.getChildren().setAll(groupList(filtered));
     }
-
-    // 判断用户是否命中当前搜索词
     private boolean userMatches(UserDevice device) {
         String key = query.trim().toLowerCase(Locale.ROOT);
         if (key.isBlank()) {
@@ -218,8 +196,6 @@ final class UserList {
         return device.nickname().toLowerCase(Locale.ROOT).contains(key)
                 || device.deviceName().toLowerCase(Locale.ROOT).contains(key);
     }
-
-    // 判断分组是否命中当前搜索词
     private boolean groupMatches(Group group) {
         String key = query.trim().toLowerCase(Locale.ROOT);
         if (key.isBlank()) {
@@ -228,16 +204,12 @@ final class UserList {
         return group.name().toLowerCase(Locale.ROOT).contains(key)
                 || group.code().toLowerCase(Locale.ROOT).contains(key);
     }
-
-    // 构建分组列表布局
     private Node groupList(List<Group> groups) {
         VBox list = new VBox(10);
         list.setMaxWidth(Double.MAX_VALUE);
         groups.forEach(group -> list.getChildren().add(groupCard(group)));
         return list;
     }
-
-    // 构建分组卡片
     private Node groupCard(Group group) {
         VBox card = new VBox(12);
         card.getStyleClass().add("user-card-large");
@@ -302,8 +274,6 @@ final class UserList {
         }
         return card;
     }
-
-    // 保存分组卡片编辑内容
     private void saveGroupEdit(Group group, String name, String code) {
         String cleanName = name == null ? "" : name.trim();
         String cleanCode = code == null ? "" : code.trim();
@@ -322,8 +292,6 @@ final class UserList {
             return null;
         });
     }
-
-    // 构建分组内成员矩阵
     private Node memberGrid(List<UserDevice> devices) {
         GridPane grid = app.cardGrid(3, 10, 10);
         for (int i = 0; i < devices.size(); i++) {
@@ -331,8 +299,6 @@ final class UserList {
         }
         return grid;
     }
-
-    // 构建用户矩阵分页布局
     private Node userGrid(List<UserDevice> devices) {
         int pageSize = 15;
         int maxPage = Math.max(0, (devices.size() - 1) / pageSize);
@@ -359,8 +325,6 @@ final class UserList {
         pages.setAlignment(Pos.CENTER);
         return new VBox(18, grid, pages);
     }
-
-    // 构建用户卡片或建组勾选卡片
     private Node userCard(UserDevice device) {
         if (!grouping) {
             return app.userCard(device, true);
@@ -373,13 +337,9 @@ final class UserList {
         wrap.getChildren().add(check);
         return wrap;
     }
-
-    // 判断建组草稿中是否已有该用户
     private boolean inDraft(UserDevice device) {
         return groupDraft.stream().anyMatch(item -> item.id().equals(device.id()));
     }
-
-    // 更新建组草稿中的用户选择状态
     private void setDraft(UserDevice device, boolean selected) {
         groupDraft.removeIf(item -> item.id().equals(device.id()));
         if (selected) {

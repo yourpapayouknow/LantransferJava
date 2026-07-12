@@ -21,18 +21,12 @@ final class RecentStore {
     private static final int MAX_ITEMS = 12;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private final Path store;
-
-    // 使用默认用户目录近期对象文件初始化仓库
     RecentStore() {
         this(AppFiles.dataDir().resolve("recent.properties"));
     }
-
-    // 使用指定近期对象文件初始化仓库，供测试复用
     RecentStore(Path store) {
         this.store = store;
     }
-
-    // 加载近期传输对象
     synchronized List<UserDevice> load() {
         if (!Files.exists(store)) {
             return List.of();
@@ -53,8 +47,6 @@ final class RecentStore {
         }
         return devices;
     }
-
-    // 记录近期传输对象
     synchronized void remember(List<UserDevice> targets) {
         if (targets == null || targets.isEmpty()) {
             return;
@@ -70,8 +62,6 @@ final class RecentStore {
         }
         save(merged.values().stream().limit(MAX_ITEMS).toList());
     }
-
-    // 保存近期传输对象
     private void save(List<UserDevice> devices) {
         Properties props = new Properties();
         props.setProperty("repo.origin", AppFiles.repoOrigin());
@@ -88,8 +78,6 @@ final class RecentStore {
             throw new IllegalStateException("保存近期传输对象失败：" + store, ex);
         }
     }
-
-    // 保存单个设备字段
     private void put(Properties props, int index, UserDevice device) {
         String prefix = index + ".";
         props.setProperty(prefix + "id", device.id());
@@ -106,8 +94,6 @@ final class RecentStore {
         props.setProperty(prefix + "signature", device.signature());
         props.setProperty(prefix + "avatar", device.avatar());
     }
-
-    // 读取单个设备字段
     private UserDevice device(Properties props, int index) {
         String prefix = index + ".";
         String id = props.getProperty(prefix + "id", "").trim();
@@ -128,15 +114,11 @@ final class RecentStore {
                 props.getProperty(prefix + "signature", ""),
                 props.getProperty(prefix + "avatar", ""));
     }
-
-    // 更新时间文本
     private UserDevice touched(UserDevice device) {
         return new UserDevice(device.id(), device.nickname(), device.deviceName(), device.status(),
                 TIME.format(LocalDateTime.now()), device.avatarText(), device.color(), device.imageAvatar(),
                 device.host(), device.port(), userStatus(device.userStatus()), device.signature(), device.avatar());
     }
-
-    // 解析设备在线状态
     private DeviceStatus status(String value) {
         try {
             return DeviceStatus.valueOf(value);
@@ -144,8 +126,6 @@ final class RecentStore {
             return DeviceStatus.OFFLINE;
         }
     }
-
-    // 解析用户在线状态
     private UserStatus userStatus(String value) {
         try {
             return UserStatus.valueOf(value);
@@ -153,13 +133,9 @@ final class RecentStore {
             return UserStatus.DEFAULT;
         }
     }
-
-    // 兜底用户在线状态
     private UserStatus userStatus(UserStatus status) {
         return status == null ? UserStatus.DEFAULT : status;
     }
-
-    // 安全解析整型数值
     private int intValue(String value, int fallback) {
         try {
             return Integer.parseInt(value.trim());

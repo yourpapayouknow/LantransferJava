@@ -28,8 +28,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.Base64;
-
-// 我的资料页面逻辑
 final class Mine {
     private static final double PROFILE_FORM_WIDTH = 542;
     private static final double PHOTO_SIZE = 136;
@@ -38,13 +36,9 @@ final class Mine {
     private TextField deviceNameField;
     private TextField signatureField;
     private UserStatus selectedStatus = UserStatus.DEFAULT;
-
-    // 初始化我的页面对象
     Mine(MainWindow app) {
         this.app = app;
     }
-
-    // 显示我的资料页面
     void showProfilePage() {
         if (app.profile == null) {
             app.showAuth(false);
@@ -74,8 +68,6 @@ final class Mine {
         page.getChildren().addAll(profileSection, statusSection, moreSection, actions);
         app.setMainPage("我的", page, true, true);
     }
-
-    // 构建个人资料编辑区域
     private HBox profileEditor(Profile profile) {
         HBox root = new HBox(28);
         root.setAlignment(Pos.CENTER_LEFT);
@@ -96,8 +88,6 @@ final class Mine {
         root.getChildren().addAll(photo, spacer, fields);
         return root;
     }
-
-    // 构建可修改头像节点
     private StackPane profilePhoto(Profile profile) {
         Label mask = new Label("修改");
         mask.getStyleClass().add("profile-avatar-mask");
@@ -108,8 +98,6 @@ final class Mine {
         photo.setOnMouseClicked(event -> chooseAvatar());
         return photo;
     }
-
-    // 选择头像文件并保存到当前资料
     private void chooseAvatar() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("选择头像");
@@ -127,8 +115,6 @@ final class Mine {
             app.toast("头像处理失败");
         }
     }
-
-    // 把头像压缩成128px JPEG的Base64文本
     private String jpegAvatar(File file) throws Exception {
         BufferedImage source = ImageIO.read(file);
         if (source == null) {
@@ -157,8 +143,6 @@ final class Mine {
         }
         return Base64.getEncoder().encodeToString(bytes.toByteArray());
     }
-
-    // 向资料表单加入可编辑字段行
     private TextField editableRow(GridPane grid, int row, String label, String value) {
         addProfileLabel(grid, row, label);
         TextField field = app.textField(label);
@@ -185,8 +169,6 @@ final class Mine {
         grid.add(edit, 2, row);
         return field;
     }
-
-    // 向资料表单加入只读字段行
     private void profileRow(GridPane grid, int row, String label, String value) {
         addProfileLabel(grid, row, label);
         Label field = app.titleLabel(value, 16);
@@ -198,15 +180,11 @@ final class Mine {
         copy.setOnAction(event -> app.copyToClipboard(value, "已复制" + label));
         grid.add(copy, 2, row);
     }
-
-    // 向资料表单加入右对齐标签
     private void addProfileLabel(GridPane grid, int row, String text) {
         Label label = app.mutedLabel(text, 14);
         GridPane.setHalignment(label, HPos.RIGHT);
         grid.add(label, 0, row);
     }
-
-    // 构建资料表单图标按钮
     private Button profileIconButton(String iconCode, String tooltip, String styleClass) {
         Button button = app.compactButton("");
         app.fixedWidth(button, 36);
@@ -215,8 +193,6 @@ final class Mine {
         button.getStyleClass().add(styleClass);
         return button;
     }
-
-    // 设置资料表单图标按钮内容
     private void profileIcon(Button button, String iconCode, String tooltip) {
         FontIcon icon = new FontIcon(iconCode);
         icon.getStyleClass().add("button-font-icon");
@@ -224,8 +200,6 @@ final class Mine {
         button.setGraphic(icon);
         button.setTooltip(new Tooltip(tooltip));
     }
-
-    // 构建状态选择卡片区域
     private GridPane statusCards() {
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -238,15 +212,11 @@ final class Mine {
         grid.add(statusCard(UserStatus.OFFLINE, "离线", "暂停所有传输", "#9aa0a6"), 4, 0);
         return grid;
     }
-
-    // 构建可点击状态卡
     private Node statusCard(UserStatus status, String title, String description, String color) {
         Node card = app.statusCard(title, description, color, selectedStatus == status);
         card.setOnMouseClicked(event -> saveStatus(status, statusText(status)));
         return card;
     }
-
-    // 构建自定义状态输入区域
     private HBox customStatusField() {
         TextField field = app.textField("输入自定义状态");
         field.setText(app.profile.signature());
@@ -260,8 +230,6 @@ final class Mine {
         HBox.setHgrow(field, Priority.ALWAYS);
         return row;
     }
-
-    // 保存当前状态和状态文本
     private void saveStatus(UserStatus status, String text) {
         selectedStatus = status == null ? UserStatus.DEFAULT : status;
         app.controller.updateStatus(selectedStatus, text);
@@ -269,40 +237,28 @@ final class Mine {
         app.toast("状态已保存");
         showProfilePage();
     }
-
-    // 复制资料并替换个性签名
     private Profile withSignature(Profile profile, String signature) {
         return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), signature,
                 profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), profile.status(), profile.avatar());
     }
-
-    // 复制资料并替换用户状态
     private Profile withStatus(Profile profile, UserStatus status) {
         return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), profile.signature(),
                 profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), status, profile.avatar());
     }
-
-    // 复制资料并替换头像
     private Profile withAvatar(Profile profile, String avatar) {
         return new Profile(profile.nickname(), profile.userId(), profile.deviceName(), profile.signature(),
                 profile.registeredAt(), profile.lastLoginAt(), profile.version(), profile.language(), profile.status(), avatar);
     }
-
-    // 从资料表单读取当前资料
     private Profile readProfile() {
         return new Profile(text(nicknameField, app.profile.nickname()), app.profile.userId(),
                 text(deviceNameField, app.profile.deviceName()), text(signatureField, app.profile.signature()),
                 app.profile.registeredAt(), app.profile.lastLoginAt(), app.profile.version(), app.profile.language(), selectedStatus,
                 app.profile.avatar());
     }
-
-    // 读取文本输入值
     private String text(TextField field, String fallback) {
         String value = field == null ? "" : field.getText().trim();
         return value.isBlank() ? fallback : value;
     }
-
-    // 返回用户状态默认文案
     private String statusText(UserStatus status) {
         return switch (status == null ? UserStatus.DEFAULT : status) {
             case ONLINE -> "在线，允许接收文件";
@@ -312,8 +268,6 @@ final class Mine {
             case DEFAULT -> "在线，已连接";
         };
     }
-
-    // 构建账号更多信息区域
     private GridPane moreInfo(Profile profile) {
         GridPane grid = new GridPane();
         grid.setHgap(18);
