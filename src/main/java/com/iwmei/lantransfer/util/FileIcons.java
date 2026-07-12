@@ -7,10 +7,16 @@ import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Set;
 
 // 文件显示工具类，负责大小、日期和图标判断
 public final class FileIcons {
     private static final DateTimeFormatter DATE_MINUTE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final Set<String> SUPPORTED = Set.of("pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg",
+            "mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "flac", "aac", "ogg", "zip", "rar", "7z",
+            "tar", "gz", "doc", "docx", "rtf", "txt", "md", "xls", "xlsx", "csv", "ppt", "pptx", "key",
+            "java", "kt", "js", "ts", "jsx", "tsx", "py", "c", "cpp", "cs", "go", "rs", "html", "css",
+            "xml", "json", "yml", "yaml", "bin", "prproj", "aep", "aepx", "psd", "ai", "xd", "indd");
 
     // 阻止工具类被外部实例化
     private FileIcons() {
@@ -49,6 +55,42 @@ public final class FileIcons {
             case "prproj", "aep", "aepx" -> "fltrmz-video-clip-24";
             case "psd", "ai", "xd", "indd" -> "fltrmz-paint-brush-24";
             default -> "fltral-document-24";
+        };
+    }
+
+    // 判断路径是否属于当前允许传输的文件类型
+    public static boolean supported(Path path) {
+        return path != null && (Files.isDirectory(path) || supportedName(path.getFileName().toString()));
+    }
+
+    // 判断文件名是否属于当前允许传输的文件类型
+    public static boolean supportedName(String name) {
+        String ext = extension(name == null ? "" : name);
+        return ext.isBlank() || SUPPORTED.contains(ext);
+    }
+
+    // 返回文件类型展示文本
+    public static String typeLabel(Path path) {
+        if (path != null && Files.isDirectory(path)) {
+            return "文件夹";
+        }
+        String ext = extension(path == null ? "" : path.getFileName().toString());
+        return switch (ext) {
+            case "" -> "无扩展名";
+            case "pdf" -> "PDF";
+            case "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg" -> "图片";
+            case "mp4", "mov", "mkv", "avi", "webm" -> "视频";
+            case "mp3", "wav", "flac", "aac", "ogg" -> "音频";
+            case "zip", "rar", "7z", "tar", "gz" -> "压缩包";
+            case "doc", "docx", "rtf", "txt", "md" -> "文档";
+            case "xls", "xlsx", "csv" -> "表格";
+            case "ppt", "pptx", "key" -> "演示文稿";
+            case "java", "kt", "js", "ts", "jsx", "tsx", "py", "c", "cpp", "cs", "go", "rs", "html", "css",
+                 "xml", "json", "yml", "yaml" -> "代码";
+            case "bin" -> "二进制";
+            case "prproj", "aep", "aepx" -> "视频工程";
+            case "psd", "ai", "xd", "indd" -> "设计工程";
+            default -> "未知类型";
         };
     }
 

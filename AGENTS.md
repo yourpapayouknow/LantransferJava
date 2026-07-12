@@ -27,6 +27,7 @@ In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the re
 - 所有非占位 Java 类、接口、枚举、record 的类型声明前必须有一行 `//` 注释说明职责。
 - 所有显式方法、构造器、接口方法声明前必须有一行 `//` 注释说明该方法负责什么。
 - 注释放在方法头或类型头的上一行；如果方法有 `@Override` 等注解，注释放在注解上一行。
+- 类、函数或重要代码块开头都要用非常简短的注释说明职责，例如“// UDP校验”“// 按钮样式”“// 文件SHA-256校验”；CSS 也要按功能块补同样简短的 `/* ... */` 注释。
 
 ## Project Layout
 

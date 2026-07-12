@@ -115,10 +115,17 @@ public final class LocalBackend implements BackendFacade {
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
                                                             Consumer<TransferSummary> progress) {
+        return startTransfer(files, targets, "", progress);
+    }
+
+    // 使用本次传输口令启动文件传输任务并推送进度快照
+    @Override
+    public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            String code, Consumer<TransferSummary> progress) {
         return CompletableFuture.supplyAsync(() -> {
             List<UserDevice> requested = targets == null ? List.of() : targets;
             List<UserDevice> safeTargets = groups.expand(requested);
-            TransferSummary summary = tx.run(files, safeTargets, settings.load(), progress);
+            TransferSummary summary = tx.run(files, safeTargets, settings.load(), code, progress);
             recent.remember(requested);
             return summary;
         }, transferQueue);

@@ -7,6 +7,7 @@ import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.TransferTask;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
+import com.iwmei.lantransfer.util.FileIcons;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -62,6 +63,7 @@ final class UdpTx {
 
     // 暂停或继续后续 UDP 包发送
     void setPaused(boolean paused) {
+        // 暂停状态同步
         synchronized (pauseLock) {
             this.paused = paused;
             if (!paused) {
@@ -72,12 +74,18 @@ final class UdpTx {
 
     // 发送文件到目标设备并返回传输汇总
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings) {
-        return run(files, targets, settings, summary -> {
+        return run(files, targets, settings, "", summary -> {
         });
     }
 
     // 发送文件到目标设备并在传输中推送进度快照
     TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings,
+                        Consumer<TransferSummary> progress) {
+        return run(files, targets, settings, "", progress);
+    }
+
+    // 按本次传输口令发送文件并推送进度快照
+    TransferSummary run(List<TransferFile> files, List<UserDevice> targets, SystemSettings settings, String code,
                         Consumer<TransferSummary> progress) {
         long started = System.nanoTime();
         List<SourceFile> sources = sources(files == null ? List.of() : files);
@@ -86,13 +94,20 @@ final class UdpTx {
         } : progress;
         int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
         long bytesPerSecond = perTargetBytesPerSecond(settings, sendableTargets(safeTargets));
+        String codeHash = codeHash(code);
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
         int success = 0;
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
-        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, safeProgress)) {
+        // 空文件拦截
+        if (sources.isEmpty()) {
+            logs.add(stamp("⚠ 没有可传输文件"));
+            return new TransferSummary(safeTargets.size(), 0, safeTargets.isEmpty() ? 0 : safeTargets.size(), 0,
+                    elapsed(started), logs, List.of());
+        }
+        for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, codeHash, safeProgress)) {
             tasks.addAll(sent.tasks());
             logs.addAll(sent.logs());
             retries += sent.retries();
@@ -108,9 +123,9 @@ final class UdpTx {
 
     // 并发发送到多个目标并按原目标顺序返回结果
     private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries,
-                                         long bytesPerSecond, Consumer<TransferSummary> progress) {
+                                         long bytesPerSecond, String codeHash, Consumer<TransferSummary> progress) {
         if (targets.size() <= 1) {
-            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond, progress,
+            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond, codeHash, progress,
                     targets.size())).toList();
         }
         int threads = Math.min(targets.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
@@ -118,7 +133,7 @@ final class UdpTx {
         try {
             List<Future<TargetSend>> futures = new ArrayList<>();
             for (UserDevice target : targets) {
-                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond, progress,
+                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond, codeHash, progress,
                         targets.size())));
             }
             List<TargetSend> results = new ArrayList<>();
@@ -139,7 +154,7 @@ final class UdpTx {
     }
 
     // 发送所有文件到单个目标
-    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond,
+    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond, String codeHash,
                                   Consumer<TransferSummary> progress, int targetCount) {
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
@@ -161,7 +176,7 @@ final class UdpTx {
                 logs.add(stamp("… [" + targetLabel(target) + "] 对方忙碌，等待接收确认"));
             }
             for (int i = 0; i < sources.size(); i++) {
-                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate, progress,
+                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate, codeHash, progress,
                         targetCount);
                 tasks.add(sent.task());
                 logs.addAll(sent.logs());
@@ -190,11 +205,11 @@ final class UdpTx {
 
     // 发送单个文件
     private FileSend sendFile(DatagramSocket socket, SourceFile source, UserDevice target, String jobId, int fileIndex,
-                              int maxRetries, RateLimit rate, Consumer<TransferSummary> progress, int targetCount) {
+                              int maxRetries, RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount) {
         long started = System.nanoTime();
         List<String> logs = new ArrayList<>();
         int chunkCount = chunkCount(source.bytes());
-        AckResult begin = sendText(socket, beginMessage(source, jobId, fileIndex, chunkCount), jobId, fileIndex, -1,
+        AckResult begin = sendText(socket, beginMessage(source, jobId, fileIndex, chunkCount, codeHash), jobId, fileIndex, -1,
                 maxRetries, beginTimeout(target));
         int retries = begin.retries();
         if (!begin.success()) {
@@ -420,6 +435,7 @@ final class UdpTx {
 
     // 暂停状态下阻塞发送线程直到继续
     private boolean waitIfPaused() {
+        // 暂停等待同步
         synchronized (pauseLock) {
             while (paused) {
                 try {
@@ -434,9 +450,10 @@ final class UdpTx {
     }
 
     // 构造文件开始协议包
-    private String beginMessage(SourceFile source, String jobId, int fileIndex, int chunkCount) {
+    private String beginMessage(SourceFile source, String jobId, int fileIndex, int chunkCount, String codeHash) {
         return UdpRx.BEGIN + "\t" + jobId + "\t" + fileIndex + "\t" + encodeName(source.name())
-                + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes + "\t" + source.sha256();
+                + "\t" + source.bytes() + "\t" + chunkCount + "\t" + chunkBytes + "\t" + source.sha256()
+                + "\t" + codeHash;
     }
 
     // 读取一个固定大小文件分片
@@ -470,6 +487,7 @@ final class UdpTx {
 
     // 添加一条线程安全日志
     private void addLog(List<String> logs, String line) {
+        // 日志写入同步
         synchronized (logs) {
             logs.add(line);
         }
@@ -477,6 +495,7 @@ final class UdpTx {
 
     // 复制当前日志快照
     private List<String> logSnapshot(List<String> logs) {
+        // 日志快照同步
         synchronized (logs) {
             return List.copyOf(logs);
         }
@@ -518,7 +537,7 @@ final class UdpTx {
             }
             if (Files.isDirectory(file.path())) {
                 addDirectory(sources, file);
-            } else if (Files.isRegularFile(file.path())) {
+            } else if (Files.isRegularFile(file.path()) && FileIcons.supported(file.path())) {
                 sources.add(new SourceFile(file.fileName(), file.path(), sizeOf(file.path()), sha256(file.path())));
             }
         }
@@ -529,7 +548,7 @@ final class UdpTx {
     private void addDirectory(List<SourceFile> sources, TransferFile file) {
         Path root = file.path();
         try (var paths = Files.walk(root)) {
-            paths.filter(Files::isRegularFile).forEach(path -> {
+            paths.filter(path -> Files.isRegularFile(path) && FileIcons.supported(path)).forEach(path -> {
                 String relative = root.relativize(path).toString().replace('\\', '/');
                 sources.add(new SourceFile(file.fileName() + "/" + relative, path, sizeOf(path), sha256(path)));
             });
@@ -700,6 +719,20 @@ final class UdpTx {
     // 编码文件名
     private String encodeName(String value) {
         return Base64.getUrlEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // 计算本次传输口令摘要
+    private String codeHash(String code) {
+        String value = code == null ? "" : code.trim();
+        if (value.isBlank()) {
+            return "";
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     // 给日志加时间戳

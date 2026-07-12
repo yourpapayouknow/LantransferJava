@@ -11,6 +11,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Dragboard;
@@ -28,6 +29,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 // 文件传输页面逻辑
 final class FileTransfer {
@@ -154,7 +156,8 @@ final class FileTransfer {
         Label name = app.titleLabel(file.fileName(), 15);
         name.setWrapText(true);
         name.setMaxWidth(Double.MAX_VALUE);
-        VBox text = new VBox(4, name, app.mutedLabel(file.size(), 13), app.mutedLabel(FileIcons.modifiedAtLabel(file.path()), 12));
+        VBox text = new VBox(4, name, app.mutedLabel(FileIcons.typeLabel(file.path()) + " | " + file.size(), 13),
+                app.mutedLabel(FileIcons.modifiedAtLabel(file.path()), 12));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
 
@@ -282,16 +285,21 @@ final class FileTransfer {
             app.toast("请先从用户列表添加真实在线用户或分组");
             return;
         }
+        Optional<String> code = askTransferCode(targets);
+        if (code.isEmpty()) {
+            return;
+        }
         app.controller.pauseTransfer(false);
         app.transferRunning = true;
         app.transferPaused = false;
         app.currentSummary = new TransferSummary(targets.size(), 0, 0, 0, "00:00:00", List.of(), List.of());
         showTransferResultPage();
-        app.controller.startTransfer(new ArrayList<>(app.pendingFiles), targets,
+        app.controller.startTransfer(new ArrayList<>(app.pendingFiles), targets, code.get(),
                 summary -> Platform.runLater(() -> showTransferProgress(summary)))
                 .thenAccept(summary -> Platform.runLater(() -> {
                     app.transferRunning = false;
                     app.transferPaused = false;
+                    app.playDoneSound();
                     showTransferProgress(summary);
                 })).exceptionally(error -> {
                     Platform.runLater(() -> {
@@ -307,6 +315,27 @@ final class FileTransfer {
     // 判断目标列表里是否有真实可达用户或分组
     private boolean hasUsableTarget(List<UserDevice> targets) {
         return targets.stream().anyMatch(target -> target != null && (target.groupTarget() || target.reachable()));
+    }
+
+    // 询问本次传输口令
+    private Optional<String> askTransferCode(List<UserDevice> targets) {
+        TextInputDialog dialog = new TextInputDialog(defaultGroupCode(targets));
+        dialog.initOwner(app.stage);
+        dialog.setTitle("传输口令");
+        dialog.setHeaderText("本次传输口令");
+        dialog.setContentText("无口令请留空");
+        return dialog.showAndWait().map(String::trim);
+    }
+
+    // 读取组目标的默认口令
+    private String defaultGroupCode(List<UserDevice> targets) {
+        return targets.stream()
+                .filter(target -> target != null)
+                .filter(UserDevice::groupTarget)
+                .map(UserDevice::signature)
+                .filter(code -> code != null && !code.isBlank())
+                .findFirst()
+                .orElse("");
     }
 
     // 切换当前发送任务的暂停状态
@@ -346,8 +375,16 @@ final class FileTransfer {
 
     // 把选择或拖拽的文件加入待传输列表
     private void addFiles(List<File> files) {
+        int skipped = 0;
         for (File file : files) {
-            app.pendingFiles.add(new TransferFile(file.getName(), FileIcons.readableSize(file), file.toPath()));
+            if (FileIcons.supported(file.toPath())) {
+                app.pendingFiles.add(new TransferFile(file.getName(), FileIcons.readableSize(file), file.toPath()));
+            } else {
+                skipped++;
+            }
+        }
+        if (skipped > 0) {
+            app.toast("已跳过不支持的文件类型：" + skipped + "个");
         }
         showFileTransferPage();
     }

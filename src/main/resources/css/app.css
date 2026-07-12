@@ -1,8 +1,10 @@
+/* 应用根节点 */
 .app-root {
     -fx-background-color: transparent;
     -fx-font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
 }
 
+/* 窗口外壳 */
 .window-shell {
     -fx-background-color: #101317;
     -fx-background-radius: 12;
@@ -13,6 +15,7 @@
     -fx-min-height: 0;
 }
 
+/* 标题栏 */
 .title-bar {
     -fx-min-height: 40;
     -fx-max-height: 40;
@@ -21,11 +24,13 @@
     -fx-border-width: 0 0 1 0;
 }
 
+/* 窗口标题 */
 .window-title {
     -fx-text-fill: #f0f3f6;
     -fx-font-size: 14;
 }
 
+/* 图标按钮 */
 .icon-action {
     -fx-background-color: transparent;
     -fx-font-size: 13;
@@ -38,30 +43,37 @@
     -fx-max-height: 24;
 }
 
+/* 窗口按钮图标 */
 .window-button-icon {
     -fx-icon-color: -color-accent;
 }
 
+/* 登录主体 */
 .auth-body {
     -fx-padding: 20;
 }
 
+/* 标题文字 */
 .title-label {
     -fx-text-fill: #f0f3f6;
 }
 
+/* 弱化文字 */
 .muted-label {
     -fx-text-fill: #a9b1ba;
 }
 
+/* 强调文字 */
 .accent-label {
     -fx-text-fill: -color-accent;
 }
 
+/* 登录图形 */
 .plane-shape {
     -fx-fill: white;
 }
 
+/* 内容分区 */
 .glass-section {
     -fx-border-color: #3a4047;
     -fx-border-radius: 8;
@@ -69,22 +81,26 @@
     -fx-padding: 10;
 }
 
+/* 页面内容 */
 .page-content {
     -fx-padding: 8;
     -fx-min-width: 0;
 }
 
+/* 登录表单 */
 .auth-form {
     -fx-max-width: 550;
     -fx-min-width: 550;
 }
 
+/* 待处理卡片 */
 .pending-card {
     -fx-border-color: #3a4047;
     -fx-border-radius: 8;
     -fx-background-radius: 8;
 }
 
+/* 输入框 */
 .dark-input {
     -fx-background-color: transparent;
     -fx-border-color: rgba(255, 255, 255, 0.16);
@@ -97,10 +113,12 @@
     -fx-font-size: 13;
 }
 
+/* 输入聚焦 */
 .dark-input:focused {
     -fx-border-color: -color-accent;
 }
 
+/* 按钮基础 */
 .text-button {
     -fx-background-color: transparent;
     -fx-font-size: 13;
@@ -112,10 +130,12 @@
     -fx-border-width: 1;
 }
 
+/* 按钮按下 */
 .text-button:pressed {
     -fx-opacity: 0.84;
 }
 
+/* 主按钮 */
 .primary-button,
 .outline-button {
     -fx-background-color: transparent;
@@ -123,16 +143,19 @@
     -fx-text-fill: white;
 }
 
+/* 主按钮悬停 */
 .primary-button:hover,
 .outline-button:hover {
     -fx-border-color: -color-accent;
 }
 
+/* 主按钮图标 */
 .primary-button .button-font-icon,
 .outline-button .button-font-icon {
     -fx-icon-color: white;
 }
 
+/* 次按钮 */
 .secondary-button,
 .ghost-button,
 .compact-button {
@@ -141,6 +164,7 @@
     -fx-text-fill: rgba(255, 255, 255, 0.80);
 }
 
+/* 次按钮悬停 */
 .secondary-button:hover,
 .ghost-button:hover,
 .compact-button:hover {
@@ -148,12 +172,14 @@
     -fx-border-color: rgba(255, 255, 255, 0.20);
 }
 
+/* 次按钮图标 */
 .secondary-button .button-font-icon,
 .ghost-button .button-font-icon,
 .compact-button .button-font-icon {
     -fx-icon-color: rgba(255, 255, 255, 0.80);
 }
 
+/* 图标切换按钮 */
 .icon-toggle-button {
     -fx-min-width: 38;
     -fx-pref-width: 38;
@@ -161,22 +187,26 @@
     -fx-padding: 0;
 }
 
+/* 弱化按钮 */
 .ghost-button {
     -fx-min-height: 28;
     -fx-padding: 0 8 0 8;
 }
 
+/* 小按钮 */
 .compact-button {
     -fx-font-size: 12;
     -fx-min-height: 24;
     -fx-padding: 0 8 0 8;
 }
 
+/* 复选框 */
 .dark-check {
     -fx-text-fill: rgba(255, 255, 255, 0.76);
     -fx-font-size: 13;
 }
 
+/* 复选框方块 */
 .dark-check .box {
     -fx-background-color: transparent;
     -fx-border-color: rgba(255, 255, 255, 0.25);
@@ -184,16 +214,19 @@
     -fx-background-radius: 5;
 }
 
+/* 复选框选中 */
 .dark-check:selected .box {
     -fx-background-color: -color-accent;
     -fx-border-color: -color-accent;
 }
 
+/* 主区域 */
 .main-area {
     -fx-min-height: 0;
     -fx-min-width: 0;
 }
 
+/* 侧边栏 */
 .sidebar {
     -fx-min-width: 160;
     -fx-pref-width: 160;
@@ -201,39 +234,47 @@
     -fx-border-color: transparent rgba(255, 255, 255, 0.10) transparent transparent;
 }
 
+/* 导航项 */
 .nav-control {
     -fx-min-height: 50;
     -fx-padding: 0 18 0 26;
     -fx-background-radius: 0 8 8 0;
 }
 
+/* 导航悬停 */
 .nav-control:hover {
     -fx-background-color: rgba(255, 255, 255, 0.055);
 }
 
+/* 导航文字 */
 .nav-item .label {
     -fx-text-fill: rgba(255, 255, 255, 0.74);
     -fx-font-size: 15;
 }
 
+/* 导航选中 */
 .nav-active {
     -fx-border-color: transparent transparent transparent -color-accent;
     -fx-border-width: 0 0 0 5;
 }
 
+/* 导航选中文字 */
 .nav-active .label {
     -fx-text-fill: -color-accent;
 }
 
+/* 连接信息 */
 .connection-info {
     -fx-padding: 0 16 0 22;
 }
 
+/* 中心区域 */
 .main-center {
     -fx-background-color: transparent;
     -fx-min-width: 0;
 }
 
+/* 顶部栏 */
 .content-topbar {
     -fx-min-height: 30;
     -fx-max-height: 30;
@@ -242,6 +283,7 @@
     -fx-border-width: 0 0 1 0;
 }
 
+/* 滚动容器 */
 .page-scroll,
 .page-scroll > .viewport,
 .horizontal-scroll,
@@ -252,23 +294,28 @@
     -fx-background-color: transparent;
 }
 
+/* 上传条 */
 .upload-strip {
     -fx-padding: 8 12 8 12;
 }
 
+/* 拖拽激活 */
 .upload-strip-dragover {
     -fx-border-color: -color-accent;
     -fx-border-width: 1.5;
 }
 
+/* 待传文件列表 */
 .pending-file-list {
     -fx-padding: 8 0 0 0;
 }
 
+/* 文件卡片 */
 .pending-file-card {
     -fx-min-height: 86;
 }
 
+/* 文件图标 */
 .file-icon-box {
     -fx-border-color: -color-accent;
     -fx-border-radius: 7;
@@ -276,10 +323,12 @@
     -fx-alignment: center;
 }
 
+/* 文件图标色 */
 .file-card-font-icon {
     -fx-icon-color: -color-accent;
 }
 
+/* 卡片样式 */
 .user-card,
 .user-card-large,
 .stat-card,
@@ -291,36 +340,43 @@
     -fx-padding: 9;
 }
 
+/* 用户卡片 */
 .user-card {
     -fx-min-height: 72;
 }
 
+/* 用户大卡片 */
 .user-card-large {
     -fx-min-height: 84;
 }
 
+/* 选中态 */
 .selected-target,
 .status-card-active {
     -fx-border-color: -color-accent;
     -fx-border-width: 1.5;
 }
 
+/* 头像 */
 .avatar {
     -fx-background-color: -avatar-color;
     -fx-background-radius: 50%;
     -fx-alignment: center;
 }
 
+/* 头像文字 */
 .avatar .label {
     -fx-text-fill: white;
     -fx-font-size: 19;
     -fx-font-weight: 800;
 }
 
+/* 资料头像 */
 .profile-avatar-wrap {
     -fx-cursor: hand;
 }
 
+/* 头像遮罩 */
 .profile-avatar-mask {
     -fx-alignment: center;
     -fx-background-color: rgba(80, 84, 90, 0.62);
@@ -331,19 +387,23 @@
     -fx-opacity: 0;
 }
 
+/* 头像悬停 */
 .profile-avatar-wrap:hover .profile-avatar-mask {
     -fx-opacity: 1;
 }
 
+/* 在线状态 */
 .online-dot,
 .online-text {
     -fx-text-fill: #2ecc40;
 }
 
+/* 离线状态 */
 .offline-dot {
     -fx-text-fill: #9aa0a6;
 }
 
+/* 表格 */
 .dark-table {
     -fx-background-color: rgba(15, 17, 20, 0.22);
     -fx-border-color: rgba(255, 255, 255, 0.08);
@@ -352,16 +412,19 @@
     -fx-padding: 0;
 }
 
+/* 表头 */
 .table-header {
     -fx-padding: 6 9 6 9;
     -fx-background-color: rgba(255, 255, 255, 0.035);
 }
 
+/* 进度条 */
 .table-progress {
     -fx-accent: -color-accent;
     -fx-max-height: 8;
 }
 
+/* 状态徽标 */
 .status-badge,
 .ui-chip {
     -fx-padding: 4 9 4 9;
@@ -372,36 +435,42 @@
     -fx-font-weight: 700;
 }
 
+/* 成功徽标 */
 .badge-success {
     -fx-text-fill: #2ecc40;
     -fx-border-color: #2ecc40;
     -fx-background-color: rgba(46, 204, 64, 0.09);
 }
 
+/* 危险徽标 */
 .badge-danger {
     -fx-text-fill: #ff5353;
     -fx-border-color: #ff5353;
     -fx-background-color: rgba(255, 83, 83, 0.09);
 }
 
+/* 警告徽标 */
 .badge-warning {
     -fx-text-fill: -color-accent;
     -fx-border-color: rgba(255, 133, 0, 0.45);
     -fx-background-color: rgba(255, 133, 0, 0.09);
 }
 
+/* 标签胶囊 */
 .ui-chip-muted {
     -fx-text-fill: rgba(255, 255, 255, 0.66);
     -fx-background-color: rgba(255, 255, 255, 0.07);
     -fx-border-color: transparent;
 }
 
+/* 激活胶囊 */
 .ui-chip-active {
     -fx-text-fill: -color-accent;
     -fx-background-color: rgba(255, 133, 0, 0.12);
     -fx-border-color: rgba(255, 133, 0, 0.66);
 }
 
+/* 底部状态 */
 .status-footer {
     -fx-min-height: 30;
     -fx-max-height: 30;
@@ -409,12 +478,14 @@
     -fx-border-color: rgba(255, 255, 255, 0.08) transparent transparent transparent;
 }
 
+/* 设置行 */
 .settings-row {
     -fx-padding: 10 0 10 0;
     -fx-border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
     -fx-min-height: 64;
 }
 
+/* 分隔线 */
 .soft-separator .line,
 .soft-line {
     -fx-border-color: rgba(255, 255, 255, 0.12);
@@ -424,11 +495,13 @@
     -fx-max-height: 1;
 }
 
+/* 小进度 */
 .small-spinner {
     -fx-accent: -color-accent;
     -fx-pref-width: 42;
 }
 
+/* 提示胶囊 */
 .notice-pill {
     -fx-padding: 8 14 8 14;
     -fx-border-color: rgba(255, 255, 255, 0.12);
@@ -436,43 +509,52 @@
     -fx-background-radius: 7;
 }
 
+/* 插画图标 */
 .illustration-icon {
     -fx-text-fill: rgba(255, 255, 255, 0.86);
     -fx-font-size: 74;
 }
 
+/* 插画勾选 */
 .illustration-check {
     -fx-text-fill: -color-accent;
     -fx-font-size: 42;
     -fx-font-weight: 800;
 }
 
+/* 日志区 */
 .log-box {
     -fx-padding: 10;
 }
 
+/* 日志文字 */
 .log-text {
     -fx-fill: rgba(235, 239, 244, 0.78);
     -fx-font-family: "Consolas", monospace;
     -fx-font-size: 13;
 }
 
+/* 成功日志 */
 .log-success {
     -fx-fill: #2ecc40;
 }
 
+/* 危险日志 */
 .log-danger {
     -fx-fill: #ff5353;
 }
 
+/* 警告日志 */
 .log-warning {
     -fx-fill: #ffb22c;
 }
 
+/* 开关 */
 .switch-toggle {
     -fx-min-width: 42;
 }
 
+/* 选择控件 */
 .dark-spinner,
 .combo-box {
     -fx-background-color: transparent;
@@ -484,22 +566,26 @@
 }
 
 .dark-spinner .text-field,
+/* 下拉单元 */
 .combo-box .list-cell {
     -fx-background-color: transparent;
     -fx-text-fill: #eef2f5;
 }
 
+/* 微调按钮 */
 .dark-spinner .increment-arrow-button,
 .dark-spinner .decrement-arrow-button {
     -fx-background-color: rgba(255, 255, 255, 0.08);
 }
 
+/* 下拉箭头 */
 .dark-spinner .increment-arrow,
 .dark-spinner .decrement-arrow,
 .combo-box .arrow {
     -fx-background-color: rgba(255, 255, 255, 0.78);
 }
 
+/* 弹出菜单 */
 .combo-box-popup .list-view {
     -fx-background-color: #151a20;
     -fx-border-color: rgba(255, 255, 255, 0.16);
@@ -507,17 +593,20 @@
     -fx-background-radius: 7;
 }
 
+/* 菜单单元 */
 .combo-box-popup .list-view .list-cell {
     -fx-background-color: #151a20;
     -fx-text-fill: #eef2f5;
 }
 
+/* 菜单选中 */
 .combo-box-popup .list-view .list-cell:filled:hover,
 .combo-box-popup .list-view .list-cell:filled:selected {
     -fx-background-color: -color-accent;
     -fx-text-fill: white;
 }
 
+/* 颜色块 */
 .color-swatch,
 .color-swatch-selected {
     -fx-background-color: -swatch-color;
@@ -526,11 +615,13 @@
     -fx-min-height: 28;
 }
 
+/* 选中颜色块 */
 .color-swatch-selected {
     -fx-border-color: white;
     -fx-border-radius: 6;
 }
 
+/* Toast提示 */
 .toast {
     -fx-background-color: #20252c;
     -fx-border-color: #49515c;

@@ -76,13 +76,13 @@ public final class MockBackendFacade implements BackendFacade {
     // 保存本地传输分组并返回组目标
     @Override
     public CompletableFuture<UserDevice> saveGroup(String name, String code, List<UserDevice> members) {
-        return CompletableFuture.completedFuture(UserDevice.group(name, members == null ? 0 : members.size()));
+        return CompletableFuture.completedFuture(UserDevice.group(name, members == null ? 0 : members.size(), code));
     }
 
     // 更新本地传输分组并返回组目标
     @Override
     public CompletableFuture<UserDevice> updateGroup(String oldName, String name, String code, List<UserDevice> members) {
-        return CompletableFuture.completedFuture(UserDevice.group(name, members == null ? 0 : members.size()));
+        return CompletableFuture.completedFuture(UserDevice.group(name, members == null ? 0 : members.size(), code));
     }
 
     // 扫描局域网用户设备
@@ -101,6 +101,18 @@ public final class MockBackendFacade implements BackendFacade {
     // 启动文件传输任务
     @Override
     public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets) {
+        return mockTransfer(targets);
+    }
+
+    // 使用本次传输口令启动文件传输任务
+    @Override
+    public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            String code, java.util.function.Consumer<TransferSummary> progress) {
+        return mockTransfer(targets);
+    }
+
+    // 构造固定传输结果
+    private CompletableFuture<TransferSummary> mockTransfer(List<UserDevice> targets) {
         List<UserDevice> safeTargets = targets.isEmpty() ? devices.subList(0, 5) : targets;
         List<TransferTask> tasks = new ArrayList<>();
         tasks.add(new TransferTask("产品演示视频.mp4", safeTargets.get(0), 72, "512.00 MB", "12.35 MB/s", "00:00:32", "传输中", 0));

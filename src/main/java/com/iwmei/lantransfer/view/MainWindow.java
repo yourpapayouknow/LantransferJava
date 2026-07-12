@@ -62,10 +62,13 @@ import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.io.File;
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -100,6 +103,8 @@ public class MainWindow extends Application {
     boolean transferPaused;
     boolean userListGridView;
     boolean recentTargetsLoaded;
+    boolean startupTrayApplied;
+    java.awt.TrayIcon trayIcon;
     int userListPage;
     double requestedWindowWidth = -1;
     double requestedWindowHeight = -1;
@@ -167,12 +172,12 @@ public class MainWindow extends Application {
     }
 
     // 在忙碌状态下询问用户是否接收文件
-    private boolean confirmReceive(String fileName, long bytes) {
+    private boolean confirmReceive(String fileName, long bytes, String codeHash) {
         if (Platform.isFxApplicationThread()) {
-            return showReceiveConfirm(fileName, bytes);
+            return showReceiveConfirm(fileName, bytes, codeHash);
         }
         CompletableFuture<Boolean> answer = new CompletableFuture<>();
-        Platform.runLater(() -> answer.complete(showReceiveConfirm(fileName, bytes)));
+        Platform.runLater(() -> answer.complete(showReceiveConfirm(fileName, bytes, codeHash)));
         try {
             return answer.get(30, TimeUnit.SECONDS);
         } catch (Exception ignored) {
@@ -181,7 +186,10 @@ public class MainWindow extends Application {
     }
 
     // 显示接收确认对话框
-    private boolean showReceiveConfirm(String fileName, long bytes) {
+    private boolean showReceiveConfirm(String fileName, long bytes, String codeHash) {
+        if (codeHash != null && !codeHash.isBlank()) {
+            return showCodeConfirm(fileName, bytes, codeHash);
+        }
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.initOwner(stage);
         alert.setTitle("接收确认");
@@ -190,8 +198,26 @@ public class MainWindow extends Application {
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
 
+    // 显示传输口令校验对话框
+    private boolean showCodeConfirm(String fileName, long bytes, String codeHash) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(stage);
+        alert.setTitle("传输口令");
+        alert.setHeaderText("收到文件：" + fileName);
+        PasswordField code = passwordField("请输入传输口令");
+        VBox content = new VBox(10, mutedLabel("大小：" + bytes + " B", 14), code);
+        alert.getDialogPane().setContent(content);
+        Button ok = (Button) alert.getDialogPane().lookupButton(ButtonType.OK);
+        ok.setDisable(true);
+        code.textProperty().addListener((unused, oldValue, newValue) -> ok.setDisable(!codeMatches(newValue, codeHash)));
+        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent() && codeMatches(code.getText(), codeHash);
+    }
+
     // 展示接收端进度提示
     private void showRxProgress(String fileName, int percent) {
+        if (percent >= 100) {
+            playDoneSound();
+        }
         if (Platform.isFxApplicationThread()) {
             toast("接收 " + fileName + " " + percent + "%");
             return;
@@ -349,6 +375,16 @@ public class MainWindow extends Application {
         if (firstShow) {
             stage.show();
         }
+        applyStartupTray();
+    }
+
+    // 按启动设置隐藏到系统托盘
+    private void applyStartupTray() {
+        if (startupTrayApplied || profile == null || currentSettings == null || !currentSettings.startMinimized()) {
+            return;
+        }
+        startupTrayApplied = true;
+        hideToTray();
     }
 
     // 构建自定义窗口标题栏
@@ -360,12 +396,95 @@ public class MainWindow extends Application {
         Label title = new Label(APP_TITLE);
         title.getStyleClass().add("window-title");
         Button minimize = windowButton("mdi2w-window-minimize", "最小化");
-        minimize.setOnAction(event -> stage.setIconified(true));
+        minimize.setOnAction(event -> minimizeWindow());
         Button close = windowButton("mdi2w-window-close", "关闭");
         close.setOnAction(event -> stage.close());
         bar.getChildren().addAll(title, spacer(), minimize, close);
         enableDrag(bar);
         return bar;
+    }
+
+    // 执行窗口最小化或托盘隐藏
+    private void minimizeWindow() {
+        if (currentSettings != null && currentSettings.startMinimized()) {
+            hideToTray();
+        } else {
+            stage.setIconified(true);
+        }
+    }
+
+    // 隐藏窗口到系统托盘
+    private void hideToTray() {
+        if (ensureTray()) {
+            stage.hide();
+        } else {
+            stage.setIconified(true);
+        }
+    }
+
+    // 创建系统托盘图标
+    private boolean ensureTray() {
+        if (trayIcon != null) {
+            return true;
+        }
+        if (!java.awt.SystemTray.isSupported()) {
+            return false;
+        }
+        try {
+            java.awt.PopupMenu menu = new java.awt.PopupMenu();
+            java.awt.MenuItem show = new java.awt.MenuItem("显示");
+            java.awt.MenuItem exit = new java.awt.MenuItem("退出");
+            show.addActionListener(event -> restoreFromTray());
+            exit.addActionListener(event -> exitFromTray());
+            menu.add(show);
+            menu.add(exit);
+            trayIcon = new java.awt.TrayIcon(trayImage(), APP_TITLE, menu);
+            trayIcon.setImageAutoSize(true);
+            trayIcon.addActionListener(event -> restoreFromTray());
+            java.awt.SystemTray.getSystemTray().add(trayIcon);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    // 从系统托盘恢复窗口
+    private void restoreFromTray() {
+        Platform.runLater(() -> {
+            stage.show();
+            stage.setIconified(false);
+            stage.toFront();
+        });
+    }
+
+    // 从系统托盘退出应用
+    private void exitFromTray() {
+        java.awt.SystemTray.getSystemTray().remove(trayIcon);
+        Platform.exit();
+    }
+
+    // 生成系统托盘图标图片
+    private java.awt.Image trayImage() {
+        java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(awtAccent());
+            graphics.fillOval(2, 2, 12, 12);
+            graphics.setColor(java.awt.Color.WHITE);
+            graphics.fillOval(6, 6, 4, 4);
+            return image;
+        } finally {
+            graphics.dispose();
+        }
+    }
+
+    // 转换主题色为 AWT 颜色
+    private java.awt.Color awtAccent() {
+        try {
+            return java.awt.Color.decode(accentColor);
+        } catch (Exception ignored) {
+            return java.awt.Color.ORANGE;
+        }
     }
 
     // 构建左侧导航栏
@@ -1117,6 +1236,36 @@ public class MainWindow extends Application {
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
         toast(message);
+    }
+
+    // 播放传输完成提示音
+    void playDoneSound() {
+        if (currentSettings == null || !currentSettings.soundOnComplete()) {
+            return;
+        }
+        try {
+            java.awt.Toolkit.getDefaultToolkit().beep();
+        } catch (Exception ignored) {
+        }
+    }
+
+    // 校验用户输入的传输口令
+    private boolean codeMatches(String code, String codeHash) {
+        return codeHash == null || codeHash.isBlank() || codeHash.equalsIgnoreCase(codeHash(code));
+    }
+
+    // 计算用户输入口令的 SHA-256
+    private String codeHash(String code) {
+        String value = code == null ? "" : code.trim();
+        if (value.isBlank()) {
+            return "";
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     // 显示临时提示消息

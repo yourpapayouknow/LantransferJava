@@ -46,6 +46,10 @@ public interface BackendFacade {
         return startTransfer(files, targets);
     }
 
+    // 使用本次传输口令启动文件传输任务并推送进度快照
+    CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                     String code, Consumer<TransferSummary> progress);
+
     // 暂停或继续当前发送任务
     default void pauseTransfer(boolean paused) {
     }

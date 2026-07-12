@@ -18,6 +18,6 @@ public record Group(String name, String code, List<UserDevice> members) {
 
     // 构造可放入近期传输对象队列的组目标
     public UserDevice target() {
-        return UserDevice.group(name, size());
+        return UserDevice.group(name, size(), code);
     }
 }

@@ -36,12 +36,14 @@ public final class UdpWireCheck {
         Path etaSource = root.resolve("eta.txt");
         Path resumeSource = root.resolve("resume.bin");
         Path busySource = root.resolve("busy.txt");
+        Path secureSource = root.resolve("secure.txt");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
             String resumeContent = "b".repeat(1024);
             Files.writeString(resumeSource, resumeContent);
             Files.writeString(busySource, "busy confirm");
+            Files.writeString(secureSource, "secure confirm");
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -72,7 +74,7 @@ public final class UdpWireCheck {
             int busyAcceptPort = freePort();
             UdpRx busyAcceptRx = new UdpRx(store, busyAcceptPort);
             busyAcceptRx.updateStatus(UserStatus.BUSY);
-            busyAcceptRx.setAsk((name, bytes) -> true);
+            busyAcceptRx.setAsk((name, bytes, codeHash) -> true);
             busyAcceptRx.start();
             Thread.sleep(120);
             UserDevice busy = new UserDevice("self-3", "本机C", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
@@ -87,7 +89,7 @@ public final class UdpWireCheck {
             int staleBusyPort = freePort();
             UdpRx staleBusyRx = new UdpRx(store, staleBusyPort);
             staleBusyRx.updateStatus(UserStatus.BUSY);
-            staleBusyRx.setAsk((name, bytes) -> {
+            staleBusyRx.setAsk((name, bytes, codeHash) -> {
                 try {
                     Thread.sleep(2200);
                 } catch (InterruptedException ex) {
@@ -108,7 +110,7 @@ public final class UdpWireCheck {
             int busyDenyPort = freePort();
             UdpRx busyDenyRx = new UdpRx(store, busyDenyPort);
             busyDenyRx.updateStatus(UserStatus.BUSY);
-            busyDenyRx.setAsk((name, bytes) -> false);
+            busyDenyRx.setAsk((name, bytes, codeHash) -> false);
             busyDenyRx.start();
             Thread.sleep(120);
             UserDevice busyDeny = new UserDevice("self-4", "本机D", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
@@ -117,6 +119,22 @@ public final class UdpWireCheck {
                     List.of(busyDeny), store.load());
             require(deniedBusy.failedCount() == 1, "busy target should fail after receiver rejection");
             require(!Files.exists(receiveDir.resolve("deny.txt")), "rejected busy receive should not land file");
+            int securePort = freePort();
+            UdpRx secureRx = new UdpRx(store, securePort);
+            String secretHash = sha256("secret");
+            secureRx.setAsk((name, bytes, codeHash) -> secretHash.equals(codeHash));
+            secureRx.start();
+            Thread.sleep(120);
+            UserDevice secureTarget = new UserDevice("self-secure", "本机E", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#2f9f62", false, "127.0.0.1", securePort);
+            TransferSummary secureAccepted = tx.run(List.of(new TransferFile("secure.txt", "14 B", secureSource)),
+                    List.of(secureTarget), store.load(), "secret", ignored -> {
+                    });
+            require(secureAccepted.successCount() == 1, "correct transfer code should allow receive");
+            TransferSummary secureDenied = tx.run(List.of(new TransferFile("secure-deny.txt", "14 B", secureSource)),
+                    List.of(secureTarget), store.load(), "wrong", ignored -> {
+                    });
+            require(secureDenied.failedCount() == 1, "wrong transfer code should reject receive");
             List<TransferSummary> progressSnapshots = new ArrayList<>();
             TransferSummary etaSummary = new UdpTx(512).run(List.of(new TransferFile("eta.txt", "1.00 KB", etaSource)),
                     List.of(first), store.load(), progressSnapshots::add);
@@ -155,9 +173,17 @@ public final class UdpWireCheck {
                     "resumed file content should match source");
             require(sendBadChecksumBegin(port).endsWith("\tFAIL"), "bad checksum should fail");
             require(!Files.exists(receiveDir.resolve("bad.txt")), "bad checksum file should not land");
+            require(sendUnsupportedBegin(port).endsWith("\tFAIL\tUNSUPPORTED"), "unsupported type should fail");
         } finally {
             deleteTree(root);
         }
+    }
+
+    // 发送一个不支持类型的开始包并返回接收端确认
+    private static String sendUnsupportedBegin(int port) throws Exception {
+        String name = Base64.getUrlEncoder().encodeToString("bad.exe".getBytes(StandardCharsets.UTF_8));
+        String message = UdpRx.BEGIN + "\tunsupported-job\t0\t" + name + "\t0\t0\t1024\t" + sha256("");
+        return sendAndReceive(port, message.getBytes(StandardCharsets.UTF_8));
     }
 
     // 发送一个 SHA-256 错误的开始包并返回接收端确认

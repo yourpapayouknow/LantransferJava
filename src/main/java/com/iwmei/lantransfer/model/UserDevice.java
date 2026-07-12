@@ -42,9 +42,15 @@ public record UserDevice(String id, String nickname, String deviceName, DeviceSt
 
     // 构造本地分组传输目标
     public static UserDevice group(String name, int members) {
+        return group(name, members, "");
+    }
+
+    // 构造带默认口令的本地分组传输目标
+    public static UserDevice group(String name, int members, String code) {
         String groupName = cleanGroupName(name);
         return new UserDevice(GROUP_PREFIX + groupName, "组：" + groupName, members + " 个成员",
-                DeviceStatus.ONLINE, "本地分组", "组", "#7a52d8", false, "", 0, UserStatus.DEFAULT, "", "");
+                DeviceStatus.ONLINE, "本地分组", "组", "#7a52d8", false, "", 0, UserStatus.DEFAULT,
+                code == null ? "" : code.trim(), "");
     }
 
     // 清洗分组名称，空值回退到默认分组

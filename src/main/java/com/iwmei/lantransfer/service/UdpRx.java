@@ -1,6 +1,7 @@
 package com.iwmei.lantransfer.service;
 
 import com.iwmei.lantransfer.model.UserStatus;
+import com.iwmei.lantransfer.util.FileIcons;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,8 +36,9 @@ final class UdpRx {
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
     private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
+    private final RateLimit downloadRate = new RateLimit();
     private volatile UserStatus status = UserStatus.DEFAULT;
-    private volatile RxAsk ask = (fileName, bytes) -> true;
+    private volatile RxAsk ask = (fileName, bytes, codeHash) -> true;
     private volatile RxProgress progress = (fileName, percent) -> {
     };
     private volatile boolean running;
@@ -70,7 +72,7 @@ final class UdpRx {
 
     // 设置接收前确认回调
     void setAsk(RxAsk ask) {
-        this.ask = ask == null ? (fileName, bytes) -> true : ask;
+        this.ask = ask == null ? (fileName, bytes, codeHash) -> true : ask;
     }
 
     // 设置接收进度回调
@@ -108,7 +110,7 @@ final class UdpRx {
 
     // 处理文件开始包并创建接收状态
     private void handleBegin(DatagramSocket socket, DatagramPacket packet) {
-        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 8);
+        String[] parts = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8).split("\t", 9);
         if (parts.length < 7) {
             return;
         }
@@ -127,7 +129,10 @@ final class UdpRx {
             int chunkCount = intValue(parts[5], -1);
             int chunkSize = intValue(parts[6], -1);
             String sha256 = parts.length >= 8 ? parts[7] : "";
-            if (allowBegin(fileName, size)) {
+            String codeHash = parts.length >= 9 ? parts[8] : "";
+            if (!FileIcons.supportedName(fileName)) {
+                detail = "UNSUPPORTED";
+            } else if (allowBegin(fileName, size, codeHash)) {
                 RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
                 active.put(key, file);
                 detail = file.missing();
@@ -144,16 +149,16 @@ final class UdpRx {
     }
 
     // 判断当前状态是否允许开始接收文件
-    private boolean allowBegin(String fileName, long size) {
+    private boolean allowBegin(String fileName, long size, String codeHash) {
         UserStatus value = status == null ? UserStatus.DEFAULT : status;
         if (value == UserStatus.INVISIBLE || value == UserStatus.OFFLINE) {
             return false;
         }
-        if (value != UserStatus.BUSY) {
+        if (value != UserStatus.BUSY && (codeHash == null || codeHash.isBlank())) {
             return true;
         }
         try {
-            return ask.approve(fileName, size);
+            return ask.approve(fileName, size, codeHash);
         } catch (Exception ignored) {
             return false;
         }
@@ -176,7 +181,16 @@ final class UdpRx {
         int chunkIndex = intValue(parts[3], -1);
         RxFile file = active.get(key(jobId, fileIndex));
         boolean ok = file != null && file.write(chunkIndex, data, offset, length - offset);
+        if (ok) {
+            downloadRate.pause(length - offset, downloadBytesPerSecond());
+        }
         ack(socket, packet, jobId, fileIndex, chunkIndex, ok);
+    }
+
+    // 读取当前下载限速字节数
+    private long downloadBytesPerSecond() {
+        int limit = settings.load().downloadLimit();
+        return limit <= 0 ? 0 : limit * 1024L * 1024L;
     }
 
     // 创建单个文件的接收状态
@@ -476,6 +490,30 @@ final class UdpRx {
                 return HexFormat.of().formatHex(digest.digest());
             } catch (Exception ex) {
                 throw new IOException("sha256 failed", ex);
+            }
+        }
+    }
+
+    // 下载限速器，通过推迟 ACK 控制发送端速度
+    private static final class RateLimit {
+        private final long started = System.nanoTime();
+        private long received;
+
+        // 按已接收字节数等待到目标速率
+        private synchronized void pause(int bytes, long bytesPerSecond) {
+            if (bytesPerSecond <= 0 || bytes <= 0) {
+                return;
+            }
+            received += bytes;
+            long expected = (long) (received * 1_000_000_000.0 / bytesPerSecond);
+            long wait = expected - (System.nanoTime() - started);
+            if (wait <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(wait / 1_000_000, (int) (wait % 1_000_000));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
             }
         }
     }

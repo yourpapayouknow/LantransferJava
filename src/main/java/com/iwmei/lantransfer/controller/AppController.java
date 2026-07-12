@@ -75,6 +75,12 @@ public final class AppController {
         return backend.startTransfer(files, targets, progress);
     }
 
+    // 使用本次传输口令启动文件传输任务并接收进度快照
+    public CompletableFuture<TransferSummary> startTransfer(List<TransferFile> files, List<UserDevice> targets,
+                                                            String code, Consumer<TransferSummary> progress) {
+        return backend.startTransfer(files, targets, code, progress);
+    }
+
     // 暂停或继续当前发送任务
     public void pauseTransfer(boolean paused) {
         backend.pauseTransfer(paused);
