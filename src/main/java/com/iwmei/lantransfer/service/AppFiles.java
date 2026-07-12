@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.service;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,7 +28,7 @@ final class AppFiles {
         return System.getenv().getOrDefault("LANTRANSFER_DATA_DIR", "").trim();
     }
 
-    // 读取 GitHub 远程仓库名作为本地数据命名空间
+    // 读取GitHub远程仓库名作为本地数据命名空间
     static String repoSlug() {
         String origin = repoOrigin();
         int slash = origin.lastIndexOf('/');
@@ -37,7 +36,7 @@ final class AppFiles {
         return name.replace(".git", "").replaceAll("[^A-Za-z0-9_.-]", "_");
     }
 
-    // 读取当前仓库 origin 地址
+    // 读取当前仓库origin地址
     static String repoOrigin() {
         Path config = Path.of(".git", "config");
         if (!Files.exists(config)) {

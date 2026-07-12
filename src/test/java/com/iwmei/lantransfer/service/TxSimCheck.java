@@ -1,15 +1,13 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.UserDevice;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-// TxSim 的无框架自检入口
+// TxSim的无框架自检入口
 public final class TxSimCheck {
     // 阻止自检类被实例化
     private TxSimCheck() {

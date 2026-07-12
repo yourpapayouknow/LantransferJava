@@ -1,10 +1,8 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.Group;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -45,7 +43,7 @@ public final class GroupStoreCheck {
                 "#4f7bd8", false, host, port, UserStatus.DEFAULT, "签名", "QUJD");
     }
 
-    // 检查条件，失败时抛出 AssertionError
+    // 检查条件，失败时抛出AssertionError
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

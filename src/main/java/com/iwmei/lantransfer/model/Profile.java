@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.model;
-
 import java.time.LocalDateTime;
 
 // 用户资料数据对象

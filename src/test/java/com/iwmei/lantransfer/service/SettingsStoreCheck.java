@@ -1,11 +1,9 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.SystemSettings;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-// SettingsStore 的无框架自检入口
+// SettingsStore的无框架自检入口
 public final class SettingsStoreCheck {
     // 阻止自检类被实例化
     private SettingsStoreCheck() {

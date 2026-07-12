@@ -1,12 +1,11 @@
 package com.iwmei.lantransfer.service;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 
-// Windows 开机自启动脚本管理器，负责创建和删除启动目录脚本
+// Windows开机自启动脚本管理器，负责创建和删除启动目录脚本
 final class AutoStart {
     private static final String SCRIPT_NAME = "极速互传.cmd";
     private final Path startupDir;
@@ -69,12 +68,12 @@ final class AutoStart {
                 "");
     }
 
-    // 判断当前系统是否为 Windows
+    // 判断当前系统是否为Windows
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
-    // 返回 Windows 当前用户启动目录
+    // 返回Windows当前用户启动目录
     private static Path defaultStartupDir() {
         String appData = System.getenv("APPDATA");
         Path base = appData == null || appData.isBlank()

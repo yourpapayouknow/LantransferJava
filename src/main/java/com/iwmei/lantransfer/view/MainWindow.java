@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.controller.AppController;
 import com.iwmei.lantransfer.model.*;
 import com.iwmei.lantransfer.util.FileIcons;
@@ -59,7 +58,6 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
-
 import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -88,12 +86,10 @@ public class MainWindow extends Application {
     static final double MAIN_HEIGHT = 820;
     static final double MAIN_MIN_WIDTH = 1040;
     static final double MAIN_MIN_HEIGHT = 640;
-
     final AppController controller = new AppController();
     final ObservableList<TransferFile> pendingFiles = FXCollections.observableArrayList();
     final List<UserDevice> recentTargets = new ArrayList<>();
     final List<UserDevice> selectedTargets = new ArrayList<>();
-
     Stage stage;
     Profile profile;
     TransferSummary currentSummary;
@@ -110,15 +106,13 @@ public class MainWindow extends Application {
     double requestedWindowHeight = -1;
     double dragOffsetX;
     double dragOffsetY;
-
     final Auth auth = new Auth(this);
     final FileTransfer fileTransfer = new FileTransfer(this);
     final UserList userList = new UserList(this);
     final Mine mine = new Mine(this);
     final Settings settings = new Settings(this);
 
-
-    // JavaFX 启动后初始化主窗口
+    // JavaFX启动后初始化主窗口
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
@@ -235,7 +229,6 @@ public class MainWindow extends Application {
         setWindow(mainWindowShell(activeNav, page, topActions, footer), MAIN_WIDTH, MAIN_HEIGHT, MAIN_MIN_WIDTH, MAIN_MIN_HEIGHT);
     }
 
-
     // 创建等宽卡片网格布局
     GridPane cardGrid(int columns, double hgap, double vgap) {
         GridPane grid = new GridPane();
@@ -266,6 +259,7 @@ public class MainWindow extends Application {
         shell.setMinSize(0, 0);
         shell.getChildren().addAll(titleBar(), body);
         VBox.setVgrow(body, Priority.ALWAYS);
+
         // 构建带主题色和圆角裁剪的根节点
         return appRoot(shell);
     }
@@ -276,11 +270,9 @@ public class MainWindow extends Application {
         shell.getStyleClass().add("window-shell");
         shell.setMinSize(0, 0);
         shell.getChildren().add(titleBar());
-
         HBox main = new HBox();
         main.getStyleClass().add("main-area");
         main.getChildren().add(sidebar(activeNav));
-
         VBox center = new VBox();
         center.getStyleClass().add("main-center");
         center.setMinSize(0, 0);
@@ -304,6 +296,7 @@ public class MainWindow extends Application {
         HBox.setHgrow(center, Priority.ALWAYS);
         shell.getChildren().add(main);
         VBox.setVgrow(main, Priority.ALWAYS);
+
         // 构建带主题色和圆角裁剪的根节点
         return appRoot(shell);
     }
@@ -334,7 +327,7 @@ public class MainWindow extends Application {
         return style.toString();
     }
 
-    // 转义 CSS 字符串
+    // 转义CSS字符串
     private static String css(String value) {
         return (value == null || value.isBlank() ? "Microsoft YaHei" : value).replace("\\", "\\\\").replace("\"", "\\\"");
     }
@@ -480,7 +473,7 @@ public class MainWindow extends Application {
         }
     }
 
-    // 转换主题色为 AWT 颜色
+    // 转换主题色为AWT颜色
     private java.awt.Color awtAccent() {
         try {
             return java.awt.Color.decode(accentColor);
@@ -1109,7 +1102,7 @@ public class MainWindow extends Application {
         return checkBox;
     }
 
-    // 构建 IP 地址展示列
+    // 构建IP地址展示列
     HBox ipColumn(String title, String value) {
         FontIcon copy = new FontIcon("mdi2c-content-copy");
         copy.getStyleClass().add("button-font-icon");
@@ -1256,7 +1249,7 @@ public class MainWindow extends Application {
         return codeHash == null || codeHash.isBlank() || codeHash.equalsIgnoreCase(codeHash(code));
     }
 
-    // 计算用户输入口令的 SHA-256
+    // 计算用户输入口令的SHA-256
     private String codeHash(String code) {
         String value = code == null ? "" : code.trim();
         if (value.isBlank()) {

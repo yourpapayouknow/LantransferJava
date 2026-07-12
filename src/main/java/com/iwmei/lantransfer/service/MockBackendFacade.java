@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,7 +11,6 @@ public final class MockBackendFacade implements BackendFacade {
             LocalDateTime.of(2026, 7, 1, 9, 20),
             LocalDateTime.of(2026, 7, 2, 13, 12),
             "极速互传 v1.0.0", "简体中文", UserStatus.DEFAULT);
-
     private final List<UserDevice> devices = List.of(
             new UserDevice("lisi", "李四", "DESKTOP-LISI", DeviceStatus.ONLINE, "2 分钟前", "李", "#4f7bd8", false),
             new UserDevice("wangwu", "王五", "LAPTOP-WANGWU", DeviceStatus.ONLINE, "15 分钟前", "王", "#35c6ca", false),

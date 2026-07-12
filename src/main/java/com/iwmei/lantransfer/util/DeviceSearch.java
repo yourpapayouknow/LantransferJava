@@ -1,7 +1,5 @@
 package com.iwmei.lantransfer.util;
-
 import com.iwmei.lantransfer.model.UserDevice;
-
 import java.util.Locale;
 
 // 设备搜索工具，负责按用户输入匹配设备基础字段

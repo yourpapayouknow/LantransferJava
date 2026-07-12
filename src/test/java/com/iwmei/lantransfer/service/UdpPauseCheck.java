@@ -1,12 +1,10 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.SystemSettings;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.net.DatagramSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-// UDP 暂停发送无框架自检
+// UDP暂停发送无框架自检
 public final class UdpPauseCheck {
     // 执行暂停阻塞和继续完成检查
     public static void main(String[] args) throws Exception {
@@ -46,14 +44,14 @@ public final class UdpPauseCheck {
         }
     }
 
-    // 获取一个临时可用 UDP 端口
+    // 获取一个临时可用UDP端口
     private static int freePort() throws Exception {
         try (DatagramSocket socket = new DatagramSocket(0)) {
             return socket.getLocalPort();
         }
     }
 
-    // 检查条件，失败时抛出 AssertionError
+    // 检查条件，失败时抛出AssertionError
     private static void require(boolean condition, String message) {
         if (!condition) {
             throw new AssertionError(message);

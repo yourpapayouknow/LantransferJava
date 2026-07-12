@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.model.SystemSettings;
 import javafx.application.Platform;
 import javafx.geometry.HPos;
@@ -20,7 +19,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.stage.DirectoryChooser;
-
 import java.io.File;
 import java.util.List;
 import java.util.Locale;

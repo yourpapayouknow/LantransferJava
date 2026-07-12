@@ -1,7 +1,5 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.SystemSettings;
-
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -117,7 +115,7 @@ final class SettingsStore {
         return Boolean.parseBoolean(props.getProperty(key, String.valueOf(fallback)));
     }
 
-    // 获取本机 IP 地址
+    // 获取本机IP地址
     private String localIp(boolean ipv6) {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();

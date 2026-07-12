@@ -1,9 +1,7 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -18,11 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-// 近期传输对象仓库，负责把最近传输目标持久化到本地 properties 文件
+// 近期传输对象仓库，负责把最近传输目标持久化到本地properties文件
 final class RecentStore {
     private static final int MAX_ITEMS = 12;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
     private final Path store;
 
     // 使用默认用户目录近期对象文件初始化仓库
@@ -162,7 +159,7 @@ final class RecentStore {
         return status == null ? UserStatus.DEFAULT : status;
     }
 
-    // 解析整数
+    // 安全解析整型数值
     private int intValue(String value, int fallback) {
         try {
             return Integer.parseInt(value.trim());

@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserStatus;
 import javafx.geometry.HPos;
@@ -18,7 +17,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.kordamp.ikonli.javafx.FontIcon;
-
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
@@ -130,7 +128,7 @@ final class Mine {
         }
     }
 
-    // 把头像压缩成 128px JPEG 的 Base64 文本
+    // 把头像压缩成128px JPEG的Base64文本
     private String jpegAvatar(File file) throws Exception {
         BufferedImage source = ImageIO.read(file);
         if (source == null) {

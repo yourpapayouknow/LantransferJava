@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.TransferTask;
@@ -24,7 +23,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import org.kordamp.ikonli.javafx.FontIcon;
-
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -152,7 +150,6 @@ final class FileTransfer {
         card.getStyleClass().addAll("user-card-large", "pending-file-card");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
-
         Label name = app.titleLabel(file.fileName(), 15);
         name.setWrapText(true);
         name.setMaxWidth(Double.MAX_VALUE);
@@ -160,7 +157,6 @@ final class FileTransfer {
                 app.mutedLabel(FileIcons.modifiedAtLabel(file.path()), 12));
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
-
         Button remove = app.compactButton("-");
         remove.setTooltip(new Tooltip("从待传输项移除"));
         remove.setOnAction(event -> {
@@ -388,5 +384,4 @@ final class FileTransfer {
         }
         showFileTransferPage();
     }
-
 }

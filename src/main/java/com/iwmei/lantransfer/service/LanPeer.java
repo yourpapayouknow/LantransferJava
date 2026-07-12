@@ -1,10 +1,8 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -25,7 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-// 局域网设备发现服务，负责 UDP 广播扫描和本机发现响应
+// 局域网设备发现服务，负责UDP广播扫描和本机发现响应
 final class LanPeer {
     private static final int PORT = configuredPort("lantransfer.discoveryPort", "LANTRANSFER_DISCOVERY_PORT", 45331);
     static final int TRANSFER_PORT = configuredPort("lantransfer.transferPort", "LANTRANSFER_TRANSFER_PORT", 45332);
@@ -97,7 +95,7 @@ final class LanPeer {
         }
     }
 
-    // 把设备编码成 UDP 响应文本
+    // 把设备编码成UDP响应文本
     String encode(UserDevice device) {
         return HERE + "\t" + clean(device.id(), self.id()) + "\t" + clean(device.nickname(), "用户")
                 + "\t" + clean(device.deviceName(), "LOCAL-PC") + "\t" + clean(device.host(), localIp()) + "\t" + device.port()
@@ -105,12 +103,12 @@ final class LanPeer {
                 + "\t" + clean(device.signature(), "") + "\t" + avatar(device.avatar());
     }
 
-    // 解析 UDP 响应文本
+    // 解析UDP响应文本
     UserDevice parse(String message) {
         return parse(message, "");
     }
 
-    // 解析 UDP 响应文本并用来源地址兜底
+    // 解析UDP响应文本并用来源地址兜底
     private UserDevice parse(String message, String fallbackHost) {
         String[] parts = message == null ? new String[0] : message.split("\t", 10);
         if (parts.length < 4 || !HERE.equals(parts[0])) {
@@ -317,7 +315,7 @@ final class LanPeer {
         }
     }
 
-    // 获取本机可传输 IP
+    // 获取本机可传输IP
     private String localIp() {
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
@@ -340,7 +338,7 @@ final class LanPeer {
         return "127.0.0.1";
     }
 
-    // 解析端口
+    // 安全解析网络端口
     private int port(String value) {
         try {
             int port = Integer.parseInt(value.trim());
@@ -454,7 +452,7 @@ final class LanPeer {
         };
     }
 
-    // 生成稳定设备 ID
+    // 生成稳定设备ID
     private String idFor(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -494,7 +492,7 @@ final class LanPeer {
         return name == null || name.isBlank() ? "?" : name.substring(0, 1).toUpperCase(Locale.ROOT);
     }
 
-    // 根据 ID 选择头像颜色
+    // 根据ID选择头像颜色
     private String color(String id) {
         return COLORS.get(Math.floorMod(id.hashCode(), COLORS.size()));
     }

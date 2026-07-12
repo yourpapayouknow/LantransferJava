@@ -1,8 +1,6 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.UserStatus;
 import com.iwmei.lantransfer.util.FileIcons;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -25,13 +23,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-// UDP 文件接收服务，负责后台监听传输端口并把收到的文件落盘到接收目录
+// UDP文件接收服务，负责后台监听传输端口并把收到的文件落盘到接收目录
 final class UdpRx {
     static final String BEGIN = "LANTRANSFER_FILE_BEGIN_V1";
     static final String DATA = "LANTRANSFER_FILE_DATA_V1";
     static final String ACK = "LANTRANSFER_FILE_ACK_V1";
     private static final int BUFFER_BYTES = 60_000;
-
     private final SettingsStore settings;
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
@@ -81,7 +78,7 @@ final class UdpRx {
         } : progress;
     }
 
-    // 持续监听 UDP 文件传输数据包
+    // 持续监听UDP文件传输数据包
     private void listen() {
         try (DatagramSocket socket = new DatagramSocket(null)) {
             socket.setReuseAddress(true);
@@ -289,7 +286,7 @@ final class UdpRx {
         return name.isBlank() ? "received-file" : name;
     }
 
-    // 解析整数
+    // 安全解析整型数值
     private int intValue(String value, int fallback) {
         try {
             return Integer.parseInt(value.trim());
@@ -389,7 +386,7 @@ final class UdpRx {
             }
         }
 
-        // 完成文件接收并把校验失败转成 ACK 失败
+        // 完成文件接收并把校验失败转成ACK失败
         private boolean finishOk() {
             try {
                 finish();
@@ -479,7 +476,7 @@ final class UdpRx {
             return builder.toString();
         }
 
-        // 计算接收临时文件 SHA-256
+        // 计算接收临时文件SHA-256
         private String sha256(Path path) throws IOException {
             try (InputStream input = Files.newInputStream(path)) {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -494,7 +491,7 @@ final class UdpRx {
         }
     }
 
-    // 下载限速器，通过推迟 ACK 控制发送端速度
+    // 下载限速器，通过推迟ACK控制发送端速度
     private static final class RateLimit {
         private final long started = System.nanoTime();
         private long received;

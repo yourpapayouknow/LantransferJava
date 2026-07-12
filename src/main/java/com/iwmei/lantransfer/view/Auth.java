@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.model.LoginRequest;
 import com.iwmei.lantransfer.model.RegisterRequest;
 import javafx.application.Platform;
@@ -34,13 +33,11 @@ final class Auth {
         VBox body = new VBox(24);
         body.getStyleClass().add("auth-body");
         body.setAlignment(Pos.CENTER);
-
         HBox brand = new HBox(18, app.createPlaneLogo(58), new VBox(4,
                 app.titleLabel("极速互传", 30),
                 app.mutedLabel("极速传输，安全高效", 16)
         ));
         brand.setAlignment(Pos.CENTER);
-
         Node form = registerMode ? registerForm() : loginForm();
         body.getChildren().addAll(brand, form);
         app.setAuthPage(body);
@@ -53,7 +50,6 @@ final class Auth {
         HBox breadcrumb = new HBox(16, app.secondaryButton("返回"), new Separator(Orientation.VERTICAL), app.accentLabel("注册审核提示", 16));
         breadcrumb.setAlignment(Pos.CENTER_LEFT);
         ((Button) breadcrumb.getChildren().get(0)).setOnAction(event -> app.showAuth(false));
-
         VBox card = new VBox(22);
         card.getStyleClass().add("pending-card");
         card.setAlignment(Pos.CENTER);
@@ -88,7 +84,6 @@ final class Auth {
                 rememberMe.setSelected(true);
             }
         }));
-
         Button loginButton = app.primaryButton("登录");
         loginButton.setMaxWidth(Double.MAX_VALUE);
         loginButton.setOnAction(event -> app.controller.login(new LoginRequest(account.getText().trim(), password.getText(), rememberMe.isSelected()))
@@ -100,7 +95,6 @@ final class Auth {
                         app.toast(result.message());
                     }
                 })));
-
         Button registerButton = app.outlineButton("注册账号");
         registerButton.setMaxWidth(Double.MAX_VALUE);
         registerButton.setOnAction(event -> app.showAuth(true));

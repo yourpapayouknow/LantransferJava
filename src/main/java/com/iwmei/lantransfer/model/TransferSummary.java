@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.model;
-
 import java.util.List;
 
 // 传输结果汇总数据对象
@@ -24,7 +23,7 @@ public record TransferSummary(int targetCount, int successCount, int failedCount
         return new TransferSummary(targetCount, success, failed, retries, elapsed, logs, tasks);
     }
 
-    // 读取任务目标 ID
+    // 读取任务目标ID
     private String targetId(TransferTask task) {
         return task.target() == null ? "" : task.target().id();
     }

@@ -1,11 +1,10 @@
 package com.iwmei.lantransfer.service;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 
-// AutoStart 的无框架自检入口
+// AutoStart的无框架自检入口
 public final class AutoStartCheck {
     // 阻止自检类被实例化
     private AutoStartCheck() {

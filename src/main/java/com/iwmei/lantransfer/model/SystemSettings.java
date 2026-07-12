@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.model;
-
 import java.nio.file.Path;
 
 // 系统设置数据对象

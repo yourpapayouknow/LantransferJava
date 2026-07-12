@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.view;
-
 import com.iwmei.lantransfer.model.Group;
 import com.iwmei.lantransfer.model.UserDevice;
 import javafx.application.Platform;
@@ -16,7 +15,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -57,11 +55,9 @@ final class UserList {
     private void renderPage(List<UserDevice> devices, List<Group> groups) {
         VBox page = new VBox(8);
         page.getStyleClass().add("page-content");
-
         Label total = app.mutedLabel("", 16);
         VBox results = new VBox();
         results.setMaxWidth(Double.MAX_VALUE);
-
         TextField search = app.searchField(app.userListGridView ? "搜索用户昵称或设备名称" : "搜索分组名或口令");
         search.setText(query);
         Button searchButton = app.iconToggleButton("mdi2m-magnify", "搜索", false);
@@ -99,7 +95,6 @@ final class UserList {
         scanHeader.setAlignment(Pos.CENTER_LEFT);
         scanHeader.setMinHeight(46);
         scanHeader.setMaxWidth(Double.MAX_VALUE);
-
         Button listView = app.iconToggleButton("mdi2v-view-list", "列表形布局", !app.userListGridView);
         listView.setDisable(grouping);
         listView.setOnAction(event -> {
@@ -115,7 +110,6 @@ final class UserList {
         });
         HBox totalLine = new HBox(12, total, new HBox(8, listView, gridView));
         totalLine.setAlignment(Pos.CENTER_LEFT);
-
         search.textProperty().addListener((unused, oldValue, newValue) -> {
             query = newValue == null ? "" : newValue;
             app.userListPage = 0;
@@ -345,12 +339,10 @@ final class UserList {
         app.userListPage = Math.min(app.userListPage, maxPage);
         int from = app.userListPage * pageSize;
         int to = Math.min(devices.size(), from + pageSize);
-
         GridPane grid = app.cardGrid(3, 14, 12);
         for (int i = from; i < to; i++) {
             app.addCard(grid, userCard(devices.get(i)), i - from, 3);
         }
-
         Button previous = app.secondaryButton("上一页");
         previous.setDisable(app.userListPage == 0);
         previous.setOnAction(event -> {

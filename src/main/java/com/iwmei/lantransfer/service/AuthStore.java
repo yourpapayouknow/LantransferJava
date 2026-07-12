@@ -1,11 +1,9 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.AuthResult;
 import com.iwmei.lantransfer.model.LoginRequest;
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.RegisterRequest;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
@@ -50,12 +48,12 @@ final class AuthStore {
         this(defaultTable(), defaultLocal(), defaultReqDir(), true);
     }
 
-    // 使用指定账号表初始化仓库，供测试复用且默认不触发 Git
+    // 使用指定账号表初始化仓库，供测试复用且默认不触发Git
     AuthStore(Path table) {
         this(table, table.resolveSibling("la"), table.resolveSibling("req"), false);
     }
 
-    // 使用指定账号表、本地文件、请求目录和 Git 同步开关初始化仓库
+    // 使用指定账号表、本地文件、请求目录和Git同步开关初始化仓库
     AuthStore(Path table, Path local, Path reqDir, boolean gitSync) {
         this.table = table;
         this.local = local;
@@ -97,7 +95,7 @@ final class AuthStore {
                 : "";
     }
 
-    // 创建注册请求并交给 GitHub Actions 自动合入账号表
+    // 创建注册请求并交给GitHub Actions自动合入账号表
     synchronized AuthResult register(RegisterRequest request) {
         try {
             String account = normalize(request.account());
@@ -163,7 +161,7 @@ final class AuthStore {
         }
     }
 
-    // 等待 GitHub Actions 自动合入注册请求
+    // 等待GitHub Actions自动合入注册请求
     private AuthResult waitForAction(String account, Properties pending) {
         for (int i = 0; i < 9; i++) {
             sleep(5);
@@ -227,7 +225,7 @@ final class AuthStore {
         }
     }
 
-    // 保存单个注册请求供 GitHub Actions 处理
+    // 保存单个注册请求供GitHub Actions处理
     private void saveReq(Properties props, String account) {
         try {
             Files.createDirectories(reqDir);
@@ -341,7 +339,7 @@ final class AuthStore {
         return String.join(",", cells);
     }
 
-    // 清洗账号表单元格，避免换行和逗号破坏 CSV
+    // 清洗账号表单元格，避免换行和逗号破坏CSV
     private String csv(String value) {
         return (value == null ? "" : value).replace('\r', ' ').replace('\n', ' ').replace(',', ' ');
     }
@@ -402,7 +400,7 @@ final class AuthStore {
         return Base64.getEncoder().encodeToString(salt);
     }
 
-    // 生成稳定用户 ID
+    // 生成稳定用户ID
     private String userId(String account) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(account.getBytes(StandardCharsets.UTF_8));
@@ -428,7 +426,7 @@ final class AuthStore {
         return cleaned.isBlank() ? fallback : cleaned;
     }
 
-    // 根据用户 ID 查找账号名
+    // 根据用户ID查找账号名
     private String findByUserId(Properties props, String userId) {
         if (userId == null) {
             return null;
@@ -519,7 +517,7 @@ final class AuthStore {
         }
     }
 
-    // 确保普通用户机器上也有最小 Git 提交身份
+    // 确保普通用户机器上也有最小Git提交身份
     private void ensureGitIdentity() {
         if (git(5, "config", "user.name").output().isBlank()) {
             git(5, "config", "user.name", "lantransfer");
@@ -529,7 +527,7 @@ final class AuthStore {
         }
     }
 
-    // 使用辅助账号 token 推送当前分支
+    // 使用辅助账号token推送当前分支
     private GitResult push(String branch) {
         String url = pushUrl();
         return url.isBlank()
@@ -537,7 +535,7 @@ final class AuthStore {
                 : git(45, "push", url, "HEAD:" + branch);
     }
 
-    // 生成带辅助账号 token 的临时 HTTPS 推送地址
+    // 生成带辅助账号token的临时HTTPS推送地址
     private String pushUrl() {
         String token = token();
         String repo = repoPath(AppFiles.repoOrigin());
@@ -548,13 +546,13 @@ final class AuthStore {
                 + "@github.com/" + repo + ".git";
     }
 
-    // 读取运行时注入的辅助账号 token
+    // 读取运行时注入的辅助账号token
     private String token() {
         String property = System.getProperty("acco.t", "");
         return property.isBlank() ? System.getenv().getOrDefault("ACCO_T", "") : property;
     }
 
-    // 从远程地址中提取 owner/repo
+    // 从远程地址中提取owner/repo
     private String repoPath(String origin) {
         if (origin == null || origin.isBlank()) {
             return "";
@@ -588,7 +586,7 @@ final class AuthStore {
         }
     }
 
-    // 判断当前目录是否是 Git 仓库
+    // 判断当前目录是否是Git仓库
     private boolean inGitRepo() {
         return Files.exists(repoRoot().resolve(".git"));
     }
@@ -599,7 +597,7 @@ final class AuthStore {
         return result.success() ? result.output().trim() : "";
     }
 
-    // 执行 Git 命令并收集输出
+    // 执行Git命令并收集输出
     private GitResult git(int timeoutSeconds, String... args) {
         List<String> command = new ArrayList<>();
         command.add("git");
@@ -621,7 +619,7 @@ final class AuthStore {
         }
     }
 
-    // 从错误输出里移除可能出现的 token
+    // 从错误输出里移除可能出现的token
     private String clean(String output) {
         String token = token();
         if (token.isBlank() || output == null) {
@@ -668,7 +666,7 @@ final class AuthStore {
         return new AuthResult(false, false, message, null);
     }
 
-    // Git 命令执行结果
+    // Git命令执行结果
     private record GitResult(boolean success, String output) {
     }
 }

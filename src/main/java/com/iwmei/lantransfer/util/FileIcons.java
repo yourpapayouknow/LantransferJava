@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.util;
-
 import java.io.File;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -131,17 +130,17 @@ public final class FileIcons {
         return "fltral-folder-24";
     }
 
-    // 判断是否为 Adobe 视频工程文件
+    // 判断是否为Adobe视频工程文件
     private static boolean isAdobeVideoProject(String name) {
         return name.endsWith(".prproj") || name.endsWith(".aep") || name.endsWith(".aepx");
     }
 
-    // 判断是否为 Adobe 设计工程文件
+    // 判断是否为Adobe设计工程文件
     private static boolean isAdobeDesignProject(String name) {
         return name.endsWith(".psd") || name.endsWith(".ai") || name.endsWith(".xd") || name.endsWith(".indd");
     }
 
-    // 判断是否为常见 IDE 项目标记
+    // 判断是否为常见IDE项目标记
     private static boolean isIdeProjectMarker(String name) {
         return name.equals(".idea") || name.equals(".vscode") || name.equals("pom.xml") || name.equals("build.gradle")
                 || name.equals("settings.gradle") || name.equals("package.json") || name.equals("pyproject.toml")

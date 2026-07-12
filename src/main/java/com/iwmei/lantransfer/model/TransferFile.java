@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.model;
-
 import java.nio.file.Path;
 
 // 待传输文件数据对象

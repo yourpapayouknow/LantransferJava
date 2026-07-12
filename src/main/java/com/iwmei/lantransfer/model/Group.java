@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.model;
-
 import java.util.List;
 
 // 本地传输分组数据对象，保存组名、默认口令和成员快照

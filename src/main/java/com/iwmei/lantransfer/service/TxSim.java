@@ -1,11 +1,9 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.TransferTask;
 import com.iwmei.lantransfer.model.UserDevice;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -15,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-// 本地传输模拟器，负责在 UDP 内核完成前生成真实文件和目标维度的结果报告
+// 本地传输模拟器，负责在UDP内核完成前生成真实文件和目标维度的结果报告
 final class TxSim {
     private static final long SPEED_BYTES = 12L * 1024 * 1024;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
@@ -63,6 +61,7 @@ final class TxSim {
             }
         }
         logs.add(stamp("任务结束：成功 " + success + "，失败 " + failed + "，重试 " + retries));
+
         // ponytail: local simulation until the UDP sender exists; replace this class when wire transfer is implemented.
         return logs;
     }

@@ -1,5 +1,4 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.SystemSettings;
 import com.iwmei.lantransfer.model.TransferFile;
@@ -8,7 +7,6 @@ import com.iwmei.lantransfer.model.TransferTask;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
 import com.iwmei.lantransfer.util.FileIcons;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.DatagramPacket;
@@ -38,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-// UDP 文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
+// UDP文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
 final class UdpTx {
     private static final int DEFAULT_CHUNK_BYTES = 8192;
     private static final int ACK_TIMEOUT_MILLIS = 500;
@@ -46,7 +44,6 @@ final class UdpTx {
     private static final int MAX_CHUNK_WORKERS = 8;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final DateTimeFormatter DONE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
     private final int chunkBytes;
     private final Object pauseLock = new Object();
     private volatile boolean paused;
@@ -61,7 +58,7 @@ final class UdpTx {
         this.chunkBytes = Math.max(512, chunkBytes);
     }
 
-    // 暂停或继续后续 UDP 包发送
+    // 暂停或继续后续UDP包发送
     void setPaused(boolean paused) {
         // 暂停状态同步
         synchronized (pauseLock) {
@@ -101,6 +98,7 @@ final class UdpTx {
         int failed = 0;
         int retries = 0;
         logs.add(stamp("任务开始：共 " + safeTargets.size() + " 个目标，文件总数 " + sources.size() + " 个，大小 " + readable(totalBytes(sources))));
+
         // 空文件拦截
         if (sources.isEmpty()) {
             logs.add(stamp("⚠ 没有可传输文件"));
@@ -281,7 +279,7 @@ final class UdpTx {
         }
     }
 
-    // 单个 worker 使用自己的 UDP socket 发送多个分片
+    // 单个worker使用自己的UDP socket发送多个分片
     private WorkerSend sendWorker(FileChannel input, InetAddress address, int port, SourceFile source, UserDevice target,
                                   String jobId, int fileIndex, List<Integer> chunks, int maxRetries, RateLimit rate,
                                   Consumer<TransferSummary> progress, int targetCount, long started, List<String> logs,
@@ -378,7 +376,7 @@ final class UdpTx {
         return sendWithAck(socket, out.toByteArray(), jobId, fileIndex, chunkIndex, maxRetries, ACK_TIMEOUT_MILLIS);
     }
 
-    // 发送数据包并按最大重试次数等待 ACK
+    // 发送数据包并按最大重试次数等待ACK
     private AckResult sendWithAck(DatagramSocket socket, byte[] data, String jobId, int fileIndex, int chunkIndex,
                                   int maxRetries, int timeoutMillis) {
         int retries = 0;
@@ -414,7 +412,7 @@ final class UdpTx {
         }
     }
 
-    // 等待并校验接收端 ACK
+    // 等待并校验接收端ACK
     private AckResult awaitAck(DatagramSocket socket, String jobId, int fileIndex, int chunkIndex) {
         try {
             byte[] buffer = new byte[256];
@@ -472,7 +470,7 @@ final class UdpTx {
         return chunk.position();
     }
 
-    // 计算单文件分片并发 worker 数量
+    // 计算单文件分片并发worker数量
     private int chunkWorkers(int chunks) {
         if (chunks <= 1) {
             return 1;
@@ -649,7 +647,7 @@ final class UdpTx {
         }
     }
 
-    // 计算文件 SHA-256
+    // 计算文件SHA-256
     private String sha256(Path path) {
         try (InputStream input = Files.newInputStream(path)) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -760,7 +758,7 @@ final class UdpTx {
     private record ChunkSend(boolean success, int retries, int bytes) {
     }
 
-    // 单个 worker 发送结果
+    // 单个worker发送结果
     private record WorkerSend(boolean success, int retries, int failedChunk) {
     }
 

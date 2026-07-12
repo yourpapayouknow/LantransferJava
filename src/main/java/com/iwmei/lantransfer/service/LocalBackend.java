@@ -1,7 +1,5 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.*;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -23,7 +21,7 @@ public final class LocalBackend implements BackendFacade {
         return thread;
     });
 
-    // 初始化本地后端并启动 UDP 接收服务
+    // 初始化本地后端并启动UDP接收服务
     public LocalBackend() {
         lan.updateGroup(settings.load().groupCode());
         rx.start();

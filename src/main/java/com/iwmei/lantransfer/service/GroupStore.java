@@ -1,10 +1,8 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.Group;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -94,7 +92,7 @@ final class GroupStore {
         return new ArrayList<>(expanded.values());
     }
 
-    // 清洗成员列表并按用户 ID 去重
+    // 清洗成员列表并按用户ID去重
     private List<UserDevice> cleanMembers(List<UserDevice> members) {
         Map<String, UserDevice> clean = new LinkedHashMap<>();
         for (UserDevice member : members == null ? List.<UserDevice>of() : members) {
@@ -222,7 +220,7 @@ final class GroupStore {
         return status == null ? UserStatus.DEFAULT : status;
     }
 
-    // 解析整数
+    // 安全解析整型数值
     private int intValue(String value, int fallback) {
         try {
             return Integer.parseInt(value.trim());

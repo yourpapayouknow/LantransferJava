@@ -1,14 +1,12 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-// RecentStore 的无框架自检入口
+// RecentStore的无框架自检入口
 public final class RecentStoreCheck {
     // 阻止自检类被实例化
     private RecentStoreCheck() {

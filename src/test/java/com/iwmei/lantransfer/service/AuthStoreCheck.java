@@ -1,17 +1,15 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.AuthResult;
 import com.iwmei.lantransfer.model.LoginRequest;
 import com.iwmei.lantransfer.model.Profile;
 import com.iwmei.lantransfer.model.RegisterRequest;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 
-// AuthStore 的无框架自检入口
+// AuthStore的无框架自检入口
 public final class AuthStoreCheck {
     // 阻止自检类被实例化
     private AuthStoreCheck() {
@@ -25,7 +23,6 @@ public final class AuthStoreCheck {
             AuthStore store = new AuthStore(acco, dir.resolve("la"), dir.resolve("req"), false);
             AuthResult admin = store.login(new LoginRequest("admin", "admin", false));
             require(!admin.success(), "empty acco should not login admin");
-
             AuthResult registered = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(registered.success(), "registered account should succeed");
             require(!registered.pendingReview(), "disabled git sync should write acco directly");
@@ -35,18 +32,14 @@ public final class AuthStoreCheck {
             require(table.contains("AUTO_APPROVED"), "registration should auto approve");
             require(table.contains("actions"), "actions approver should be recorded");
             require(!table.contains("secret"), "acco should not contain plaintext password");
-
             AuthResult duplicate = store.register(new RegisterRequest("alice", "secret", "LAPTOP-A"));
             require(!duplicate.success(), "duplicate account should fail");
-
             AuthResult wrong = store.login(new LoginRequest("alice", "bad", false));
             require(!wrong.success(), "wrong password should fail");
-
             AuthResult ok = store.login(new LoginRequest("alice", "secret", true));
             require(ok.success(), "registered account should login");
             require("alice".equals(ok.profile().nickname()), "profile should use account nickname");
             require("alice".equals(store.rememberedAccount()), "remembered account should persist");
-
             Profile renamed = new Profile("Alice", ok.profile().userId(), "LAPTOP-B", "新的状态",
                     ok.profile().registeredAt(), ok.profile().lastLoginAt(), ok.profile().version(), ok.profile().language(),
                     ok.profile().status(), "QUJD");

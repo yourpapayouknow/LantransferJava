@@ -1,12 +1,10 @@
 package com.iwmei.lantransfer.service;
-
 import com.iwmei.lantransfer.model.DeviceStatus;
 import com.iwmei.lantransfer.model.SystemSettings;
 import com.iwmei.lantransfer.model.TransferFile;
 import com.iwmei.lantransfer.model.TransferSummary;
 import com.iwmei.lantransfer.model.UserDevice;
 import com.iwmei.lantransfer.model.UserStatus;
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -21,13 +19,13 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 
-// UdpTx 和 UdpRx 的本机真实 UDP 自检入口
+// UdpTx和UdpRx的本机真实UDP自检入口
 public final class UdpWireCheck {
     // 阻止自检类被实例化
     private UdpWireCheck() {
     }
 
-    // 运行本机 UDP 发送、确认和接收落盘检查
+    // 运行本机UDP发送、确认和接收落盘检查
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("lantransfer-udp-check");
         Path receiveDir = root.resolve("rx");
@@ -186,7 +184,7 @@ public final class UdpWireCheck {
         return sendAndReceive(port, message.getBytes(StandardCharsets.UTF_8));
     }
 
-    // 发送一个 SHA-256 错误的开始包并返回接收端确认
+    // 发送一个SHA-256错误的开始包并返回接收端确认
     private static String sendBadChecksumBegin(int port) throws Exception {
         String name = Base64.getUrlEncoder().encodeToString("bad.txt".getBytes(StandardCharsets.UTF_8));
         String message = UdpRx.BEGIN + "\tbad-job\t0\t" + name + "\t0\t0\t1024\tbad-sha";
@@ -217,7 +215,7 @@ public final class UdpWireCheck {
         return sendAndReceive(port, begin.getBytes(StandardCharsets.UTF_8));
     }
 
-    // 发送一个 UDP 包并返回接收端确认
+    // 发送一个UDP包并返回接收端确认
     private static String sendAndReceive(int port, byte[] data) throws Exception {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(1000);
@@ -229,13 +227,13 @@ public final class UdpWireCheck {
         }
     }
 
-    // 计算测试内容 SHA-256
+    // 计算测试内容SHA-256
     private static String sha256(String value) throws Exception {
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(digest);
     }
 
-    // 获取一个临时可用 UDP 端口
+    // 获取一个临时可用UDP端口
     private static int freePort() throws Exception {
         try (DatagramSocket socket = new DatagramSocket(0)) {
             return socket.getLocalPort();
