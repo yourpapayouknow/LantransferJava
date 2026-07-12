@@ -254,7 +254,7 @@ final class LanPeer {
         announce();
     }
 
-    // 更新传输口令分组摘要
+    // 更新旧协议分组摘要
     void updateGroup(String groupCode) {
         groupHash = groupHash(groupCode);
     }
@@ -292,7 +292,7 @@ final class LanPeer {
         return new UserDevice(id, nickname, deviceName, DeviceStatus.ONLINE, "本机", initial(nickname), color(id), false, localIp(), TRANSFER_PORT);
     }
 
-    // 静默广播本机资料给同组客户端
+    // 静默广播本机资料给局域网客户端
     private void announce() {
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setBroadcast(true);
@@ -404,9 +404,9 @@ final class LanPeer {
         return message == null || !message.startsWith(DISCOVER + "\t") ? "" : message.substring((DISCOVER + "\t").length()).trim();
     }
 
-    // 判断远端分组是否和本机一致
+    // 允许局域网发现不再按旧全局口令隔离
     private boolean groupMatches(String remoteHash) {
-        return groupHash.equals(remoteHash == null ? "" : remoteHash.trim());
+        return true;
     }
 
     // 生成口令分组摘要

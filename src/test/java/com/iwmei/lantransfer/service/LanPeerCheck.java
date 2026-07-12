@@ -28,7 +28,7 @@ public final class LanPeerCheck {
         String teamMessage = peer.encode(source);
         require(peer.parse(teamMessage) != null, "same group should parse");
         peer.updateGroup("team-b");
-        require(peer.parse(teamMessage) == null, "different group should be ignored");
+        require(peer.parse(teamMessage) != null, "discovery should ignore old group code");
         require(!peer.knownDevices().isEmpty(), "local device should exist");
         require(peer.knownDevices().stream().anyMatch(item -> item.port() == 45432),
                 "local transfer port should follow JVM property");
