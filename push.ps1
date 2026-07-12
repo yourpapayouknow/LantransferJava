@@ -17,11 +17,13 @@ if ([string]::IsNullOrWhiteSpace($branch)) {
     throw "No current branch"
 }
 
-# Stage all files
+# Stage all except the report document
 git add -A
+git reset -q -- "doc/实验报告.docx"
 
-# Commit current changes
-if ((git status --porcelain).Trim()) {
+# Commit staged changes
+git diff --cached --quiet
+if ($LASTEXITCODE -ne 0) {
     git commit -m $msg
 } else {
     Write-Host "No changes to commit"
