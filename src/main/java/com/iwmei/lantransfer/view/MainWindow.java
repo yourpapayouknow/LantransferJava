@@ -21,6 +21,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.ProgressBar;
@@ -99,6 +100,7 @@ public class MainWindow extends Application {
     boolean transferPaused;
     boolean userListGridView;
     boolean recentTargetsLoaded;
+    boolean autoScrollLogs = true;
     boolean startupTrayApplied;
     java.awt.TrayIcon trayIcon;
     int userListPage;
@@ -189,6 +191,7 @@ public class MainWindow extends Application {
         alert.setTitle("接收确认");
         alert.setHeaderText("收到文件：" + fileName);
         alert.setContentText("当前状态为忙碌，是否接收 " + bytes + " B？");
+        styleDialog(alert);
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
     }
 
@@ -198,6 +201,7 @@ public class MainWindow extends Application {
         alert.initOwner(stage);
         alert.setTitle("传输口令");
         alert.setHeaderText("收到文件：" + fileName);
+        styleDialog(alert);
         PasswordField code = passwordField("请输入传输口令");
         VBox content = new VBox(10, mutedLabel("大小：" + bytes + " B", 14), code);
         alert.getDialogPane().setContent(content);
@@ -205,6 +209,13 @@ public class MainWindow extends Application {
         ok.setDisable(true);
         code.textProperty().addListener((unused, oldValue, newValue) -> ok.setDisable(!codeMatches(newValue, codeHash)));
         return alert.showAndWait().filter(ButtonType.OK::equals).isPresent() && codeMatches(code.getText(), codeHash);
+    }
+
+    // 套用深色弹窗样式
+    void styleDialog(Dialog<?> dialog) {
+        dialog.getDialogPane().getStylesheets().add(Objects.requireNonNull(getClass().getResource("/css/app.css")).toExternalForm());
+        dialog.getDialogPane().getStyleClass().add("dark-dialog");
+        dialog.getDialogPane().setStyle("-color-accent: " + accentColor + ";");
     }
 
     // 展示接收端进度提示
@@ -668,7 +679,7 @@ public class MainWindow extends Application {
     }
 
     // 向传输表格加入一行任务
-    void addTransferRow(GridPane table, int row, TransferTask task) {
+    void addTransferRow(GridPane table, int row, TransferTask task, Runnable retry, Runnable remove) {
         table.add(fileNameCell(task.fileName()), 0, row);
         table.add(mutedLabel(task.target().nickname() + " (" + task.target().deviceName() + ")", 14), 1, row);
         table.add(progressCell(task.progressPercent()), 2, row);
@@ -676,7 +687,7 @@ public class MainWindow extends Application {
         table.add(mutedLabel(task.speed(), 14), 4, row);
         table.add(mutedLabel(task.elapsed(), 14), 5, row);
         table.add(statusBadge(task.status()), 6, row);
-        table.add(operationCell(task.status()), 7, row);
+        table.add(operationCell(task.status(), retry, remove), 7, row);
     }
 
     // 构建传输列表表格骨架
@@ -1046,7 +1057,7 @@ public class MainWindow extends Application {
     }
 
     // 构建传输列表操作单元格
-    Node operationCell(String status) {
+    Node operationCell(String status, Runnable retry, Runnable remove) {
         HBox cell = new HBox(8);
         cell.setAlignment(Pos.CENTER_LEFT);
         if ("传输中".equals(status)) {
@@ -1054,7 +1065,11 @@ public class MainWindow extends Application {
         } else if ("已完成".equals(status)) {
             cell.getChildren().add(compactButton("打开"));
         } else {
-            cell.getChildren().addAll(compactButton("重试"), compactButton("移除"));
+            Button retryButton = compactButton("重试");
+            Button removeButton = compactButton("移除");
+            retryButton.setOnAction(event -> retry.run());
+            removeButton.setOnAction(event -> remove.run());
+            cell.getChildren().addAll(retryButton, removeButton);
         }
         return cell;
     }

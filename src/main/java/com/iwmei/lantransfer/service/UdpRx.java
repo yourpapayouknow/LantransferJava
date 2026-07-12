@@ -32,6 +32,7 @@ final class UdpRx {
     private final SettingsStore settings;
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> approvals = new ConcurrentHashMap<>();
     private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
     private final RateLimit downloadRate = new RateLimit();
     private volatile UserStatus status = UserStatus.DEFAULT;
@@ -129,7 +130,7 @@ final class UdpRx {
             String codeHash = parts.length >= 9 ? parts[8] : "";
             if (!FileIcons.supportedName(fileName)) {
                 detail = "UNSUPPORTED";
-            } else if (allowBegin(fileName, size, codeHash)) {
+            } else if (allowBegin(jobId, fileName, size, codeHash)) {
                 RxFile file = createFile(fileName, size, chunkCount, chunkSize, sha256);
                 active.put(key, file);
                 detail = file.missing();
@@ -146,19 +147,26 @@ final class UdpRx {
     }
 
     // 判断当前状态是否允许开始接收文件
-    private boolean allowBegin(String fileName, long size, String codeHash) {
+    private boolean allowBegin(String jobId, String fileName, long size, String codeHash) {
         UserStatus value = status == null ? UserStatus.DEFAULT : status;
         if (value == UserStatus.INVISIBLE || value == UserStatus.OFFLINE) {
             return false;
         }
-        if (value != UserStatus.BUSY && (codeHash == null || codeHash.isBlank())) {
+        boolean needsAsk = value == UserStatus.BUSY || codeHash != null && !codeHash.isBlank();
+        if (!needsAsk) {
             return true;
         }
         try {
-            return ask.approve(fileName, size, codeHash);
+            return approvals.computeIfAbsent(approvalKey(jobId, codeHash), key -> ask.approve(fileName, size, codeHash));
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    // 生成本次传输确认缓存键
+    private String approvalKey(String jobId, String codeHash) {
+        String code = codeHash == null ? "" : codeHash;
+        return code.isBlank() ? jobId : code;
     }
 
     // 处理文件内容分片并在收齐后移动到最终文件

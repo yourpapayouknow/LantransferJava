@@ -118,6 +118,42 @@
     -fx-border-color: -color-accent;
 }
 
+/* 深色弹窗 */
+.dark-dialog {
+    -fx-background-color: #151a20;
+}
+
+/* 弹窗头部 */
+.dark-dialog > .header-panel {
+    -fx-background-color: #151a20;
+}
+
+/* 弹窗内容 */
+.dark-dialog > .content,
+.dark-dialog .label {
+    -fx-text-fill: #eef2f5;
+}
+
+/* 弹窗输入框 */
+.dark-dialog .text-field,
+.dark-dialog .password-field {
+    -fx-background-color: #101317;
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-text-fill: #eef2f5;
+    -fx-prompt-text-fill: rgba(222, 226, 232, 0.48);
+}
+
+/* 弹窗按钮 */
+.dark-dialog .button {
+    -fx-background-color: rgba(255, 255, 255, 0.055);
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-text-fill: #eef2f5;
+}
+
 /* 按钮基础 */
 .text-button {
     -fx-background-color: transparent;

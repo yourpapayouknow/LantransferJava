@@ -8,10 +8,10 @@ import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputDialog;
-import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
@@ -205,7 +205,8 @@ final class FileTransfer {
         section.getChildren().add(header);
         GridPane table = app.tableGrid("文件名", "目标对象", "进度", "大小", "速度", "时间", "状态", "操作");
         for (int i = 0; i < tasks.size(); i++) {
-            app.addTransferRow(table, i + 1, tasks.get(i));
+            TransferTask task = tasks.get(i);
+            app.addTransferRow(table, i + 1, task, () -> retryTask(task), () -> removeTask(task));
         }
         section.getChildren().add(table);
         return section;
@@ -229,15 +230,20 @@ final class FileTransfer {
         Button clear = app.secondaryButton("清空日志");
         clear.setDisable(summary.logs().isEmpty());
         clear.setOnAction(event -> clearLogs());
-        ToggleButton autoScroll = new ToggleButton();
-        autoScroll.getStyleClass().add("switch-toggle");
-        header.getChildren().addAll(app.mutedLabel("自动滚动", 14), autoScroll, clear);
+        CheckBox autoScroll = new CheckBox("自动滚动");
+        autoScroll.getStyleClass().add("dark-check");
+        autoScroll.setSelected(app.autoScrollLogs);
+        autoScroll.selectedProperty().addListener((unused, oldValue, selected) -> app.autoScrollLogs = selected);
+        header.getChildren().addAll(autoScroll, clear);
         VBox logBox = new VBox(6);
         logBox.getStyleClass().add("log-box");
         summary.logs().forEach(line -> logBox.getChildren().add(app.logLine(line)));
         ScrollPane logScroll = new ScrollPane(logBox);
         logScroll.getStyleClass().add("log-scroll");
         section.getChildren().addAll(header, logScroll);
+        if (app.autoScrollLogs) {
+            Platform.runLater(() -> logScroll.setVvalue(1.0));
+        }
         return section;
     }
 
@@ -263,6 +269,26 @@ final class FileTransfer {
             return;
         }
         app.currentSummary = app.currentSummary.withoutLogs();
+        showTransferResultPage();
+    }
+
+    // 重试失败任务对应目标
+    private void retryTask(TransferTask task) {
+        if (app.pendingFiles.isEmpty()) {
+            app.toast("原待传输项已清空");
+            return;
+        }
+        app.selectedTargets.clear();
+        app.selectedTargets.add(task.target());
+        startTransfer();
+    }
+
+    // 移除单条传输任务
+    private void removeTask(TransferTask task) {
+        if (app.currentSummary == null) {
+            return;
+        }
+        app.currentSummary = app.currentSummary.withoutTask(task);
         showTransferResultPage();
     }
 
@@ -320,6 +346,7 @@ final class FileTransfer {
         dialog.setTitle("传输口令");
         dialog.setHeaderText("本次传输口令");
         dialog.setContentText("无口令请留空");
+        app.styleDialog(dialog);
         return dialog.showAndWait().map(String::trim);
     }
 

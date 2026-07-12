@@ -14,6 +14,13 @@ public record TransferSummary(int targetCount, int successCount, int failedCount
         return new TransferSummary(targetCount, successCount, failedCount, retryCount, elapsed, List.of(), tasks);
     }
 
+    // 返回移除指定任务后的汇总
+    public TransferSummary withoutTask(TransferTask task) {
+        List<TransferTask> kept = new java.util.ArrayList<>(tasks);
+        kept.remove(task);
+        return with(logs, kept);
+    }
+
     // 用新日志和任务重建汇总统计
     private TransferSummary with(List<String> logs, List<TransferTask> tasks) {
         int targetCount = (int) tasks.stream().map(this::targetId).distinct().count();

@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // UdpTx和UdpRx的本机真实UDP自检入口
 public final class UdpWireCheck {
@@ -35,6 +36,7 @@ public final class UdpWireCheck {
         Path resumeSource = root.resolve("resume.bin");
         Path busySource = root.resolve("busy.txt");
         Path secureSource = root.resolve("secure.txt");
+        Path secureSecond = root.resolve("secure2.txt");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
@@ -42,6 +44,7 @@ public final class UdpWireCheck {
             Files.writeString(resumeSource, resumeContent);
             Files.writeString(busySource, "busy confirm");
             Files.writeString(secureSource, "secure confirm");
+            Files.writeString(secureSecond, "secure confirm 2");
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -120,15 +123,23 @@ public final class UdpWireCheck {
             int securePort = freePort();
             UdpRx secureRx = new UdpRx(store, securePort);
             String secretHash = sha256("secret");
-            secureRx.setAsk((name, bytes, codeHash) -> secretHash.equals(codeHash));
+            AtomicInteger secureAsks = new AtomicInteger();
+            List<String> secureNames = Collections.synchronizedList(new ArrayList<>());
+            secureRx.setAsk((name, bytes, codeHash) -> {
+                secureNames.add(name);
+                secureAsks.incrementAndGet();
+                return secretHash.equals(codeHash);
+            });
             secureRx.start();
             Thread.sleep(120);
             UserDevice secureTarget = new UserDevice("self-secure", "本机E", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
                     "#2f9f62", false, "127.0.0.1", securePort);
-            TransferSummary secureAccepted = tx.run(List.of(new TransferFile("secure.txt", "14 B", secureSource)),
+            TransferSummary secureAccepted = tx.run(List.of(new TransferFile("secure.txt", "14 B", secureSource),
+                            new TransferFile("secure2.txt", "16 B", secureSecond)),
                     List.of(secureTarget), store.load(), "secret", ignored -> {
                     });
             require(secureAccepted.successCount() == 1, "correct transfer code should allow receive");
+            require(secureAsks.get() == 1, "same transfer job should ask code once: " + secureNames);
             TransferSummary secureDenied = tx.run(List.of(new TransferFile("secure-deny.txt", "14 B", secureSource)),
                     List.of(secureTarget), store.load(), "wrong", ignored -> {
                     });
