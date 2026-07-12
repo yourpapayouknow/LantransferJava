@@ -19,6 +19,7 @@ public final class SettingsStoreCheck {
             SettingsStore store = new SettingsStore(file);
             SystemSettings defaults = store.load();
             require(defaults.maxRetries() == 3, "default retries should be 3");
+            require(!defaults.startMinimized(), "startup tray should be opt-in");
             SystemSettings saved = new SystemSettings("1.1.1.1", "::1", 1, 2, 4, "#2f80ed", "Arial", 16, 125,
                     SystemSettings.defaultReceiveDir(), "team-a", "简体中文", false, true, true);
             store.save(saved);
@@ -30,6 +31,7 @@ public final class SettingsStoreCheck {
             require("team-a".equals(loaded.groupCode()), "group code should persist");
             require(!loaded.receiveDir().isBlank(), "receive dir should exist");
             require("简体中文".equals(loaded.language()), "language should persist");
+            require(loaded.startMinimized(), "startup tray flag should persist");
             require(loaded.soundOnComplete(), "sound flag should persist");
         } finally {
             Files.deleteIfExists(file);

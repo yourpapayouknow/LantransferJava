@@ -380,11 +380,13 @@ public class MainWindow extends Application {
 
     // 按启动设置隐藏到系统托盘
     private void applyStartupTray() {
-        if (startupTrayApplied || profile == null || currentSettings == null || !currentSettings.startMinimized()) {
+        if (startupTrayApplied || profile == null || currentSettings == null) {
             return;
         }
         startupTrayApplied = true;
-        hideToTray();
+        if (currentSettings.autoStart() && currentSettings.startMinimized()) {
+            hideToTray();
+        }
     }
 
     // 构建自定义窗口标题栏

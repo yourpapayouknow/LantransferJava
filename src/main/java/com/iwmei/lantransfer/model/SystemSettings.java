@@ -11,7 +11,7 @@ public record SystemSettings(String ipv4, String ipv6, int uploadLimit, int down
     public SystemSettings(String ipv4, String ipv6, int uploadLimit, int downloadLimit, int maxRetries,
                           String accentColor, String fontFamily, int fontSize, int zoomPercent) {
         this(ipv4, ipv6, uploadLimit, downloadLimit, maxRetries, accentColor, fontFamily, fontSize, zoomPercent,
-                defaultReceiveDir(), "", "简体中文", false, true, true);
+                defaultReceiveDir(), "", "简体中文", false, false, true);
     }
 
     // 返回默认接收目录
