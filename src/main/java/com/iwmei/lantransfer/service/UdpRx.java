@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 // UDP文件接收服务，负责后台监听传输端口并把收到的文件落盘到接收目录
 final class UdpRx {
@@ -29,12 +31,19 @@ final class UdpRx {
     static final String DATA = "LANTRANSFER_FILE_DATA_V1";
     static final String ACK = "LANTRANSFER_FILE_ACK_V1";
     private static final int BUFFER_BYTES = 60_000;
+    private static final int RX_WORKERS = 8;
     private final SettingsStore settings;
     private final int port;
     private final Map<String, RxFile> active = new ConcurrentHashMap<>();
     private final Map<String, Boolean> approvals = new ConcurrentHashMap<>();
     private final Set<Path> reserved = ConcurrentHashMap.newKeySet();
     private final RateLimit downloadRate = new RateLimit();
+    // 接收worker池
+    private final ExecutorService workers = Executors.newFixedThreadPool(RX_WORKERS, task -> {
+        Thread thread = new Thread(task, "lantransfer-udp-rx-worker");
+        thread.setDaemon(true);
+        return thread;
+    });
     private volatile UserStatus status = UserStatus.DEFAULT;
     private volatile RxAsk ask = (fileName, bytes, codeHash) -> true;
     private volatile RxProgress progress = (fileName, percent) -> {
@@ -83,6 +92,8 @@ final class UdpRx {
     private void listen() {
         try (DatagramSocket socket = new DatagramSocket(null)) {
             socket.setReuseAddress(true);
+            // 接收缓冲
+            socket.setReceiveBufferSize(BUFFER_BYTES * RX_WORKERS * 8);
             socket.bind(new InetSocketAddress(port));
             while (running) {
                 byte[] buffer = new byte[BUFFER_BYTES];
@@ -102,7 +113,8 @@ final class UdpRx {
         if (startsWith(data, length, BEGIN)) {
             handleBegin(socket, packet);
         } else if (startsWith(data, length, DATA)) {
-            handleData(socket, packet);
+            // DATA并行处理
+            workers.execute(() -> handleData(socket, packet));
         }
     }
 
@@ -187,7 +199,7 @@ final class UdpRx {
         RxFile file = active.get(key(jobId, fileIndex));
         boolean ok = file != null && file.write(chunkIndex, data, offset, length - offset);
         if (ok) {
-            downloadRate.pause(length - offset, downloadBytesPerSecond());
+            downloadRate.pause(length - offset, file.downloadBytesPerSecond);
         }
         ack(socket, packet, jobId, fileIndex, chunkIndex, ok);
     }
@@ -208,7 +220,8 @@ final class UdpRx {
         Path target = uniqueTarget(dir, safeName(fileName));
         Path part = target.resolveSibling(target.getFileName() + ".part");
         Path meta = target.resolveSibling(target.getFileName() + ".part.meta");
-        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), progress);
+        return new RxFile(target, part, meta, size, chunkCount, chunkSize, sha256, safeName(fileName), progress,
+                downloadBytesPerSecond());
     }
 
     // 返回不覆盖旧文件的接收路径
@@ -323,6 +336,8 @@ final class UdpRx {
         private final String sha256;
         private final String fileName;
         private final RxProgress progress;
+        private final long downloadBytesPerSecond;
+        private final FileChannel channel;
         private final BitSet received = new BitSet();
         private int nextProgress = 25;
         private int receivedCount;
@@ -330,7 +345,7 @@ final class UdpRx {
 
         // 初始化接收中文件状态
         private RxFile(Path target, Path part, Path meta, long size, int chunkCount, int chunkSize, String sha256,
-                       String fileName, RxProgress progress) throws IOException {
+                       String fileName, RxProgress progress, long downloadBytesPerSecond) throws IOException {
             this.target = target;
             this.part = part;
             this.meta = meta;
@@ -340,11 +355,14 @@ final class UdpRx {
             this.sha256 = sha256 == null ? "" : sha256;
             this.fileName = fileName;
             this.progress = progress;
+            this.downloadBytesPerSecond = downloadBytesPerSecond;
             restoreOrReset();
+            this.channel = FileChannel.open(part, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         }
 
         // 写入一个文件分片
         private synchronized boolean write(int chunkIndex, byte[] data, int offset, int length) {
+            // 分片校验
             if (done) {
                 return true;
             }
@@ -354,24 +372,41 @@ final class UdpRx {
             if (received.get(chunkIndex)) {
                 return receivedCount < chunkCount || finishOk();
             }
-            try (FileChannel channel = FileChannel.open(part, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
-                channel.position((long) chunkIndex * chunkSize);
-                channel.write(ByteBuffer.wrap(data, offset, length));
-                received.set(chunkIndex);
-                receivedCount++;
-                saveMeta();
-                if (receivedCount == chunkCount) {
-                    boolean finished = finishOk();
-                    if (finished) {
-                        publish(100);
-                    }
-                    return finished;
-                }
-                publishProgress();
-                return true;
+            try {
+                channel.write(ByteBuffer.wrap(data, offset, length), (long) chunkIndex * chunkSize);
             } catch (Exception ignored) {
                 return false;
             }
+            // 分片状态
+            if (done) {
+                return true;
+            }
+            if (received.get(chunkIndex)) {
+                return true;
+            }
+            received.set(chunkIndex);
+            receivedCount++;
+            try {
+                if (shouldSaveMeta()) {
+                    saveMeta();
+                }
+            } catch (Exception ignored) {
+                return false;
+            }
+            if (receivedCount == chunkCount) {
+                boolean finished = finishOk();
+                if (finished) {
+                    publish(100);
+                }
+                return finished;
+            }
+            publishProgress();
+            return true;
+        }
+
+        // 判断是否需要保存断点元数据
+        private boolean shouldSaveMeta() {
+            return receivedCount == 1 || receivedCount % 16 == 0 || receivedCount == chunkCount;
         }
 
         // 按进度节点推送接收进度
@@ -412,6 +447,7 @@ final class UdpRx {
             if (size == 0 && !Files.exists(part)) {
                 Files.write(part, new byte[0]);
             }
+            channel.close();
             if (!sha256.isBlank() && !sha256.equalsIgnoreCase(sha256(part))) {
                 throw new IOException("sha256 mismatch");
             }
@@ -512,7 +548,8 @@ final class UdpRx {
             received += bytes;
             long expected = (long) (received * 1_000_000_000.0 / bytesPerSecond);
             long wait = expected - (System.nanoTime() - started);
-            if (wait <= 0) {
+            // 亚毫秒等待
+            if (wait < 1_000_000) {
                 return;
             }
             try {

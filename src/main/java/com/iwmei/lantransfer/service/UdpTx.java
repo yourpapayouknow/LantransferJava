@@ -39,7 +39,7 @@ import java.util.function.Consumer;
 // UDP文件发送服务，负责按目标设备地址发送文件并生成最终传输报告
 final class UdpTx {
     private static final int DEFAULT_CHUNK_BYTES = 8192;
-    private static final int ACK_TIMEOUT_MILLIS = 500;
+    private static final int ACK_TIMEOUT_MILLIS = 2_000;
     private static final int BEGIN_ACK_TIMEOUT_MILLIS = 15_000;
     private static final int MAX_CHUNK_WORKERS = 8;
     private static final DateTimeFormatter LOG_TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
@@ -785,7 +785,8 @@ final class UdpTx {
             sent += bytes;
             long expected = (long) (sent * 1_000_000_000.0 / bytesPerSecond);
             long wait = expected - (System.nanoTime() - started);
-            if (wait <= 0) {
+            // 亚毫秒等待
+            if (wait < 1_000_000) {
                 return;
             }
             try {

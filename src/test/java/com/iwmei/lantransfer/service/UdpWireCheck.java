@@ -37,6 +37,7 @@ public final class UdpWireCheck {
         Path busySource = root.resolve("busy.txt");
         Path secureSource = root.resolve("secure.txt");
         Path secureSecond = root.resolve("secure2.txt");
+        Path secureLarge = root.resolve("secure-large.bin");
         try {
             Files.writeString(source, "hello udp");
             Files.writeString(etaSource, "a".repeat(1024));
@@ -45,6 +46,7 @@ public final class UdpWireCheck {
             Files.writeString(busySource, "busy confirm");
             Files.writeString(secureSource, "secure confirm");
             Files.writeString(secureSecond, "secure confirm 2");
+            Files.write(secureLarge, "L".repeat(1024 * 1024).getBytes(StandardCharsets.UTF_8));
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -140,6 +142,12 @@ public final class UdpWireCheck {
                     });
             require(secureAccepted.successCount() == 1, "correct transfer code should allow receive");
             require(secureAsks.get() == 1, "same transfer job should ask code once: " + secureNames);
+            TransferSummary secureLargeAccepted = new UdpTx().run(List.of(new TransferFile("secure-large.bin", "1.00 MB", secureLarge)),
+                    List.of(secureTarget), store.load(), "secret", ignored -> {
+                    });
+            require(secureLargeAccepted.successCount() == 1, "large transfer with code should succeed: " + secureLargeAccepted.logs());
+            require(secureLargeAccepted.retryCount() < 8,
+                    "large transfer with code should not rely on heavy retries: " + secureLargeAccepted.retryCount());
             TransferSummary secureDenied = tx.run(List.of(new TransferFile("secure-deny.txt", "14 B", secureSource)),
                     List.of(secureTarget), store.load(), "wrong", ignored -> {
                     });
