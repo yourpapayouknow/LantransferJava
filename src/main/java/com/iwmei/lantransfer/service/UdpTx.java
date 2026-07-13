@@ -90,7 +90,8 @@ final class UdpTx {
         Consumer<TransferSummary> safeProgress = progress == null ? summary -> {
         } : progress;
         int maxRetries = settings == null ? 3 : Math.max(0, settings.maxRetries());
-        long bytesPerSecond = perTargetBytesPerSecond(settings, sendableTargets(safeTargets));
+        int sendableCount = sendableTargets(safeTargets);
+        long bytesPerSecond = perTargetBytesPerSecond(settings, sendableCount);
         String codeHash = codeHash(code);
         List<TransferTask> tasks = new ArrayList<>();
         List<String> logs = new ArrayList<>();
@@ -104,6 +105,10 @@ final class UdpTx {
             logs.add(stamp("⚠ 没有可传输文件"));
             return new TransferSummary(safeTargets.size(), 0, safeTargets.isEmpty() ? 0 : safeTargets.size(), 0,
                     elapsed(started), logs, List.of());
+        }
+        int pairTasks = sources.size() * sendableCount;
+        if (pairTasks > 1) {
+            logs.add(stamp("⇄ 文件目标并发：" + pairTasks + " 个任务"));
         }
         for (TargetSend sent : sendTargets(sources, safeTargets, maxRetries, bytesPerSecond, codeHash, safeProgress)) {
             tasks.addAll(sent.tasks());
@@ -119,77 +124,112 @@ final class UdpTx {
         return new TransferSummary(safeTargets.size(), success, failed, retries, elapsed(started), logs, tasks);
     }
 
-    // 并发发送到多个目标并按原目标顺序返回结果
+    // 并发发送每个目标和文件组合并按原目标顺序返回结果
     private List<TargetSend> sendTargets(List<SourceFile> sources, List<UserDevice> targets, int maxRetries,
                                          long bytesPerSecond, String codeHash, Consumer<TransferSummary> progress) {
-        if (targets.size() <= 1) {
-            return targets.stream().map(target -> sendTarget(sources, target, maxRetries, bytesPerSecond, codeHash, progress,
-                    targets.size())).toList();
-        }
-        int threads = Math.min(targets.size(), Math.max(1, Runtime.getRuntime().availableProcessors()));
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
-        try {
-            List<Future<TargetSend>> futures = new ArrayList<>();
-            for (UserDevice target : targets) {
-                futures.add(pool.submit(() -> sendTarget(sources, target, maxRetries, bytesPerSecond, codeHash, progress,
-                        targets.size())));
+        List<TargetJob> jobs = new ArrayList<>();
+        int taskCount = 0;
+        for (UserDevice target : targets) {
+            boolean ok = sendable(target);
+            List<FileSend> files = new ArrayList<>();
+            for (int i = 0; i < sources.size(); i++) {
+                files.add(null);
             }
-            List<TargetSend> results = new ArrayList<>();
-            for (int i = 0; i < futures.size(); i++) {
-                try {
-                    results.add(futures.get(i).get());
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    results.add(failedTarget(sources, targets.get(i), maxRetries, "发送线程被中断"));
-                } catch (Exception ex) {
-                    results.add(failedTarget(sources, targets.get(i), maxRetries, "发送线程失败：" + ex.getMessage()));
+            List<String> logs = new ArrayList<>();
+            if (ok && target.userStatus() == UserStatus.BUSY) {
+                logs.add(stamp("… [" + targetLabel(target) + "] 对方忙碌，等待接收确认"));
+            }
+            jobs.add(new TargetJob(target, ok, ok ? UUID.randomUUID().toString() : "", new RateLimit(bytesPerSecond),
+                    files, logs));
+            if (ok) {
+                taskCount += sources.size();
+            }
+        }
+        if (taskCount == 0) {
+            return failedJobs(sources, jobs);
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(taskCount);
+        try {
+            List<FileFuture> futures = new ArrayList<>();
+            for (TargetJob job : jobs) {
+                if (!job.sendable()) {
+                    continue;
+                }
+                for (int fileIndex = 0; fileIndex < sources.size(); fileIndex++) {
+                    SourceFile source = sources.get(fileIndex);
+                    int index = fileIndex;
+                    futures.add(new FileFuture(job, index, source, pool.submit(() -> sendFileTask(source, job.target(),
+                            job.jobId(), index, maxRetries, job.rate(), codeHash, progress, targets.size()))));
                 }
             }
-            return results;
+            for (FileFuture item : futures) {
+                try {
+                    item.job().files().set(item.fileIndex(), item.future().get());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    item.job().files().set(item.fileIndex(), new FileSend(false, maxRetries,
+                            failedTask(item.source(), item.job().target(), maxRetries), List.of(stamp("⚠ ["
+                            + targetLabel(item.job().target()) + "] 发送线程被中断"))));
+                } catch (Exception ex) {
+                    item.job().files().set(item.fileIndex(), new FileSend(false, maxRetries,
+                            failedTask(item.source(), item.job().target(), maxRetries), List.of(stamp("⚠ ["
+                            + targetLabel(item.job().target()) + "] 发送线程失败：" + ex.getMessage()))));
+                }
+            }
+            return finishJobs(sources, jobs, maxRetries);
         } finally {
             pool.shutdownNow();
         }
     }
 
-    // 发送所有文件到单个目标
-    private TargetSend sendTarget(List<SourceFile> sources, UserDevice target, int maxRetries, long bytesPerSecond, String codeHash,
-                                  Consumer<TransferSummary> progress, int targetCount) {
-        List<TransferTask> tasks = new ArrayList<>();
-        List<String> logs = new ArrayList<>();
-        int retries = 0;
-        boolean success = sendable(target);
-        if (!success) {
-            for (SourceFile source : sources) {
-                tasks.add(failedTask(source, target, 0));
-            }
-            logs.add(stamp("⚠ [" + targetLabel(target) + "] " + blockReason(target)));
-            return new TargetSend(false, retries, tasks, logs);
+    // 汇总全部不可发送目标
+    private List<TargetSend> failedJobs(List<SourceFile> sources, List<TargetJob> jobs) {
+        List<TargetSend> results = new ArrayList<>();
+        for (TargetJob job : jobs) {
+            results.add(failedTarget(sources, job.target(), 0, blockReason(job.target())));
         }
-        String jobId = UUID.randomUUID().toString();
-        RateLimit rate = new RateLimit(bytesPerSecond);
-        try (DatagramSocket socket = new DatagramSocket()) {
-            socket.connect(InetAddress.getByName(target.host()), target.port());
-            socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
-            if (target.userStatus() == UserStatus.BUSY) {
-                logs.add(stamp("… [" + targetLabel(target) + "] 对方忙碌，等待接收确认"));
+        return results;
+    }
+
+    // 汇总并发文件发送结果
+    private List<TargetSend> finishJobs(List<SourceFile> sources, List<TargetJob> jobs, int maxRetries) {
+        List<TargetSend> results = new ArrayList<>();
+        for (TargetJob job : jobs) {
+            if (!job.sendable()) {
+                results.add(failedTarget(sources, job.target(), 0, blockReason(job.target())));
+                continue;
             }
+            List<TransferTask> tasks = new ArrayList<>();
+            List<String> logs = new ArrayList<>(job.logs());
+            int retries = 0;
+            boolean success = true;
             for (int i = 0; i < sources.size(); i++) {
-                FileSend sent = sendFile(socket, sources.get(i), target, jobId, i, maxRetries, rate, codeHash, progress,
-                        targetCount);
+                FileSend sent = job.files().get(i);
+                if (sent == null) {
+                    sent = new FileSend(false, maxRetries, failedTask(sources.get(i), job.target(), maxRetries),
+                            List.of(stamp("⚠ [" + targetLabel(job.target()) + "] 发送任务未完成")));
+                }
                 tasks.add(sent.task());
                 logs.addAll(sent.logs());
                 retries += sent.retries();
                 success = success && sent.success();
             }
-        } catch (Exception ex) {
-            success = false;
-            for (SourceFile source : sources) {
-                tasks.add(failedTask(source, target, maxRetries));
-            }
-            retries += maxRetries;
-            logs.add(stamp("⚠ [" + targetLabel(target) + "] UDP 发送初始化失败：" + ex.getMessage()));
+            results.add(new TargetSend(success, retries, tasks, logs));
         }
-        return new TargetSend(success, retries, tasks, logs);
+        return results;
+    }
+
+    // 使用独立UDP socket发送一个目标文件任务
+    private FileSend sendFileTask(SourceFile source, UserDevice target, String jobId, int fileIndex, int maxRetries,
+                                  RateLimit rate, String codeHash, Consumer<TransferSummary> progress, int targetCount) {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName(target.host()), target.port());
+            socket.setSoTimeout(ACK_TIMEOUT_MILLIS);
+            return sendFile(socket, source, target, jobId, fileIndex, maxRetries, rate, codeHash, progress, targetCount);
+        } catch (Exception ex) {
+            return new FileSend(false, maxRetries, failedTask(source, target, maxRetries),
+                    List.of(stamp("⚠ [" + targetLabel(target) + "] UDP 发送初始化失败：" + ex.getMessage())));
+        }
     }
 
     // 构造目标级异常失败结果
@@ -613,7 +653,7 @@ final class UdpTx {
                 count++;
             }
         }
-        return Math.max(1, count);
+        return count;
     }
 
     // 计算每个目标分到的上传限速字节数
@@ -744,6 +784,15 @@ final class UdpTx {
 
     // 单个文件发送结果
     private record FileSend(boolean success, int retries, TransferTask task, List<String> logs) {
+    }
+
+    // 单个目标并发上下文
+    private record TargetJob(UserDevice target, boolean sendable, String jobId, RateLimit rate, List<FileSend> files,
+                             List<String> logs) {
+    }
+
+    // 单个目标文件Future
+    private record FileFuture(TargetJob job, int fileIndex, SourceFile source, Future<FileSend> future) {
     }
 
     // 单个目标发送结果

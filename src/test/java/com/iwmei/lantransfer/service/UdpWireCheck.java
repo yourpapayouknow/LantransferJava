@@ -47,6 +47,12 @@ public final class UdpWireCheck {
             Files.writeString(secureSource, "secure confirm");
             Files.writeString(secureSecond, "secure confirm 2");
             Files.write(secureLarge, "L".repeat(1024 * 1024).getBytes(StandardCharsets.UTF_8));
+            List<TransferFile> parallelFiles = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Path path = root.resolve("parallel-" + i + ".txt");
+                Files.writeString(path, "parallel " + i);
+                parallelFiles.add(new TransferFile(path.getFileName().toString(), "10 B", path));
+            }
             SettingsStore store = new SettingsStore(settingsFile);
             store.save(new SystemSettings("127.0.0.1", "::1", 10, 20, 2, "#ff8500", "Microsoft YaHei", 14, 100,
                     receiveDir.toString(), "", "简体中文", false, true, true));
@@ -74,6 +80,15 @@ public final class UdpWireCheck {
             require("hello udp".equals(Files.readString(secondFile)), "second received content should match");
             require(rxProgress.stream().anyMatch(item -> item.equals("hello.txt:100")),
                     "receiver progress should publish completion");
+            UserDevice third = new UserDevice("self-parallel-3", "本机C", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#7a52d8", false, "127.0.0.1", port);
+            UserDevice fourth = new UserDevice("self-parallel-4", "本机D", "TEST-PC", DeviceStatus.ONLINE, "刚刚", "本",
+                    "#2f9f62", false, "127.0.0.1", port);
+            TransferSummary parallel = new UdpTx().run(parallelFiles, List.of(first, second, third, fourth), store.load());
+            require(parallel.successCount() == 4, "four targets should send in parallel successfully");
+            require(parallel.tasks().size() == 20, "five files times four targets should create twenty file-target tasks");
+            require(parallel.logs().stream().anyMatch(log -> log.contains("文件目标并发：20 个任务")),
+                    "file-target parallelism should be logged: " + parallel.logs());
             int busyAcceptPort = freePort();
             UdpRx busyAcceptRx = new UdpRx(store, busyAcceptPort);
             busyAcceptRx.updateStatus(UserStatus.BUSY);
