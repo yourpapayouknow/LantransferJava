@@ -469,7 +469,7 @@ final class AuthStore {
         }
     }
 
-    // 从远程仓库拉取最新账号表
+    // 从远程仓库同步最新账号表
     private void pullAccounts() {
         if (!gitSync || !inGitRepo()) {
             return;
@@ -478,9 +478,13 @@ final class AuthStore {
         if (branch.isBlank()) {
             return;
         }
-        GitResult result = git(30, "pull", "--rebase", "--autostash", "origin", branch);
-        if (!result.success()) {
-            throw new IllegalStateException("同步账号表失败：" + result.output());
+        GitResult fetch = git(30, "fetch", "origin", branch);
+        if (!fetch.success()) {
+            throw new IllegalStateException("同步账号表失败：" + fetch.output());
+        }
+        GitResult checkout = git(10, "checkout", "FETCH_HEAD", "--", relative(table));
+        if (!checkout.success()) {
+            throw new IllegalStateException("同步账号表失败：" + checkout.output());
         }
     }
 
