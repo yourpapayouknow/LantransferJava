@@ -55,15 +55,15 @@
 * Maven 3.6 及以上版本。
 * Windows 操作系统 (以支持开机自启动和 CMD 优化脚本)。
 
-### 2. 账号系统激活 (首批用户登录/注册需要)
+### 2. 账号系统激活与 VIP 注册权限
 由于没有独立中心服务器，项目依靠 GitHub 仓库存储和验证账号。若需要注册新账号：
-1. 申请一个具备 `repo` 权限的 GitHub Classic PAT (Personal Access Token)。
-2. 运行根目录下的 `tok.ps1` 脚本，将 token 填入以实现本地加密保存：
+1. 账号注册需要专门的 VIP 授权 Token。该 Token 并非由用户自主申请，而是需要加微信开通 VIP 后方可获得。
+2. 获得授权 Token 后，运行根目录下的 `tok.ps1` 脚本，将 Token 填入以实现本地加密保存：
    ```powershell
    # 在项目根目录下打开 PowerShell 执行
    .\tok.ps1
    ```
-   该 token 将保存在 Windows 本地 AppData 目录，避免硬编码到代码中。
+   该 Token 将保存在 Windows 本地 AppData 目录，避免硬编码到代码中。
 
 ### 3. 构建与运行
 * **安全拉取 Token 并运行 (推荐注册新账号时使用)**：
