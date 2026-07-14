@@ -535,7 +535,7 @@ final class AuthStore {
     private GitResult push(String branch) {
         String url = pushUrl();
         return url.isBlank()
-                ? new GitResult(false, "未检测到 VIP 授权 Token，请联系微信客服开通 VIP 获取注册权限")
+                ? new GitResult(false, "未配置 ACCO_T 或 -Dacco.t，无法使用辅助账号推送注册请求")
                 : git(45, "push", url, "HEAD:" + branch);
     }
 
